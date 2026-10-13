@@ -1,7 +1,8 @@
-# Replace @sami @yash @neha @sakshi with real GitHub usernames before enabling
-# "Require review from Code Owners" on main.
+# CODEOWNERS - folder ownership for review routing (SD#14.8).
+# Owners for this repo: @sami-bigdrops and @Yash-BigDrops only.
 
 *                       @sami-bigdrops @Yash-BigDrops
+
 /apps/email-hub/        @sami-bigdrops @Yash-BigDrops
 /apps/worker/           @sami-bigdrops @Yash-BigDrops
 /packages/db/           @sami-bigdrops @Yash-BigDrops
