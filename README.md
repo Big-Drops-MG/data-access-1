@@ -1,21 +1,38 @@
-# shadcn/ui monorepo template
+# Email Hub
 
-This is a Next.js monorepo template with shadcn/ui.
+pnpm + Turborepo monorepo for the Email Hub platform (Node 24 LTS).
 
-## Adding components
+## Workspace layout
 
-To add components to your app, run the following command at the root of your `web` app:
+| Path              | Contents                                      |
+| ----------------- | --------------------------------------------- |
+| `apps/email-hub`  | Next.js 16 app (App Router)                   |
+| `apps/worker`     | BullMQ workers and schedulers                 |
+| `packages/db`     | Drizzle schema, migrations, ClickHouse client |
+| `packages/shared` | Shared Zod schemas, helpers                   |
+| `packages/emails` | react-email templates                         |
+| `packages/config` | Shared tsconfig, ESLint, Prettier, commitlint |
+| `packages/ui`     | Shared UI kit (shadcn/ui)                     |
+
+## Prerequisites
+
+- Node.js 24 LTS
+- pnpm 11+
+
+## Commands
 
 ```bash
-pnpm dlx shadcn@latest add button -c apps/web
+pnpm install
+pnpm build
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test
+pnpm dev
 ```
 
-This will place the ui components in the `packages/ui/src/components` directory.
+## Tooling
 
-## Using components
-
-To use the components in your app, import them from the `ui` package.
-
-```tsx
-import { Button } from "@workspace/ui/components/button";
-```
+- ESLint, Prettier, and commitlint live in `@workspace/config`
+- Husky runs `lint-staged` on pre-commit and commitlint on commit-msg
+- Commit format: `<type>(T-###): <summary>`
