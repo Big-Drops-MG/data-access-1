@@ -1,20 +1,21 @@
-# CODEOWNERS — folder ownership for review routing (SD#14.8 / Developer Rules).
-# GitHub usernames must match org members. Replace TODO handles before enabling
+# CODEOWNERS - folder ownership for review routing (SD#14.8 / Developer Rules).
+# GitHub usernames must match org members before enabling
 # "Require review from Code Owners" on branch protection.
 #
 # Known handles today:
 #   @sami-bigdrops   (Sami)
 #   @Yash-BigDrops   (Yash)
 #   @sakshi-bigdrops (Sakshi)
+# TODO: add Neha's GitHub username for frontend pairs.
 
 *                       @sami-bigdrops @Yash-BigDrops
 
 /apps/email-hub/        @sami-bigdrops @Yash-BigDrops
-/apps/worker/           @Yash-BigDrops @sami-bigdrops
-/packages/db/           @Yash-BigDrops @sami-bigdrops
-/packages/shared/       @sami-bigdrops @Yash-BigDrops
+/apps/worker/           @Yash-BigDrops @sakshi-bigdrops
+/packages/db/           @sakshi-bigdrops @Yash-BigDrops
+/packages/shared/       @sakshi-bigdrops @sami-bigdrops
 /packages/emails/       @sami-bigdrops @Yash-BigDrops
 /packages/ui/           @sami-bigdrops @Yash-BigDrops
-/packages/config/       @sami-bigdrops @Yash-BigDrops
-/infra/                 @Yash-BigDrops @sami-bigdrops
-/.github/               @Yash-BigDrops @sami-bigdrops
+/packages/config/       @sakshi-bigdrops @sami-bigdrops
+/infra/                 @Yash-BigDrops @sakshi-bigdrops
+/.github/               @Yash-BigDrops @sakshi-bigdrops

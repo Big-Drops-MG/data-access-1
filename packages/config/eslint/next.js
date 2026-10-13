@@ -6,19 +6,13 @@ import globals from "globals"
 import { config as baseConfig } from "./base.js"
 
 /**
- * A custom ESLint configuration for libraries that use Next.js.
+ * ESLint config for Next.js apps.
  *
  * @type {import("eslint").Linter.Config[]}
  */
 export const nextJsConfig = [
   ...baseConfig,
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
   {
     languageOptions: {
       globals: {
