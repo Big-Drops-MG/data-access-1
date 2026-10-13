@@ -1,0 +1,13 @@
+# Replace @sami @yash @neha @sakshi with real GitHub usernames before enabling
+# "Require review from Code Owners" on main.
+
+*                       @sami-bigdrops @Yash-BigDrops
+/apps/email-hub/        @sami-bigdrops @Yash-BigDrops
+/apps/worker/           @sami-bigdrops @Yash-BigDrops
+/packages/db/           @sami-bigdrops @Yash-BigDrops
+/packages/shared/       @sami-bigdrops @Yash-BigDrops
+/packages/emails/       @sami-bigdrops @Yash-BigDrops
+/packages/ui/           @sami-bigdrops @Yash-BigDrops
+/packages/config/       @sami-bigdrops @Yash-BigDrops
+/infra/                 @sami-bigdrops @Yash-BigDrops
+/.github/               @sami-bigdrops @Yash-BigDrops

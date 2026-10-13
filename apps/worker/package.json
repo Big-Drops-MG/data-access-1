@@ -1,0 +1,28 @@
+{
+  "name": "@workspace/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "@workspace/emails": "workspace:*",
+    "@workspace/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@workspace/config": "workspace:*",
+    "eslint": "^10",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}
