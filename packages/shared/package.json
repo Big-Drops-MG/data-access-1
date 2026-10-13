@@ -22,7 +22,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@types/node": "^24",
+    "@types/node": "^26",
     "@workspace/config": "workspace:*",
     "eslint": "^10",
     "typescript": "^5",
