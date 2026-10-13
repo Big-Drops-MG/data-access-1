@@ -4,7 +4,7 @@ import globals from "globals"
 import { config as baseConfig } from "./base.js"
 
 /**
- * A custom ESLint configuration for libraries that use React.
+ * ESLint config for internal React libraries (e.g. packages/ui).
  *
  * @type {import("eslint").Linter.Config[]}
  */
@@ -13,8 +13,8 @@ export const config = [
   {
     languageOptions: {
       globals: {
-        ...globals.serviceworker,
         ...globals.browser,
+        ...globals.serviceworker,
       },
     },
   },
