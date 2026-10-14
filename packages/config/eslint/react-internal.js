@@ -1,3 +1,4 @@
+import pluginReact from "eslint-plugin-react"
 import pluginReactHooks from "eslint-plugin-react-hooks"
 import globals from "globals"
 
@@ -16,6 +17,20 @@ export const config = [
         ...globals.browser,
         ...globals.serviceworker,
       },
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+    },
+  },
+  {
+    plugins: {
+      react: pluginReact,
+    },
+    settings: {
+      react: { version: "detect" },
+    },
+    rules: {
+      "react/no-danger": "error",
     },
   },
   pluginReactHooks.configs.flat.recommended,
