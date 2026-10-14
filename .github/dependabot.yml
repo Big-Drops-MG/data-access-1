@@ -1,8 +1,10 @@
 # Weekly dependency updates (SD#14.8).
+# Model B: open PRs against `dev` (integration), not `main`.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: "dev"
     schedule:
       interval: weekly
       day: monday
@@ -12,9 +14,20 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    # Keep majors as planned work; bot handles patch/minor only for these.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lint-staged"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: "dev"
     schedule:
       interval: weekly
       day: monday
