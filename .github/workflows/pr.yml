@@ -1,0 +1,115 @@
+# PR checks (SD#13.6 Check stage, SD#16.2 CI services).
+name: PR
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSKY: "0"
+  TURBO_TELEMETRY_DISABLED: "1"
+  DATABASE_URL: postgresql://emailhub:emailhub@localhost:5432/emailhub
+  CLICKHOUSE_URL: http://localhost:8123
+  # CI Redis has no auth (GHA service containers cannot set requirepass like Compose).
+  REDIS_URL: redis://localhost:6379
+  MAIL_TRANSPORT: smtp
+  SMTP_HOST: localhost
+  SMTP_PORT: "1025"
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: emailhub
+          POSTGRES_PASSWORD: emailhub
+          POSTGRES_DB: emailhub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U emailhub -d emailhub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      clickhouse:
+        image: clickhouse:26.8
+        ports:
+          - 8123:8123
+          - 9000:9000
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "wget -qO- http://localhost:8123/ping | grep -q Ok"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      mailpit:
+        image: axllent/mailpit:v1.27.10
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Vitest
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
