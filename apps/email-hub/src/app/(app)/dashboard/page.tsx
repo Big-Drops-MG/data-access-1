@@ -1,22 +1,31 @@
+import Link from "next/link"
+
+import { PageHeader } from "@/components/app/page-header"
 import { StatusBadge } from "@/components/app/status-badge"
 
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-h2 font-semibold">Dashboard</h1>
-        <p className="text-body text-fg-muted">
-          Auth-less shell with Email Hub design tokens (light/dark via theme
-          toggle, press <kbd className="font-mono text-caption">d</kbd>).
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Auth-less shell with Email Hub design tokens. Press d to toggle theme."
+        actions={
+          <Link
+            href="/ui-kit"
+            className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-on-primary"
+            data-testid="dashboard-ui-kit-link"
+          >
+            Open UI kit demo
+          </Link>
+        }
+      />
       <div className="flex flex-wrap gap-2">
-        <StatusBadge variant="neutral">Queued</StatusBadge>
-        <StatusBadge variant="info">Scheduled</StatusBadge>
-        <StatusBadge variant="ok">Delivered</StatusBadge>
-        <StatusBadge variant="brand">Dispatching</StatusBadge>
-        <StatusBadge variant="warn">Pending</StatusBadge>
-        <StatusBadge variant="err">Failed</StatusBadge>
+        <StatusBadge status="queued" />
+        <StatusBadge status="scheduled" />
+        <StatusBadge status="completed" />
+        <StatusBadge status="dispatching" />
+        <StatusBadge status="pending" />
+        <StatusBadge status="failed" />
       </div>
     </div>
   )
