@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+ssh_key_ids = [
+  # DigitalOcean SSH key id or fingerprint from:
+  #   doctl compute ssh-key list
+]
+
+# Optional for now (defaults to 0.0.0.0/0). Tighten later to office IPs:
+# ssh_allowed_cidrs = ["203.0.113.10/32"]
+
+# Optional overrides (defaults match SD#13.1 Dev):
+# droplet_size    = "s-2vcpu-8gb-amd"
+# volume_size_gb  = 30
+# region          = "nyc3"
