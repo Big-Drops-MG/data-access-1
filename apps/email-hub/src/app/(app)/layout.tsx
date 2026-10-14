@@ -19,7 +19,7 @@ export default function AppShellLayout({
           Navigation tabs land in a later task.
         </span>
       </nav>
-      <div className="mx-auto w-full max-w-[1440px] flex-1 p-6">{children}</div>
+      <div className="mx-auto w-full max-w-360 flex-1 p-6">{children}</div>
     </div>
   )
 }
