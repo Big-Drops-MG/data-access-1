@@ -1,3 +1,21 @@
+# Agent instructions
+
+## Before starting any task
+
+1. Check the remote is up to date: `git fetch origin`.
+2. Confirm which base branch the task uses (normally `dev` for feature/fix/chore work; `main` only for hotfixes).
+3. Update local base if needed: `git checkout <base>` then `git pull origin <base>` (merge/pull only — do not rebase shared branches).
+4. Create or switch to the task branch from that up-to-date base: `<type>/T-###-short-kebab-name`.
+5. Only then start implementing the task.
+
+Do not begin coding on a stale local branch.
+
+## Tooling notes
+
+- Shared ESLint, Prettier, TypeScript, and commitlint live in `packages/config` (`@workspace/config`).
+- Husky `pre-commit` runs lint-staged (ESLint, Prettier, and Vitest related tests on changed files). A lint error blocks the commit.
+- Commit messages must match: `<type>(T-###): <summary>`.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know
