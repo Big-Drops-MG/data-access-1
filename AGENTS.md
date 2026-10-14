@@ -16,6 +16,19 @@ Do not begin coding on a stale local branch.
 - Husky `pre-commit` runs lint-staged (ESLint, Prettier, and Vitest related tests on changed files). A lint error blocks the commit.
 - Commit messages must match: `<type>(T-###): <summary>`.
 
+## Frontend markup and layout
+
+When building UI in `apps/email-hub` (or shared UI packages):
+
+- Prefer **semantic HTML** for structure and meaning: `header`, `nav`, `main`, `section`, `article`, `aside`, `footer`, `h1`–`h6`, `p`, `ul`/`ol`/`li`, `button`, `a`, `label`, `table` (and related), etc. Do not fake those with bare `div`/`span` when a real element fits.
+- Keep a **clear document outline**: one logical page title (`h1` or page-header pattern), then descending headings without skipping levels for layout convenience.
+- Structure layouts with **purpose-built landmarks and regions**, not decorative wrapper stacks. If a wrapper adds no layout, spacing, semantics, or behavior, remove it.
+- Avoid **unnecessary nesting**: no “div soup,” no extra flex/grid wrappers that only pass styles one level deeper, no fragment-of-wrappers around a single child.
+- Prefer **native interactive elements** (`button`, `a`, `input`, `select`) over clickable `div`/`span`. Add ARIA only when native semantics are insufficient.
+- Style with **design tokens / utility classes** on the semantic element itself when possible, instead of wrapping it solely to apply class names.
+- Keep lists, forms, and tables semantically correct (list items only under lists; labels tied to controls; table headers associated with cells).
+- Match existing shell and route-group patterns; do not invent parallel layout trees for the same page region.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

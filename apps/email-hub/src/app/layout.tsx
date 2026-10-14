@@ -4,11 +4,16 @@ import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+})
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-jetbrains-mono",
+  weight: ["400", "500", "600"],
 })
 
 export default function RootLayout({
@@ -21,10 +26,9 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       className={cn(
-        "antialiased",
-        jetbrainsMono.variable,
-        "font-sans",
-        inter.variable
+        "font-sans antialiased",
+        inter.variable,
+        jetbrainsMono.variable
       )}
     >
       <body>
