@@ -5,6 +5,9 @@ import { useState } from "react"
 
 import { ConfirmDialog } from "@/components/app/confirm-dialog"
 import { EmptyState } from "@/components/app/empty-state"
+import { EtDatePicker } from "@/components/app/et-date-picker"
+import { EtDateTime } from "@/components/app/et-datetime"
+import { EtDateTimePicker } from "@/components/app/et-datetime-picker"
 import { PageHeader } from "@/components/app/page-header"
 import {
   StatusBadge,
@@ -17,12 +20,16 @@ const statusEntries = Object.keys(statusBadgeCatalog) as StatusBadgeStatus[]
 
 export default function UiKitDemoPage() {
   const [lastConfirm, setLastConfirm] = useState<string | null>(null)
+  const [etDate, setEtDate] = useState("2026-03-08")
+  const [etUtc, setEtUtc] = useState<Date | null>(
+    () => new Date("2026-03-08T07:00:00.000Z")
+  )
 
   return (
     <div className="space-y-10">
       <PageHeader
         title="App building blocks"
-        description="Demo for StatusBadge, EmptyState, PageHeader, and ConfirmDialog (T-008 / SD#12.9). Badges always include text, not colour alone."
+        description="Demo for StatusBadge, EmptyState, PageHeader, ConfirmDialog, EtDateTime, and ET pickers (T-008 / T-019 / SD#12.7–12.9)."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "UI kit" },
@@ -48,6 +55,71 @@ export default function UiKitDemoPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="et-datetime-heading">
+        <h2 id="et-datetime-heading" className="text-h4 font-semibold text-fg">
+          Eastern time
+        </h2>
+        <p className="text-sm text-fg-muted">
+          Display always uses America/New_York (
+          <code className="font-mono text-caption">MMM d, yyyy, h:mm a z</code>
+          ). Pickers convert ET wall time to UTC; spring-forward gaps are
+          rejected and fall-back overlaps ask which occurrence.
+        </p>
+        <dl className="space-y-2 text-body">
+          <div className="flex flex-wrap gap-2">
+            <dt className="text-fg-muted">After spring forward:</dt>
+            <dd>
+              <EtDateTime value="2026-03-08T07:00:00.000Z" />
+            </dd>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <dt className="text-fg-muted">Fall-back first (EDT):</dt>
+            <dd>
+              <EtDateTime value="2026-11-01T05:30:00.000Z" />
+            </dd>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <dt className="text-fg-muted">Fall-back second (EST):</dt>
+            <dd>
+              <EtDateTime value="2026-11-01T06:30:00.000Z" />
+            </dd>
+          </div>
+        </dl>
+
+        <div className="flex flex-wrap gap-8 pt-2">
+          <EtDatePicker value={etDate} onChange={setEtDate} />
+          <EtDateTimePicker value={etUtc} onChange={setEtUtc} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setEtDate("2026-03-08")
+              setEtUtc(null)
+            }}
+          >
+            Load spring-forward day
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setEtDate("2026-11-01")
+              setEtUtc(new Date("2026-11-01T05:30:00.000Z"))
+            }}
+          >
+            Load fall-back 1:30 AM EDT
+          </Button>
+        </div>
+        <p className="text-sm text-fg-muted">
+          Selected ET date:{" "}
+          <span className="font-mono text-caption text-fg">
+            {etDate || "—"}
+          </span>
+        </p>
       </section>
 
       <section className="space-y-3" aria-labelledby="empty-state-heading">
