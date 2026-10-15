@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792071262302,
+      "tag": "0000_create_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792080608106,
+      "tag": "0001_auth_and_audit_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792080900000,
+      "tag": "0002_domain_sender_recipient_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792081802222,
+      "tag": "0003_email_sending_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792083000000,
+      "tag": "0004_deliverability_feedback_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792084000000,
+      "tag": "0005_offer_columns",
+      "breakpoints": true
+    }
+  ]
+}

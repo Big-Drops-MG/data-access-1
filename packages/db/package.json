@@ -7,6 +7,11 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./src/client.ts",
+      "browser": "./dist/client.browser.js",
+      "default": "./dist/client.js"
     }
   },
   "files": [
@@ -19,13 +24,21 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "devDependencies": {
     "@types/node": "^24",
+    "@types/pg": "^8.23.1",
     "@workspace/config": "workspace:*",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^10",
     "typescript": "^5",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1"
   }
 }
