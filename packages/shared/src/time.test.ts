@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { formatEtDateTime, getEtWallTime, resolveEtWallTime } from "./time.js"
+import {
+  formatEtDate,
+  formatEtDateTime,
+  formatEtTime,
+  getEtAbbreviation,
+  getEtWallTime,
+  resolveEtWallTime,
+} from "./time.js"
 
 describe("formatEtDateTime", () => {
   it("formats in America/New_York with zone abbreviation", () => {
@@ -8,6 +15,27 @@ describe("formatEtDateTime", () => {
     expect(formatEtDateTime(new Date("2026-03-08T07:00:00.000Z"))).toBe(
       "Mar 8, 2026, 3:00 AM EDT"
     )
+  })
+
+  it("accepts ISO strings and returns empty for invalid values", () => {
+    expect(formatEtDateTime("2026-03-08T07:00:00.000Z")).toBe(
+      "Mar 8, 2026, 3:00 AM EDT"
+    )
+    expect(formatEtDateTime("not-a-date")).toBe("")
+  })
+})
+
+describe("formatEtDate / formatEtTime / getEtAbbreviation", () => {
+  it("formats ET calendar date and clock time", () => {
+    const instant = new Date("2026-01-15T19:30:00.000Z")
+    expect(formatEtDate(instant)).toBe("2026-01-15")
+    expect(formatEtTime(instant)).toBe("14:30")
+    expect(getEtAbbreviation(instant)).toBe("EST")
+  })
+
+  it("returns empty strings for invalid date/time inputs", () => {
+    expect(formatEtDate("nope")).toBe("")
+    expect(formatEtTime("nope")).toBe("")
   })
 })
 

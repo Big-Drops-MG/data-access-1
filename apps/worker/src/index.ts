@@ -1,17 +1,7 @@
 import { Worker } from "bullmq"
 import { Redis } from "ioredis"
 
-const BULLMQ_PREFIX = "bd"
-
-const QUEUE_NAMES = [
-  "send-email",
-  "dispatch",
-  "events",
-  "sync",
-  "monitoring",
-  "intake",
-  "maintenance",
-] as const
+import { BULLMQ_PREFIX, QUEUE_NAMES } from "./queues.js"
 
 async function main(): Promise<void> {
   const redisUrl = process.env.REDIS_URL
