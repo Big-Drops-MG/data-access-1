@@ -111,5 +111,8 @@ jobs:
       - name: Vitest
         run: pnpm test
 
+      - name: Vitest coverage
+        run: pnpm test:coverage
+
       - name: Build
         run: pnpm build
