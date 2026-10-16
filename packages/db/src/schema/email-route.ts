@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import { emailType } from "./email-type.js"
+import { offer } from "./offer.js"
 import { sender } from "./sender.js"
 import { template } from "./template.js"
 import { user } from "./user.js"
@@ -25,7 +26,9 @@ export const emailRoute = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     emailType: emailType("email_type").notNull(),
-    offerId: uuid("offer_id"),
+    offerId: uuid("offer_id").references(() => offer.id, {
+      onDelete: "restrict",
+    }),
     templateId: uuid("template_id")
       .notNull()
       .references(() => template.id, { onDelete: "restrict" }),

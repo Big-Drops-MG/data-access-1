@@ -14,6 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { emailCategory } from "./email-category.js"
 import { emailType } from "./email-type.js"
 import { user } from "./user.js"
 
@@ -66,7 +67,9 @@ export const template = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     emailType: emailType("email_type").notNull(),
-    categoryId: uuid("category_id").notNull(),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => emailCategory.id, { onDelete: "restrict" }),
     currentVersionId: uuid("current_version_id"),
     status: templateStatus("status").notNull(),
     createdBy: uuid("created_by")
