@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { emailType } from "./email-type.js"
 import { emailCategory } from "./email-category.js"
 import { user } from "./user.js"
@@ -21,7 +23,7 @@ export const frequencyRuleKind = pgEnum("frequency_rule_kind", [
 export const frequencyRule = pgTable(
   "frequency_rule",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     kind: frequencyRuleKind("kind").notNull(),
     categoryId: uuid("category_id").references(() => emailCategory.id, {
       onDelete: "restrict",

@@ -5,15 +5,16 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  uuid,
 } from "drizzle-orm/pg-core"
+
+import { uuidv7PrimaryKey } from "./columns.js"
 
 export const offerStatus = pgEnum("offer_status", ["active", "inactive"])
 
 export const offer = pgTable(
   "offer",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     name: text("name").notNull(),
     externalRef: text("external_ref").notNull(),
     status: offerStatus("status").notNull().default("active"),

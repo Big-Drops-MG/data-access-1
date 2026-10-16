@@ -10,6 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { emailType } from "./email-type.js"
 import { offer } from "./offer.js"
 import { sender } from "./sender.js"
@@ -24,7 +26,7 @@ export const emailRouteStatus = pgEnum("email_route_status", [
 export const emailRoute = pgTable(
   "email_route",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     emailType: emailType("email_type").notNull(),
     offerId: uuid("offer_id").references(() => offer.id, {
       onDelete: "restrict",

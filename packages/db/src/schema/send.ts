@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { emailType } from "./email-type.js"
 import { offer } from "./offer.js"
 import { sender } from "./sender.js"
@@ -27,7 +29,7 @@ export const sendStatus = pgEnum("send_status", [
 export const send = pgTable(
   "send",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     emailType: emailType("email_type").notNull(),
     templateVersionId: uuid("template_version_id")
       .notNull()

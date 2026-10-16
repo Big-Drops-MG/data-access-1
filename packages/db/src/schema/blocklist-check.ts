@@ -6,8 +6,9 @@ import {
   pgTable,
   text,
   timestamp,
-  uuid,
 } from "drizzle-orm/pg-core"
+
+import { uuidv7PrimaryKey } from "./columns.js"
 
 export const blocklistTargetType = pgEnum("blocklist_target_type", [
   "domain",
@@ -17,7 +18,7 @@ export const blocklistTargetType = pgEnum("blocklist_target_type", [
 export const blocklistCheck = pgTable(
   "blocklist_check",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     targetType: blocklistTargetType("target_type").notNull(),
     target: text("target").notNull(),
     listName: text("list_name").notNull(),

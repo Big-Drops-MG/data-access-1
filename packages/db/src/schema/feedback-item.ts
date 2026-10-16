@@ -10,6 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { feedbackClassification } from "./feedback-classification.js"
 import { message } from "./message.js"
 import { recipient } from "./recipient.js"
@@ -35,7 +37,7 @@ export const feedbackDecision = pgEnum("feedback_decision", [
 export const feedbackItem = pgTable(
   "feedback_item",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     recipientId: uuid("recipient_id").references(() => recipient.id, {
       onDelete: "set null",
     }),

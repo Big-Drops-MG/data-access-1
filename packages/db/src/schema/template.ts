@@ -14,6 +14,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { emailCategory } from "./email-category.js"
 import { emailType } from "./email-type.js"
 import { user } from "./user.js"
@@ -27,7 +29,7 @@ export const templateStatus = pgEnum("template_status", [
 export const templateVersion = pgTable(
   "template_version",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     templateId: uuid("template_id")
       .notNull()
       .references((): AnyPgColumn => template.id, { onDelete: "cascade" }),
@@ -64,7 +66,7 @@ export const templateVersion = pgTable(
 export const template = pgTable(
   "template",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     name: text("name").notNull(),
     emailType: emailType("email_type").notNull(),
     categoryId: uuid("category_id")

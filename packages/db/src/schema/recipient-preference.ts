@@ -8,6 +8,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { emailCategory } from "./email-category.js"
 import { recipient } from "./recipient.js"
 
@@ -22,7 +24,7 @@ export const recipientPreferenceSource = pgEnum("recipient_preference_source", [
 export const recipientPreference = pgTable(
   "recipient_preference",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     recipientId: uuid("recipient_id")
       .notNull()
       .references(() => recipient.id, { onDelete: "cascade" }),

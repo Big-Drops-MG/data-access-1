@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const apiClientStatus = pgEnum("api_client_status", [
@@ -19,7 +21,7 @@ export const apiClientStatus = pgEnum("api_client_status", [
 export const apiClient = pgTable(
   "api_client",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     name: text("name").notNull(),
     keyPrefix: text("key_prefix").notNull(),
     secretHash: text("secret_hash").notNull(),

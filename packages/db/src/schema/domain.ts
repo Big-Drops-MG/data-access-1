@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const domainStatus = pgEnum("domain_status", [
@@ -22,7 +24,7 @@ export const domainStatus = pgEnum("domain_status", [
 export const domain = pgTable(
   "domain",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     name: text("name").notNull(),
     sesIdentityArn: text("ses_identity_arn"),
     status: domainStatus("status").notNull().default("pending"),

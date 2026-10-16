@@ -29,6 +29,13 @@
       "when": 1792158270627,
       "tag": "0003_recipients_sending_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792164547989,
+      "tag": "0004_sd5_schema_corrections",
+      "breakpoints": true
     }
   ]
 }

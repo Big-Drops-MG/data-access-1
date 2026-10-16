@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm"
 import {
   index,
   integer,
@@ -10,6 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { citext, uuidv7PrimaryKey } from "./columns.js"
 import { domain } from "./domain.js"
 import { user } from "./user.js"
 
@@ -22,13 +22,13 @@ export const senderStatus = pgEnum("sender_status", [
 export const sender = pgTable(
   "sender",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     domainId: uuid("domain_id")
       .notNull()
-      .references(() => domain.id, { onDelete: "cascade" }),
+      .references(() => domain.id, { onDelete: "restrict" }),
     fromName: text("from_name").notNull(),
-    fromEmail: text("from_email").notNull(),
-    replyTo: text("reply_to"),
+    fromEmail: citext("from_email").notNull(),
+    replyTo: citext("reply_to"),
     status: senderStatus("status").notNull().default("pending_verification"),
     version: integer("version").notNull().default(1),
     createdBy: uuid("created_by").references(() => user.id, {
@@ -46,7 +46,7 @@ export const sender = pgTable(
     }),
   },
   (table) => [
-    uniqueIndex("sender_from_email_unique").on(sql`lower(${table.fromEmail})`),
+    uniqueIndex("sender_from_email_unique").on(table.fromEmail),
     index("sender_domain_id_status_idx").on(table.domainId, table.status),
     index("sender_created_by_idx").on(table.createdBy),
   ]

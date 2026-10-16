@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const suppressionSyncTrigger = pgEnum("suppression_sync_trigger", [
@@ -25,7 +27,7 @@ export const suppressionSyncStatus = pgEnum("suppression_sync_status", [
 export const suppressionSyncRun = pgTable(
   "suppression_sync_run",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     source: text("source").notNull(),
     trigger: suppressionSyncTrigger("trigger").notNull(),
     status: suppressionSyncStatus("status").notNull().default("running"),

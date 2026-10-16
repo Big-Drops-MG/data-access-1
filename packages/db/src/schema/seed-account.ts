@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm"
 import {
   index,
   pgEnum,
@@ -6,8 +5,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  uuid,
 } from "drizzle-orm/pg-core"
+
+import { citext, uuidv7PrimaryKey } from "./columns.js"
 
 export const seedAccountStatus = pgEnum("seed_account_status", [
   "active",
@@ -19,9 +19,9 @@ export const seedAccountStatus = pgEnum("seed_account_status", [
 export const seedAccount = pgTable(
   "seed_account",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     provider: text("provider").notNull(),
-    address: text("address").notNull(),
+    address: citext("address").notNull(),
     credentialRef: text("credential_ref").notNull(),
     status: seedAccountStatus("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
@@ -36,7 +36,7 @@ export const seedAccount = pgTable(
     }),
   },
   (table) => [
-    uniqueIndex("seed_account_address_unique").on(sql`lower(${table.address})`),
+    uniqueIndex("seed_account_address_unique").on(table.address),
     index("seed_account_provider_status_idx").on(table.provider, table.status),
   ]
 )

@@ -8,6 +8,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { domain } from "./domain.js"
 
 export const domainSetupStepType = pgEnum("domain_setup_step_type", [
@@ -26,7 +28,7 @@ export const domainSetupStepStatus = pgEnum("domain_setup_step_status", [
 export const domainSetupStep = pgTable(
   "domain_setup_step",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     domainId: uuid("domain_id")
       .notNull()
       .references(() => domain.id, { onDelete: "cascade" }),

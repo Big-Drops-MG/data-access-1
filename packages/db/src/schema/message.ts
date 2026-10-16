@@ -10,6 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { emailType } from "./email-type.js"
 import { offer } from "./offer.js"
 import { recipient } from "./recipient.js"
@@ -40,7 +42,7 @@ export const messageSkipReason = pgEnum("message_skip_reason", [
 export const message = pgTable(
   "message",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     sendId: uuid("send_id").references(() => send.id, { onDelete: "restrict" }),
     recipientId: uuid("recipient_id")
       .notNull()

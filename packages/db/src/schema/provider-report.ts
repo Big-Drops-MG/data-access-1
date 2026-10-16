@@ -10,6 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { feedbackItem } from "./feedback-item.js"
 
 export const providerReportProvider = pgEnum("provider_report_provider", [
@@ -28,7 +30,7 @@ export const providerReportStatus = pgEnum("provider_report_status", [
 export const providerReport = pgTable(
   "provider_report",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     provider: providerReportProvider("provider").notNull(),
     mailboxUid: text("mailbox_uid"),
     contentHash: text("content_hash").notNull(),

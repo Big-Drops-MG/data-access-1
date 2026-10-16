@@ -8,12 +8,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const feedbackClassification = pgTable(
   "feedback_classification",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     key: text("key").notNull(),
     label: text("label").notNull(),
     active: boolean("active").notNull().default(true),

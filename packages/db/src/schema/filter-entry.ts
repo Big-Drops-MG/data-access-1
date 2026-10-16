@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const filterEntryCategory = pgEnum("filter_entry_category", [
@@ -22,7 +24,7 @@ export const filterEntryCategory = pgEnum("filter_entry_category", [
 export const filterEntry = pgTable(
   "filter_entry",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     title: text("title").notNull(),
     body: text("body").notNull(),
     sourceUrl: text("source_url"),

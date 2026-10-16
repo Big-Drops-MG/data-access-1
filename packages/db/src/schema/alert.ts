@@ -12,6 +12,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const alertSeverity = pgEnum("alert_severity", [
@@ -25,7 +27,7 @@ export const alertStatus = pgEnum("alert_status", ["open", "resolved"])
 export const alert = pgTable(
   "alert",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     type: text("type").notNull(),
     severity: alertSeverity("severity").notNull(),
     status: alertStatus("status").notNull().default("open"),

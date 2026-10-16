@@ -9,6 +9,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const emailCategoryKind = pgEnum("email_category_kind", [
@@ -19,7 +21,7 @@ export const emailCategoryKind = pgEnum("email_category_kind", [
 export const emailCategory = pgTable(
   "email_category",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     key: text("key").notNull(),
     name: text("name").notNull(),
     description: text("description"),

@@ -41,10 +41,10 @@ describe("auth tables", () => {
   it("stores one two-factor row per user", () => {
     expect(getTableName(twoFactor)).toBe("two_factor")
     expect(indexNames(twoFactor)).toEqual(
-      expect.arrayContaining([
-        "two_factor_user_id_unique",
-        "two_factor_secret_idx",
-      ])
+      expect.arrayContaining(["two_factor_user_id_unique"])
+    )
+    expect(indexNames(twoFactor).some((name) => name.includes("secret"))).toBe(
+      false
     )
   })
 })

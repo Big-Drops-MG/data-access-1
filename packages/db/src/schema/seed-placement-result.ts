@@ -1,6 +1,8 @@
 import { desc } from "drizzle-orm"
 import { index, pgEnum, pgTable, timestamp, uuid } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { message } from "./message.js"
 import { seedAccount } from "./seed-account.js"
 
@@ -21,7 +23,7 @@ export const seedPlacementSource = pgEnum("seed_placement_source", [
 export const seedPlacementResult = pgTable(
   "seed_placement_result",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     messageId: uuid("message_id")
       .notNull()
       .references(() => message.id, { onDelete: "cascade" }),

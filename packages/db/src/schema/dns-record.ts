@@ -8,6 +8,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { domain } from "./domain.js"
 
 export const dnsRecordPurpose = pgEnum("dns_record_purpose", [
@@ -27,7 +29,7 @@ export const dnsRecordStatus = pgEnum("dns_record_status", [
 export const dnsRecord = pgTable(
   "dns_record",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     domainId: uuid("domain_id")
       .notNull()
       .references(() => domain.id, { onDelete: "cascade" }),

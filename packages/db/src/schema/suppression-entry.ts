@@ -10,6 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { offer } from "./offer.js"
 import { recipient } from "./recipient.js"
 import { suppressionSyncRun } from "./suppression-sync-run.js"
@@ -32,14 +34,14 @@ export const suppressionSource = pgEnum("suppression_source", [
 export const suppressionEntry = pgTable(
   "suppression_entry",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     emailHash: text("email_hash").notNull(),
     recipientId: uuid("recipient_id").references(() => recipient.id, {
       onDelete: "set null",
     }),
     scope: suppressionScope("scope").notNull(),
     offerId: uuid("offer_id").references(() => offer.id, {
-      onDelete: "cascade",
+      onDelete: "restrict",
     }),
     source: suppressionSource("source").notNull(),
     reason: text("reason"),

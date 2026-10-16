@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm"
 import {
   index,
   pgEnum,
@@ -6,8 +5,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  uuid,
 } from "drizzle-orm/pg-core"
+
+import { citext, uuidv7PrimaryKey } from "./columns.js"
 
 export const recipientTier = pgEnum("recipient_tier", ["standard", "premium"])
 
@@ -16,8 +16,8 @@ export const recipientStatus = pgEnum("recipient_status", ["active", "bounced"])
 export const recipient = pgTable(
   "recipient",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    email: text("email").notNull(),
+    id: uuidv7PrimaryKey(),
+    email: citext("email").notNull(),
     emailHash: text("email_hash").notNull(),
     externalUserId: text("external_user_id"),
     tier: recipientTier("tier").notNull().default("standard"),
@@ -40,7 +40,7 @@ export const recipient = pgTable(
     }),
   },
   (table) => [
-    uniqueIndex("recipient_email_unique").on(sql`lower(${table.email})`),
+    uniqueIndex("recipient_email_unique").on(table.email),
     uniqueIndex("recipient_email_hash_unique").on(table.emailHash),
     index("recipient_external_user_id_idx").on(table.externalUserId),
     index("recipient_tier_status_idx").on(table.tier, table.status),
