@@ -8,7 +8,9 @@ describe("user table", () => {
     expect(Object.keys(getTableColumns(user)).sort()).toEqual([
       "createdAt",
       "email",
+      "emailVerified",
       "id",
+      "image",
       "name",
       "role",
       "status",

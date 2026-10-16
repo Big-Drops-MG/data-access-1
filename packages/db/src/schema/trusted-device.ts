@@ -7,12 +7,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 import { user } from "./user.js"
 
 export const trustedDevice = pgTable(
   "trusted_device",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

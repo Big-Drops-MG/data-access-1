@@ -10,6 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
+import { uuidv7PrimaryKey } from "./columns.js"
+
 export const auditActorType = pgEnum("audit_actor_type", [
   "user",
   "api_client",
@@ -19,7 +21,7 @@ export const auditActorType = pgEnum("audit_actor_type", [
 export const auditLog = pgTable(
   "audit_log",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuidv7PrimaryKey(),
     actorType: auditActorType("actor_type").notNull(),
     actorId: uuid("actor_id"),
     action: text("action").notNull(),

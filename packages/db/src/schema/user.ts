@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm"
 import {
   boolean,
   pgEnum,
@@ -6,8 +5,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  uuid,
 } from "drizzle-orm/pg-core"
+
+import { citext, uuidv7PrimaryKey } from "./columns.js"
 
 export const userRole = pgEnum("user_role", ["admin", "operator", "viewer"])
 
@@ -16,9 +16,11 @@ export const userStatus = pgEnum("user_status", ["active", "deactivated"])
 export const user = pgTable(
   "user",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    email: text("email").notNull(),
+    id: uuidv7PrimaryKey(),
+    email: citext("email").notNull(),
     name: text("name").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
     role: userRole("role").notNull(),
     status: userStatus("status").notNull(),
     twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
@@ -29,7 +31,7 @@ export const user = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [uniqueIndex("user_email_unique").on(sql`lower(${table.email})`)]
+  (table) => [uniqueIndex("user_email_unique").on(table.email)]
 )
 
 export type User = typeof user.$inferSelect

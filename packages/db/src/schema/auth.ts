@@ -124,10 +124,7 @@ export const twoFactor = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [
-    uniqueIndex("two_factor_user_id_unique").on(table.userId),
-    index("two_factor_secret_idx").on(table.secret),
-  ]
+  (table) => [uniqueIndex("two_factor_user_id_unique").on(table.userId)]
 )
 
 export type Session = typeof session.$inferSelect
