@@ -1,0 +1,11 @@
+---
+description: Git push workflow — feature branches merge to dev, never push main
+alwaysApply: true
+---
+
+# Git branch and push workflow
+
+- Never push commits directly to `main`.
+- For every set of changes to ship: create a new feature branch (e.g. `feature/T-###-short-name`).
+- Push the feature branch and merge it into `dev` (PR into `dev`, or merge locally then push `dev`).
+- Do not merge to `main` unless the user explicitly asks for a release/promote.

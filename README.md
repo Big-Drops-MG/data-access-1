@@ -28,11 +28,24 @@ pnpm lint
 pnpm format:check
 pnpm typecheck
 pnpm test
+pnpm test:coverage
+pnpm test:int
 pnpm dev
 ```
+
+## Testing (SD#16.1)
+
+| Kind        | Files               | Command              |
+| ----------- | ------------------- | -------------------- |
+| Unit        | `*.test.ts`         | `pnpm test`          |
+| Integration | `*.int.test.ts`     | `pnpm test:int`      |
+| Coverage    | report + thresholds | `pnpm test:coverage` |
+
+Coverage thresholds: `@workspace/shared` 90%, `apps/worker` 80%, `apps/email-hub` server (`src/lib` + `src/app/api`) 80%. Unit runs never pick up `*.int.test.ts`.
 
 ## Tooling
 
 - ESLint, Prettier, and commitlint live in `@workspace/config`
 - Husky runs `lint-staged` on pre-commit and commitlint on commit-msg
 - Commit format: `<type>(T-###): <summary>`
+- Vitest projects live in each package/app; root `vitest.config.ts` owns coverage
