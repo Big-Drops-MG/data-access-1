@@ -12,10 +12,16 @@
       "types": "./src/client.ts",
       "browser": "./dist/client.browser.js",
       "default": "./dist/client.js"
+    },
+    "./clickhouse": {
+      "types": "./src/clickhouse/index.ts",
+      "browser": "./dist/clickhouse/client.browser.js",
+      "default": "./dist/clickhouse/index.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "clickhouse"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -26,7 +32,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:ch:migrate": "tsx src/clickhouse/migrate-cli.ts",
+    "db:migrate": "drizzle-kit migrate && pnpm db:ch:migrate"
   },
   "devDependencies": {
     "@types/node": "^24",
@@ -36,10 +43,12 @@
     "better-auth": "^1.7.10",
     "drizzle-kit": "^0.31.11",
     "eslint": "^10",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.24.1",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
     "uuid": "^14.0.3"
