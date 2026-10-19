@@ -171,14 +171,15 @@ ClickHouse DDL lives under `packages/db/clickhouse/` as numbered files (`0001_â€
 
 ## Quick reference
 
-| Item           | Format / rule                                                    |
-| -------------- | ---------------------------------------------------------------- |
-| Branch         | `feature/T-012-hmac-middleware`                                  |
-| Commit         | `feat(T-012): add HMAC verification middleware`                  |
-| PR into        | `dev` (tasks); `main` only for release / hotfix                  |
-| PR size        | under 400 lines (excl. lockfile / generated)                     |
-| SD in PR       | `SD reference: SD#12.7`                                          |
-| Local services | `docker compose -f docker-compose.dev.yml up -d`                 |
-| Migrate        | `pnpm --filter @workspace/db db:migrate` (Postgres + ClickHouse) |
+| Item           | Format / rule                                                                     |
+| -------------- | --------------------------------------------------------------------------------- |
+| Branch         | `feature/T-012-hmac-middleware`                                                   |
+| Commit         | `feat(T-012): add HMAC verification middleware`                                   |
+| PR into        | `dev` (tasks); `main` only for release / hotfix                                   |
+| PR size        | under 400 lines (excl. lockfile / generated)                                      |
+| SD in PR       | `SD reference: SD#12.7`                                                           |
+| Local services | `docker compose -f docker-compose.dev.yml up -d`                                  |
+| Migrate        | `pnpm --filter @workspace/db db:migrate` (Postgres + ClickHouse)                  |
+| Prod image     | `docker build -t emailhub:local .` then run web default CMD or `node apps/worker` |
 
 More index links: [docs/README.md](docs/README.md).
