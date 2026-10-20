@@ -162,22 +162,24 @@ Schema changes ship only as Drizzle migrations under `packages/db`. Never edit a
    ```
 
    Or `cd packages/db` then `pnpm db:generate` / `pnpm db:migrate`.
+   `db:migrate` runs Drizzle (Postgres) then the ClickHouse runner.
 
 4. Commit the SQL under `packages/db/drizzle/`, snapshots under `packages/db/drizzle/meta/`, and schema sources together.
 5. Migrations must stay backward compatible with the previous app version.
 
-ClickHouse DDL uses its own ordered migration runner when that package path exists — same rule: never rewrite a shipped migration.
+ClickHouse DDL lives under `packages/db/clickhouse/` as numbered files (`0001_….sql`). Ensure `apps/email-hub/.env` has `CLICKHOUSE_URL`. Run ClickHouse alone with `pnpm --filter @workspace/db db:ch:migrate`. Never rewrite a shipped migration.
 
 ## Quick reference
 
-| Item           | Format / rule                                               |
-| -------------- | ----------------------------------------------------------- |
-| Branch         | `feature/T-012-hmac-middleware`                             |
-| Commit         | `feat(T-012): add HMAC verification middleware`             |
-| PR into        | `dev` (tasks); `main` only for release / hotfix             |
-| PR size        | under 400 lines (excl. lockfile / generated)                |
-| SD in PR       | `SD reference: SD#12.7`                                     |
-| Local services | `docker compose -f docker-compose.dev.yml up -d`            |
-| Migrate        | `pnpm --filter @workspace/db db:generate` then `db:migrate` |
+| Item           | Format / rule                                                                     |
+| -------------- | --------------------------------------------------------------------------------- |
+| Branch         | `feature/T-012-hmac-middleware`                                                   |
+| Commit         | `feat(T-012): add HMAC verification middleware`                                   |
+| PR into        | `dev` (tasks); `main` only for release / hotfix                                   |
+| PR size        | under 400 lines (excl. lockfile / generated)                                      |
+| SD in PR       | `SD reference: SD#12.7`                                                           |
+| Local services | `docker compose -f docker-compose.dev.yml up -d`                                  |
+| Migrate        | `pnpm --filter @workspace/db db:migrate` (Postgres + ClickHouse)                  |
+| Prod image     | `docker build -t emailhub:local .` then run web default CMD or `node apps/worker` |
 
 More index links: [docs/README.md](docs/README.md).
