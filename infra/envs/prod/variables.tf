@@ -40,3 +40,40 @@ variable "create_firewall" {
   type    = bool
   default = true
 }
+
+variable "aws_region" {
+  type        = string
+  description = "SES_REGION for this environment."
+  default     = "us-east-1"
+}
+
+variable "enable_aws_ses" {
+  type        = bool
+  description = "Create SES configuration set, SNS topic, SQS DLQ, and IAM user."
+  default     = true
+}
+
+variable "enable_cloudflare_dns" {
+  type        = bool
+  description = "Manage the app hostname A record in Cloudflare (DNS only)."
+  default     = true
+}
+
+variable "app_hostname" {
+  type        = string
+  description = "Public app hostname used for SNS webhook HTTPS subscription."
+  default     = "emailhub.dataaccess1.com"
+}
+
+variable "app_dns_name" {
+  type        = string
+  description = "Cloudflare DNS record name (relative to the zone)."
+  default     = "emailhub"
+}
+
+variable "cloudflare_zone_id" {
+  type        = string
+  description = "Cloudflare zone ID for dataaccess1.com. Required when enable_cloudflare_dns is true."
+  default     = ""
+  sensitive   = true
+}

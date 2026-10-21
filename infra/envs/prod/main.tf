@@ -19,3 +19,36 @@ module "firewall" {
   ssh_allowed_cidrs = var.ssh_allowed_cidrs
   tags              = ["env:prod", "project:emailhub"]
 }
+
+module "ses_events" {
+  source = "../../modules/ses_events"
+  count  = var.enable_aws_ses ? 1 : 0
+
+  name_prefix = var.droplet_name
+  webhook_url = "https://${var.app_hostname}/api/ext/webhooks/ses"
+  tags = {
+    Environment = "prod"
+    Project     = "emailhub"
+  }
+}
+
+module "ses_iam" {
+  source = "../../modules/ses_iam"
+  count  = var.enable_aws_ses ? 1 : 0
+
+  user_name = "${var.droplet_name}-app"
+  tags = {
+    Environment = "prod"
+    Project     = "emailhub"
+  }
+}
+
+module "cloudflare_dns" {
+  source = "../../modules/cloudflare_dns"
+  count  = var.enable_cloudflare_dns ? 1 : 0
+
+  zone_id      = var.cloudflare_zone_id
+  name         = var.app_dns_name
+  ipv4_address = module.droplet.ipv4_address
+  comment      = "EmailHub Prod app host (DNS only)"
+}
