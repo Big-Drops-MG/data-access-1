@@ -179,7 +179,22 @@ ClickHouse DDL lives under `packages/db/clickhouse/` as numbered files (`0001_â€
 | PR size        | under 400 lines (excl. lockfile / generated)                                      |
 | SD in PR       | `SD reference: SD#12.7`                                                           |
 | Local services | `docker compose -f docker-compose.dev.yml up -d`                                  |
+| Server stack   | `docker-compose.yml` (+ `docker-compose.dev-server.yml` on Dev); see below        |
 | Migrate        | `pnpm --filter @workspace/db db:migrate` (Postgres + ClickHouse)                  |
 | Prod image     | `docker build -t emailhub:local .` then run web default CMD or `node apps/worker` |
+
+### Server Compose (droplet / Coolify)
+
+Root `docker-compose.yml` is the Dev/Prod host stack (SD#13.2): Caddy (only published ports 80/443), web, worker, Postgres, ClickHouse, Redis, Alloy. Volumes live under `/data/...`. Copy `.env.compose.example` to `.env.compose` on the host (mode 600) or inject the same keys in Coolify.
+
+```bash
+# Prod droplet
+docker compose --env-file .env.compose up -d
+
+# Dev droplet (adds Mailpit on the internal network only)
+docker compose -f docker-compose.yml -f docker-compose.dev-server.yml --env-file .env.compose up -d
+```
+
+Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps stay on `docker-compose.dev.yml`.
 
 More index links: [docs/README.md](docs/README.md).
