@@ -10,7 +10,7 @@ terraform {
 locals {
   volume_name = "${var.name}-data"
   tags        = distinct(concat(var.tags, ["emailhub", var.name]))
-  user_data = <<-EOT
+  user_data   = <<-EOT
     #cloud-config
     package_update: true
     packages:
