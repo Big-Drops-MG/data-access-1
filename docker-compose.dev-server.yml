@@ -1,0 +1,15 @@
+# Dev-droplet overlay (not for laptop local use — see docker-compose.dev.yml).
+# Adds Mailpit on the internal network only (no host ports — SD#13.2).
+#
+# docker compose -f docker-compose.yml -f docker-compose.dev-server.yml --env-file .env.compose up -d
+
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27.10
+    restart: unless-stopped
+    mem_limit: 128m
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    # SMTP 1025 / UI 8025 are reachable only inside `internal` (SSH tunnel if needed).
