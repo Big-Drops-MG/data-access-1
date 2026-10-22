@@ -29,6 +29,8 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "zod": "^4.6.5"
   }
 }

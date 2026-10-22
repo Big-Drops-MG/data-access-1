@@ -1,6 +1,16 @@
 export const PACKAGE_NAME = "@workspace/shared" as const
 
-export { maskEmail, normaliseEmail } from "./email.js"
+export { hashEmail, maskEmail, normaliseEmail } from "./email.js"
+export {
+  findOrCreateRecipient,
+  lockRecipientTx,
+  triggerEmail,
+  type EmailHubDb,
+  type EmailHubTx,
+  type TriggerEmailCreateContext,
+  type TriggerEmailInput,
+  type TriggerEmailResult,
+} from "./trigger-email.js"
 export {
   AppError,
   ERROR_CODES,
