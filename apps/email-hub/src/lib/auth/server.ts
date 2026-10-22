@@ -9,7 +9,12 @@ import { twoFactor as twoFactorPlugin } from "better-auth/plugins"
 import { eq } from "drizzle-orm"
 import { v7 as uuidv7 } from "uuid"
 
-import { isBootstrapAdminEmail, parseAdminEmails } from "./admin-emails"
+import {
+  ALLOWED_SSO_EMAIL_DOMAIN,
+  isAllowedSsoEmailDomain,
+  isBootstrapAdminEmail,
+  parseAdminEmails,
+} from "./admin-emails"
 import {
   SESSION_IDLE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
@@ -47,14 +52,22 @@ function createAuth() {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
         scopes: ["openid", "email", "profile"],
         requireEmailVerification: true,
+        // Prefer Workspace accounts in the Google account picker.
+        hd: ALLOWED_SSO_EMAIL_DOMAIN,
         mapProfileToUser: (profile) => {
           if (profile.email_verified === false) {
             throw new APIError("FORBIDDEN", {
               message: "Unable to sign in",
             })
           }
+          const email = normaliseEmail(String(profile.email ?? ""))
+          if (!isAllowedSsoEmailDomain(email)) {
+            throw new APIError("FORBIDDEN", {
+              message: "Unable to sign in",
+            })
+          }
           return {
-            email: normaliseEmail(String(profile.email ?? "")),
+            email,
             name: String(profile.name ?? ""),
             image: profile.picture ? String(profile.picture) : undefined,
             emailVerified: true,
@@ -102,7 +115,10 @@ function createAuth() {
         create: {
           before: async (newUser) => {
             const email = normaliseEmail(newUser.email)
-            if (!isBootstrapAdminEmail(email, adminEmails)) {
+            if (
+              !isAllowedSsoEmailDomain(email) ||
+              !isBootstrapAdminEmail(email, adminEmails)
+            ) {
               throw new APIError("FORBIDDEN", {
                 message: "Unable to sign in",
               })
@@ -123,11 +139,15 @@ function createAuth() {
         create: {
           before: async (newSession) => {
             const [row] = await getDb()
-              .select({ status: user.status })
+              .select({ status: user.status, email: user.email })
               .from(user)
               .where(eq(user.id, newSession.userId))
               .limit(1)
-            if (!row || row.status !== "active") {
+            if (
+              !row ||
+              row.status !== "active" ||
+              !isAllowedSsoEmailDomain(row.email)
+            ) {
               throw new APIError("FORBIDDEN", {
                 message: "Unable to sign in",
               })

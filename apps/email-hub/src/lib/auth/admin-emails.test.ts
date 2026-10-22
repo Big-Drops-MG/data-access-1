@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { isBootstrapAdminEmail, parseAdminEmails } from "./admin-emails"
+import {
+  isAllowedSsoEmailDomain,
+  isBootstrapAdminEmail,
+  parseAdminEmails,
+} from "./admin-emails"
 
 describe("parseAdminEmails", () => {
   it("returns empty set for missing or blank input", () => {
@@ -21,6 +25,22 @@ describe("parseAdminEmails", () => {
     expect(set.size).toBe(2)
     expect(set.has("good@x.com")).toBe(true)
     expect(set.has("also@y.com")).toBe(true)
+  })
+})
+
+describe("isAllowedSsoEmailDomain", () => {
+  it("allows @bigdropsmarketing.com addresses", () => {
+    expect(isAllowedSsoEmailDomain("Sami@BigDropsMarketing.com")).toBe(true)
+  })
+
+  it("rejects other domains and lookalikes", () => {
+    expect(isAllowedSsoEmailDomain("user@gmail.com")).toBe(false)
+    expect(isAllowedSsoEmailDomain("user@evilbigdropsmarketing.com")).toBe(
+      false
+    )
+    expect(isAllowedSsoEmailDomain("user@mail.bigdropsmarketing.com")).toBe(
+      false
+    )
   })
 })
 
