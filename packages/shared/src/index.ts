@@ -23,15 +23,22 @@ export {
 } from "./schemas.js"
 export {
   ET_TIME_ZONE,
+  etToUtc,
   formatEtDate,
   formatEtDateTime,
   formatEtTime,
   getEtAbbreviation,
+  getEtDayRange,
+  getEtReportRange,
   getEtWallTime,
+  parseEtDateString,
   resolveEtWallTime,
+  utcToEt,
+  type EtDayRange,
   type EtResolveAmbiguous,
   type EtResolveNonexistent,
   type EtResolveOk,
   type EtResolveResult,
+  type EtToUtcDisambiguation,
   type EtWallTime,
 } from "./time.js"
