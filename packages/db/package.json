@@ -13,6 +13,10 @@
       "browser": "./dist/client.browser.js",
       "default": "./dist/client.js"
     },
+    "./schema": {
+      "types": "./src/schema/index.ts",
+      "default": "./dist/schema/index.js"
+    },
     "./clickhouse": {
       "types": "./src/clickhouse/index.ts",
       "browser": "./dist/clickhouse/client.browser.js",
