@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792071262302,
+      "tag": "0000_create_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792080608106,
+      "tag": "0001_auth_and_audit_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792157963029,
+      "tag": "0002_domains_senders_routes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792158270627,
+      "tag": "0003_recipients_sending_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792164547989,
+      "tag": "0004_sd5_schema_corrections",
+      "breakpoints": true
+    }
+  ]
+}

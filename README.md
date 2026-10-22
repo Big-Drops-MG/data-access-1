@@ -2,6 +2,8 @@
 
 pnpm + Turborepo monorepo for the Email Hub platform (Node 24 LTS).
 
+**Contributing / dev handbook:** [CONTRIBUTING.md](CONTRIBUTING.md) (branching, commits, PRs, local stack, migrations). Doc index: [docs/README.md](docs/README.md).
+
 ## Workspace layout
 
 | Path              | Contents                                      |

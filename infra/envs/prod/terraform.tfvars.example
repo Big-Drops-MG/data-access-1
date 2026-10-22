@@ -11,3 +11,13 @@ ssh_key_ids = [
 # droplet_size    = "s-4vcpu-16gb-amd"
 # volume_size_gb  = 100
 # region          = "nyc3"
+
+# T-039 — AWS SES / SNS / SQS + Cloudflare DNS (env credentials, not files):
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (or a role)
+#   CLOUDFLARE_API_TOKEN (Zone.DNS Edit)
+# aws_region            = "us-east-1"
+# cloudflare_zone_id    = "your-zone-id"
+# app_hostname          = "emailhub.dataaccess1.com"
+# app_dns_name          = "emailhub"
+# enable_aws_ses        = true
+# enable_cloudflare_dns = true
