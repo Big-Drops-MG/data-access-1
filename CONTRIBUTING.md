@@ -200,4 +200,24 @@ docker compose -f docker-compose.yml -f docker-compose.dev-server.yml --env-file
 
 Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps stay on `docker-compose.dev.yml`.
 
+### Deploy workflow (GHCR + Coolify)
+
+`.github/workflows/deploy.yml` runs on push to `main` (SD#13.6 / T-035):
+
+1. Build and push `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`).
+2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`) then Coolify deploy API.
+3. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
+
+Create GitHub Environments **`development`** and **`production`**. Configure these repository secrets (and environment secrets where noted):
+
+| Secret                                                                      | Purpose                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `COOLIFY_BASE_URL`                                                          | Coolify API origin (e.g. `http://127.0.0.1:8000` via tunnel, or public API URL) |
+| `COOLIFY_TOKEN`                                                             | Coolify API token                                                               |
+| `COOLIFY_DEV_APP_UUID` / `COOLIFY_PROD_APP_UUID`                            | Application UUIDs in Coolify                                                    |
+| `DEV_DATABASE_URL` / `DEV_DATABASE_MIGRATION_URL` / `DEV_CLICKHOUSE_URL`    | Dev migrate (Environment `development`)                                         |
+| `PROD_DATABASE_URL` / `PROD_DATABASE_MIGRATION_URL` / `PROD_CLICKHOUSE_URL` | Prod migrate (Environment `production`)                                         |
+
+Point Coolify app image to `ghcr.io/<owner>/<repo>:<sha>` (or update the tag Coolify pulls after each push). Migrate URLs must be reachable from GitHub-hosted runners (SSH tunnel, allowlisted network, or similar) — do not publish DB ports on the droplet firewall.
+
 More index links: [docs/README.md](docs/README.md).
