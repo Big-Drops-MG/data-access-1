@@ -85,6 +85,21 @@ describe("getSession", () => {
     await expect(getSession()).resolves.toBeNull()
     expect(signOutApi).toHaveBeenCalledOnce()
   })
+
+  it("returns null when the session user has an unknown role", async () => {
+    getSessionApi.mockResolvedValue({
+      session: { createdAt: new Date() },
+      user: {
+        id: "11111111-1111-1111-1111-111111111111",
+        email: "admin@example.com",
+        name: "Admin",
+        role: "superuser",
+        status: "active",
+      },
+    })
+    const { getSession } = await import("./auth.js")
+    await expect(getSession()).resolves.toBeNull()
+  })
 })
 
 describe("signOut / signOutEverywhere", () => {

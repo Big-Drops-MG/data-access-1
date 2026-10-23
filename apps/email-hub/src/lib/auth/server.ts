@@ -1,20 +1,18 @@
 import { account, session, twoFactor, user, verification } from "@workspace/db"
 import { getDb } from "@workspace/db/client"
-import { normaliseEmail } from "@workspace/shared"
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { APIError } from "better-auth/api"
 import { nextCookies } from "better-auth/next-js"
 import { twoFactor as twoFactorPlugin } from "better-auth/plugins"
 import { eq } from "drizzle-orm"
 import { v7 as uuidv7 } from "uuid"
 
+import { ALLOWED_SSO_EMAIL_DOMAIN, parseAdminEmails } from "./admin-emails"
 import {
-  ALLOWED_SSO_EMAIL_DOMAIN,
-  isAllowedSsoEmailDomain,
-  isBootstrapAdminEmail,
-  parseAdminEmails,
-} from "./admin-emails"
+  assertActiveStaffForSession,
+  mapGoogleProfileToUser,
+  prepareBootstrapAdminUser,
+} from "./auth-gates"
 import {
   SESSION_IDLE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
@@ -52,27 +50,8 @@ function createAuth() {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
         scopes: ["openid", "email", "profile"],
         requireEmailVerification: true,
-        // Prefer Workspace accounts in the Google account picker.
         hd: ALLOWED_SSO_EMAIL_DOMAIN,
-        mapProfileToUser: (profile) => {
-          if (profile.email_verified === false) {
-            throw new APIError("FORBIDDEN", {
-              message: "Unable to sign in",
-            })
-          }
-          const email = normaliseEmail(String(profile.email ?? ""))
-          if (!isAllowedSsoEmailDomain(email)) {
-            throw new APIError("FORBIDDEN", {
-              message: "Unable to sign in",
-            })
-          }
-          return {
-            email,
-            name: String(profile.name ?? ""),
-            image: profile.picture ? String(profile.picture) : undefined,
-            emailVerified: true,
-          }
-        },
+        mapProfileToUser: mapGoogleProfileToUser,
       },
     },
     user: {
@@ -113,26 +92,8 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          before: async (newUser) => {
-            const email = normaliseEmail(newUser.email)
-            if (
-              !isAllowedSsoEmailDomain(email) ||
-              !isBootstrapAdminEmail(email, adminEmails)
-            ) {
-              throw new APIError("FORBIDDEN", {
-                message: "Unable to sign in",
-              })
-            }
-            return {
-              data: {
-                ...newUser,
-                email,
-                role: "admin",
-                status: "active",
-                emailVerified: true,
-              },
-            }
-          },
+          before: async (newUser) =>
+            prepareBootstrapAdminUser(newUser, adminEmails),
         },
       },
       session: {
@@ -143,15 +104,7 @@ function createAuth() {
               .from(user)
               .where(eq(user.id, newSession.userId))
               .limit(1)
-            if (
-              !row ||
-              row.status !== "active" ||
-              !isAllowedSsoEmailDomain(row.email)
-            ) {
-              throw new APIError("FORBIDDEN", {
-                message: "Unable to sign in",
-              })
-            }
+            assertActiveStaffForSession(row)
             return { data: newSession }
           },
         },

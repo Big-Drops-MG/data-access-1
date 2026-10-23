@@ -42,6 +42,10 @@ describe("isAllowedSsoEmailDomain", () => {
       false
     )
   })
+
+  it("rejects strings without an @", () => {
+    expect(isAllowedSsoEmailDomain("not-an-email")).toBe(false)
+  })
 })
 
 describe("isBootstrapAdminEmail", () => {
