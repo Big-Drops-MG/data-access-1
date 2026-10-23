@@ -2,25 +2,34 @@ import { describe, expect, it } from "vitest"
 
 import {
   assertApplicationDatabaseUrl,
+  databaseUrlIdentity,
   sslForApplicationUrl,
 } from "./connection-policy.js"
 
-const localUrl = "postgresql://emailhub:secret@localhost:5432/emailhub"
+const localUrl = "postgresql://emailhub_app:secret@localhost:5432/emailhub"
 const remoteUrl =
-  "postgresql://emailhub:secret@db.example:5432/emailhub?sslmode=verify-full"
+  "postgresql://emailhub_app:secret@db.example:5432/emailhub?sslmode=verify-full"
 
 describe("application database URL policy", () => {
-  it("allows a non-superuser loopback URL without TLS", () => {
+  it("allows the application role on loopback without TLS", () => {
     expect(() => assertApplicationDatabaseUrl(localUrl)).not.toThrow()
     expect(sslForApplicationUrl(localUrl)).toBeUndefined()
   })
 
   it("treats the SSH tunnel endpoint as loopback", () => {
     const tunnelUrl =
-      "postgresql://emailhub_user:secret@127.0.0.1:15432/emailhub"
+      "postgresql://emailhub_app:secret@127.0.0.1:15432/emailhub"
 
     expect(() => assertApplicationDatabaseUrl(tunnelUrl)).not.toThrow()
     expect(sslForApplicationUrl(tunnelUrl)).toBeUndefined()
+  })
+
+  it("rejects the migration login as DATABASE_URL", () => {
+    expect(() =>
+      assertApplicationDatabaseUrl(
+        "postgresql://emailhub:secret@localhost:5432/emailhub"
+      )
+    ).toThrow(/emailhub_app/)
   })
 
   it("rejects a public database host without verify-full", () => {
@@ -42,14 +51,28 @@ describe("application database URL policy", () => {
   it("requires verify-full for a non-local host", () => {
     expect(() =>
       assertApplicationDatabaseUrl(
-        "postgresql://emailhub:secret@db.example:5432/emailhub"
+        "postgresql://emailhub_app:secret@db.example:5432/emailhub"
       )
     ).toThrow(/sslmode=verify-full/)
     expect(() =>
       assertApplicationDatabaseUrl(
-        "postgresql://emailhub:secret@db.example:5432/emailhub?sslmode=require"
+        "postgresql://emailhub_app:secret@db.example:5432/emailhub?sslmode=require"
       )
     ).toThrow(/sslmode=verify-full/)
+  })
+
+  it("reads the login, password, and database from a URL", () => {
+    expect(
+      databaseUrlIdentity(
+        "postgresql://emailhub_app:p%40ss%3Aword@127.0.0.1/emailhub"
+      )
+    ).toMatchObject({
+      username: "emailhub_app",
+      password: "p@ss:word",
+      database: "emailhub",
+      host: "127.0.0.1",
+      port: "5432",
+    })
   })
 
   it("verifies the server certificate for an allowed remote URL", () => {

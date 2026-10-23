@@ -111,7 +111,7 @@ pnpm test
 pnpm build
 ```
 
-Coverage and integration tests: `pnpm test:coverage`, `pnpm test:int` (see root [README.md](README.md)).
+Coverage and integration tests: `pnpm test:coverage`, `pnpm test:int` (see root [README.md](README.md)). `pnpm test:int` migrates one Postgres template and gives each Vitest worker a copy.
 
 ### Dependencies (Docker)
 
@@ -121,12 +121,12 @@ From the repo root:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-| Service    | Ports                          | Notes                        |
-| ---------- | ------------------------------ | ---------------------------- |
-| Postgres   | `5432`                         | User/db/password: `emailhub` |
-| Redis      | `6379`                         | Password: `emailhub`         |
-| ClickHouse | `8123` (HTTP), `9000` (native) |                              |
-| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher           |
+| Service    | Ports                          | Notes                                                                              |
+| ---------- | ------------------------------ | ---------------------------------------------------------------------------------- |
+| Postgres   | `5432`                         | Owner `emailhub`. App role `emailhub_app`. Database and local password `emailhub`. |
+| Redis      | `6379`                         | Password: `emailhub`                                                               |
+| ClickHouse | `8123` (HTTP), `9000` (native) |                                                                                    |
+| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher                                                                 |
 
 ### App env
 
@@ -136,10 +136,11 @@ Copy and edit the app env (Drizzle reads this file only — not a root `.env`):
 cp apps/email-hub/.env.example apps/email-hub/.env
 ```
 
-Default local `DATABASE_URL`:
+Default local database URLs. `DATABASE_URL` is the app role. `DATABASE_MIGRATION_URL` is the owner login used by migrations:
 
 ```text
-postgresql://emailhub:emailhub@127.0.0.1:5432/emailhub
+DATABASE_URL=postgresql://emailhub_app:emailhub@127.0.0.1:5432/emailhub
+DATABASE_MIGRATION_URL=postgresql://emailhub:emailhub@127.0.0.1:5432/emailhub
 ```
 
 Then:
@@ -153,7 +154,7 @@ pnpm dev
 Schema changes ship only as Drizzle migrations under `packages/db`. Never edit a migration that is already merged — add a new one.
 
 1. Change schema TypeScript under `packages/db/src/schema/`.
-2. Ensure `apps/email-hub/.env` has the correct `DATABASE_URL` (must match any `DATABASE_URL` in the process environment).
+2. Ensure `apps/email-hub/.env` sets `DATABASE_URL` (app role) and `DATABASE_MIGRATION_URL` (owner). When the same variable is also set in the process environment, the two values must match.
 3. From **`packages/db`** (required — paths are relative to that package):
 
    ```bash
@@ -162,7 +163,9 @@ Schema changes ship only as Drizzle migrations under `packages/db`. Never edit a
    ```
 
    Or `cd packages/db` then `pnpm db:generate` / `pnpm db:migrate`.
-   `db:migrate` runs Drizzle (Postgres) then the ClickHouse runner.
+   `db:migrate` applies the Postgres migrations, grants `emailhub_app` (insert and select only on `audit_log`), then the ClickHouse runner.
+
+   Dev catalog data is separate from migrate. `pnpm --filter @workspace/db db:seed` inserts categories, frequency rules, one offer, and sample recipients. It only runs when `DATABASE_URL` points at a loopback host.
 
 4. Commit the SQL under `packages/db/drizzle/`, snapshots under `packages/db/drizzle/meta/`, and schema sources together.
 5. Migrations must stay backward compatible with the previous app version.

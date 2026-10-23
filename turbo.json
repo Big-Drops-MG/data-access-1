@@ -3,6 +3,7 @@
   "ui": "tui",
   "globalEnv": [
     "DATABASE_URL",
+    "DATABASE_MIGRATION_URL",
     "CLICKHOUSE_URL",
     "REDIS_URL",
     "NODE_ENV",

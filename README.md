@@ -43,7 +43,7 @@ pnpm dev
 | Integration | `*.int.test.ts`     | `pnpm test:int`      |
 | Coverage    | report + thresholds | `pnpm test:coverage` |
 
-Coverage thresholds: `@workspace/shared` 90%, `apps/worker` 80%, `apps/email-hub` server (`src/lib` + `src/app/api`) 80%. Unit runs never pick up `*.int.test.ts`.
+Coverage thresholds: `@workspace/shared` 90%, `apps/worker` 80%, `apps/email-hub` server (`src/lib` + `src/app/api`) 80%. Unit runs never pick up `*.int.test.ts`. Integration tests migrate one Postgres template and give each Vitest worker a copy of that database. `pnpm test:int:workers` runs that copy on two workers at once.
 
 ## Tooling
 
