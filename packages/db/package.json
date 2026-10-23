@@ -17,6 +17,10 @@
       "types": "./src/clickhouse/index.ts",
       "browser": "./dist/clickhouse/client.browser.js",
       "default": "./dist/clickhouse/index.js"
+    },
+    "./test": {
+      "types": "./test/index.ts",
+      "default": "./test/index.ts"
     }
   },
   "files": [
@@ -29,11 +33,12 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
     "db:ch:migrate": "tsx src/clickhouse/migrate-cli.ts",
-    "db:migrate": "drizzle-kit migrate && pnpm db:ch:migrate"
+    "db:migrate": "tsx src/migrate-cli.ts && tsx src/app-role-cli.ts && pnpm db:ch:migrate",
+    "db:seed": "tsx src/dev-seed-cli.ts"
   },
   "devDependencies": {
     "@types/node": "^24",

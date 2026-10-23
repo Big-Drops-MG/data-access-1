@@ -14,7 +14,8 @@ concurrency:
 env:
   HUSKY: "0"
   TURBO_TELEMETRY_DISABLED: "1"
-  DATABASE_URL: postgresql://emailhub:emailhub@localhost:5432/emailhub
+  DATABASE_URL: postgresql://emailhub_app:emailhub@localhost:5432/emailhub
+  DATABASE_MIGRATION_URL: postgresql://emailhub:emailhub@localhost:5432/emailhub
   CLICKHOUSE_URL: http://localhost:8123
   # CI Redis has no auth (GHA service containers cannot set requirepass like Compose).
   REDIS_URL: redis://localhost:6379
@@ -110,6 +111,12 @@ jobs:
 
       - name: Vitest
         run: pnpm test
+
+      - name: Database role, seed, and factories
+        run: pnpm exec vitest run --config vitest.int.config.ts packages/db/src/app-role.int.test.ts packages/db/src/dev-seed.int.test.ts packages/db/test/factories.int.test.ts packages/db/test/test-database.int.test.ts
+
+      - name: Per-worker test databases
+        run: pnpm test:int:workers
 
       - name: Vitest coverage
         run: pnpm test:coverage
