@@ -5,13 +5,24 @@ import { v7 as uuidv7 } from "uuid"
 
 import * as schema from "./src/schema/index.ts"
 
+/**
+ * CLI / schema reference config. Runtime auth lives in
+ * `apps/email-hub/src/lib/auth/server.ts` (Google SSO, ADMIN_EMAILS, sessions).
+ */
 export const auth = betterAuth({
   database: drizzleAdapter({} as never, {
     provider: "pg",
     schema,
   }),
   emailAndPassword: {
-    enabled: true,
+    enabled: false,
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      scopes: ["openid", "email", "profile"],
+    },
   },
   user: {
     additionalFields: {
@@ -26,6 +37,10 @@ export const auth = betterAuth({
         input: false,
       },
     },
+  },
+  session: {
+    expiresIn: 60 * 60 * 2,
+    updateAge: 60 * 5,
   },
   advanced: {
     database: {

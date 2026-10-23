@@ -27,6 +27,12 @@ export default defineConfig({
         "**/.next/**",
         // Browser-only helper; not unit-tested in Node.
         "apps/email-hub/src/lib/tokens.ts",
+        // Browser Better Auth client (needs DOM / React).
+        "apps/email-hub/src/lib/auth-client.ts",
+        // Better Auth factory + Next catch-all: need DB/runtime; policy is unit-tested in auth-gates.
+        "apps/email-hub/src/lib/auth/server.ts",
+        "apps/email-hub/src/lib/auth/auth.ts",
+        "apps/email-hub/src/app/api/auth/**",
       ],
       thresholds: {
         // packages/shared — 90%

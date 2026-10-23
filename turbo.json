@@ -5,7 +5,13 @@
     "DATABASE_URL",
     "DATABASE_MIGRATION_URL",
     "CLICKHOUSE_URL",
-    "REDIS_URL"
+    "REDIS_URL",
+    "NODE_ENV",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "ADMIN_EMAILS"
   ],
   "tasks": {
     "build": {
