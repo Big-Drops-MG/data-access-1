@@ -4,6 +4,20 @@
 # docker compose -f docker-compose.yml -f docker-compose.dev-server.yml --env-file .env.compose up -d
 
 services:
+  web:
+    environment:
+      EMAILHUB_ENV: dev
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+
+  worker:
+    environment:
+      EMAILHUB_ENV: dev
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+
   mailpit:
     image: axllent/mailpit:v1.27.10
     restart: unless-stopped

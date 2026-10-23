@@ -1,15 +1,13 @@
+import { loadServerEnv } from "@workspace/shared"
 import { Worker } from "bullmq"
 import { Redis } from "ioredis"
 
 import { BULLMQ_PREFIX, QUEUE_NAMES } from "./queues.js"
 
 async function main(): Promise<void> {
-  const redisUrl = process.env.REDIS_URL
-  if (!redisUrl) {
-    throw new Error("REDIS_URL is required")
-  }
+  const env = loadServerEnv("worker")
 
-  const connection = new Redis(redisUrl, {
+  const connection = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null,
   })
 
