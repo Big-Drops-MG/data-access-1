@@ -3,7 +3,6 @@ import { getDb } from "@workspace/db/client"
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
-import { twoFactor as twoFactorPlugin } from "better-auth/plugins"
 import { eq } from "drizzle-orm"
 import { v7 as uuidv7 } from "uuid"
 
@@ -17,6 +16,8 @@ import {
   SESSION_IDLE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "./session-policy"
+import { createTwoFactorPlugin } from "./two-factor-config"
+import { twoFactorAfterHook, twoFactorBeforeHook } from "./two-factor-hooks"
 
 const authSchema = {
   user,
@@ -48,7 +49,6 @@ function createAuth() {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID as string,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-        scopes: ["openid", "email", "profile"],
         requireEmailVerification: true,
         hd: ALLOWED_SSO_EMAIL_DOMAIN,
         mapProfileToUser: mapGoogleProfileToUser,
@@ -110,7 +110,11 @@ function createAuth() {
         },
       },
     },
-    plugins: [twoFactorPlugin(), nextCookies()],
+    hooks: {
+      before: twoFactorBeforeHook,
+      after: twoFactorAfterHook,
+    },
+    plugins: [createTwoFactorPlugin(), nextCookies()],
   })
 }
 

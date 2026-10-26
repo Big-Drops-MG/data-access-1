@@ -33,6 +33,8 @@ export default defineConfig({
         "apps/email-hub/src/lib/auth/server.ts",
         "apps/email-hub/src/lib/auth/auth.ts",
         "apps/email-hub/src/app/api/auth/**",
+        // Better Auth middleware glue; lockout rules covered in two-factor-policy / lockout tests.
+        "apps/email-hub/src/lib/auth/two-factor-hooks.ts",
       ],
       thresholds: {
         // packages/shared — 90%
