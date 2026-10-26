@@ -4,7 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import {
   domain,
   emailCategory,
+  emailRoute,
   message,
+  offer,
   recipient,
   sender,
   template,
@@ -23,8 +25,7 @@ const databaseUrl = process.env.DATABASE_URL?.trim()
 
 describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
   const suffix = randomUUID().slice(0, 8)
-  let templateVersionId = ""
-  let senderId = ""
+  let offerId = ""
   let seeded = false
 
   beforeAll(async () => {
@@ -93,8 +94,6 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
         .set({ currentVersionId: version.id })
         .where(eq(template.id, tpl.id))
 
-      templateVersionId = version.id
-
       const [dom] = await db
         .insert(domain)
         .values({
@@ -123,7 +122,37 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
         throw new Error("failed to seed sender")
       }
 
-      senderId = from.id
+      const [brand] = await db
+        .insert(offer)
+        .values({
+          name: `T-029 offer ${suffix}`,
+          externalRef: `t029-${suffix}`,
+          status: "active",
+        })
+        .returning()
+
+      if (!brand) {
+        throw new Error("failed to seed offer")
+      }
+
+      offerId = brand.id
+
+      const [route] = await db
+        .insert(emailRoute)
+        .values({
+          emailType: "thank_you",
+          offerId: brand.id,
+          templateId: tpl.id,
+          senderId: from.id,
+          status: "active",
+          createdBy: staff.id,
+        })
+        .returning()
+
+      if (!route) {
+        throw new Error("failed to seed email route")
+      }
+
       seeded = true
     } catch (error) {
       console.warn(
@@ -154,6 +183,9 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
       tx,
       recipient: row,
       idempotencyKey: key,
+      emailType,
+      templateVersion: version,
+      sender: from,
     }: TriggerEmailCreateContext) => {
       // Hold the lock briefly so the sibling call waits on the advisory lock.
       await new Promise((resolve) => setTimeout(resolve, 50))
@@ -161,9 +193,9 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
         .insert(message)
         .values({
           recipientId: row.id,
-          emailType: "thank_you",
-          templateVersionId,
-          senderId,
+          emailType,
+          templateVersionId: version.id,
+          senderId: from.id,
           idempotencyKey: key,
           status: "queued",
           queuedAt: new Date(),
@@ -178,12 +210,26 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
     const [first, second] = await Promise.all([
       triggerEmail(
         db,
-        { email, idempotencyKey, externalUserId: `ext-${suffix}` },
+        {
+          email,
+          idempotencyKey,
+          emailType: "thank_you",
+          offerId,
+          mergeData: { name: "Ada" },
+          externalUserId: `ext-${suffix}`,
+        },
         createMessage
       ),
       triggerEmail(
         db,
-        { email, idempotencyKey, externalUserId: `ext-${suffix}` },
+        {
+          email,
+          idempotencyKey,
+          emailType: "thank_you",
+          offerId,
+          mergeData: { name: "Ada" },
+          externalUserId: `ext-${suffix}`,
+        },
         createMessage
       ),
     ])
