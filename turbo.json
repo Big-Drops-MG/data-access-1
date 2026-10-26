@@ -7,11 +7,18 @@
     "CLICKHOUSE_URL",
     "REDIS_URL",
     "NODE_ENV",
+    "NEXT_RUNTIME",
+    "EMAILHUB_ENV",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
-    "ADMIN_EMAILS"
+    "ADMIN_EMAILS",
+    "MAIL_TRANSPORT",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SES_REGION",
+    "E2E"
   ],
   "tasks": {
     "build": {

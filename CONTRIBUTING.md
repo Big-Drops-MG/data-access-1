@@ -190,6 +190,8 @@ ClickHouse DDL lives under `packages/db/clickhouse/` as numbered files (`0001_â€
 
 Root `docker-compose.yml` is the Dev/Prod host stack (SD#13.2): Caddy (only published ports 80/443), web, worker, Postgres, ClickHouse, Redis, Alloy. Volumes live under `/data/...`. Copy `.env.compose.example` to `.env.compose` on the host (mode 600) or inject the same keys in Coolify.
 
+App container secrets (SD#11.11) belong in Coolify encrypted env. Use `deploy/coolify-app-env.example` as the checklist. Set `EMAILHUB_ENV=dev` on Dev (SMTP/Mailpit allowed) and `EMAILHUB_ENV=prod` on Prod (`MAIL_TRANSPORT=ses`, do not set `E2E`). Missing or invalid env stops web/worker boot with a clear message (`loadServerEnv`).
+
 ```bash
 # Prod droplet
 docker compose --env-file .env.compose up -d
