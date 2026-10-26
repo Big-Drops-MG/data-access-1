@@ -7,7 +7,7 @@ import * as schema from "./src/schema/index.ts"
 
 /**
  * CLI / schema reference config. Runtime auth lives in
- * `apps/email-hub/src/lib/auth/server.ts` (Google SSO, ADMIN_EMAILS, sessions).
+ * `apps/email-hub/src/lib/auth/server.ts` (Google SSO, ADMIN_EMAILS, sessions, 2FA).
  */
 export const auth = betterAuth({
   database: drizzleAdapter({} as never, {
@@ -47,5 +47,15 @@ export const auth = betterAuth({
       generateId: () => uuidv7(),
     },
   },
-  plugins: [twoFactor()],
+  plugins: [
+    twoFactor({
+      issuer: "EmailHub",
+      allowPasswordless: true,
+      totpOptions: { digits: 6, period: 30 },
+      backupCodeOptions: { amount: 10, storeBackupCodes: "encrypted" },
+      accountLockout: { enabled: false },
+      twoFactorCookieMaxAge: 600,
+      trustDeviceMaxAge: 30 * 24 * 60 * 60,
+    }),
+  ],
 })
