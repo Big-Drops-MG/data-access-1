@@ -5,6 +5,7 @@ import { logAuthEvent, setAuthEventSink } from "./auth-events"
 describe("logAuthEvent", () => {
   afterEach(() => {
     setAuthEventSink(undefined)
+    vi.restoreAllMocks()
   })
 
   it("logs auth.login at info", () => {
@@ -24,6 +25,25 @@ describe("logAuthEvent", () => {
     })
     expect(sink).toHaveBeenNthCalledWith(2, "warn", "auth.lockout", {
       user_id: "u1",
+    })
+  })
+
+  it("writes a structured console.warn line via the default sink", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    setAuthEventSink(undefined)
+    logAuthEvent("auth.2fa_enrolled", { user_id: "u1" })
+    expect(warn).toHaveBeenCalledOnce()
+    const payload = JSON.parse(String(warn.mock.calls[0]?.[0])) as {
+      level: string
+      event: string
+      user_id: string
+      service: string
+    }
+    expect(payload).toMatchObject({
+      level: "info",
+      event: "auth.2fa_enrolled",
+      user_id: "u1",
+      service: "web",
     })
   })
 })

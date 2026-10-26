@@ -9,6 +9,7 @@ import {
   applySuccessfulVerification,
   emptyLockoutState,
   getLockoutStatus,
+  resetLockoutForAdminReset,
   syncConsecutiveLockoutFromRow,
 } from "./two-factor-policy"
 
@@ -164,5 +165,35 @@ describe("two-factor lockout policy", () => {
       t0
     )
     expect(state.consecutiveLockoutCount).toBe(0)
+  })
+
+  it("returns empty state from resetLockoutForAdminReset", () => {
+    expect(resetLockoutForAdminReset()).toEqual(emptyLockoutState())
+  })
+
+  it("keeps admin_required when another failure arrives after three lockouts", () => {
+    const lockedUntil = new Date(t0.getTime() + TWO_FACTOR_LOCK_DURATION_MS)
+    const state = {
+      ...emptyLockoutState(),
+      consecutiveLockoutCount: TWO_FACTOR_MAX_CONSECUTIVE_LOCKOUTS,
+      lockedUntil,
+      lastCountedLockoutUntil: lockedUntil,
+    }
+    const result = applyFailedVerification(state, t0)
+    expect(result.status).toBe("admin_required")
+    expect(result.state).toEqual(state)
+  })
+
+  it("re-asserts temporary status without double-counting the same lock", () => {
+    const lockedUntil = new Date(t0.getTime() + TWO_FACTOR_LOCK_DURATION_MS)
+    const state = {
+      ...emptyLockoutState(),
+      consecutiveLockoutCount: 1,
+      lockedUntil,
+      lastCountedLockoutUntil: lockedUntil,
+    }
+    const result = applyFailedVerification(state, t0)
+    expect(result.status).toBe("temporary")
+    expect(result.state.consecutiveLockoutCount).toBe(1)
   })
 })
