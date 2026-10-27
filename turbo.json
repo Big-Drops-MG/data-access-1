@@ -1,7 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalEnv": ["DATABASE_URL", "CLICKHOUSE_URL", "REDIS_URL"],
+  "globalEnv": ["DATABASE_URL", "CLICKHOUSE_URL", "REDIS_URL", "SNS_TOPIC_ARN"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
