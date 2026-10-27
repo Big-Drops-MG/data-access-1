@@ -27,8 +27,15 @@ variable "ssh_key_ids" {
 
 variable "ssh_allowed_cidrs" {
   type        = list(string)
-  description = "CIDRs allowed on TCP/22 (SD#13.3 office allowlist). Temporary default is open; tighten before Prod."
-  default     = ["0.0.0.0/0", "::/0"]
+  description = "CIDRs allowed on TCP/22 (SD#13.3 office allowlist). Required — never default to 0.0.0.0/0."
+
+  validation {
+    condition = length(var.ssh_allowed_cidrs) > 0 && alltrue([
+      for cidr in var.ssh_allowed_cidrs :
+      cidr != "0.0.0.0/0" && cidr != "::/0"
+    ])
+    error_message = "ssh_allowed_cidrs must be a non-empty office allowlist and must not include 0.0.0.0/0 or ::/0."
+  }
 }
 
 variable "vpc_uuid" {

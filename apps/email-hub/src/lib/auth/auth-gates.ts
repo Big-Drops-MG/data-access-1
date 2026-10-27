@@ -24,7 +24,7 @@ export type GoogleProfileInput = {
 
 /** Map Google OIDC profile → user fields; reject unverified / off-domain. */
 export function mapGoogleProfileToUser(profile: GoogleProfileInput) {
-  if (profile.email_verified === false) {
+  if (profile.email_verified !== true) {
     rejectSignIn()
   }
   const email = normaliseEmail(String(profile.email ?? ""))

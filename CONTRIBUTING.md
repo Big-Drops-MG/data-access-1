@@ -121,12 +121,12 @@ From the repo root:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-| Service    | Ports                          | Notes                                                                              |
-| ---------- | ------------------------------ | ---------------------------------------------------------------------------------- |
-| Postgres   | `5432`                         | Owner `emailhub`. App role `emailhub_app`. Database and local password `emailhub`. |
-| Redis      | `6379`                         | Password: `emailhub`                                                               |
-| ClickHouse | `8123` (HTTP), `9000` (native) |                                                                                    |
-| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher                                                                 |
+| Service    | Ports                          | Notes                                                                                            |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Postgres   | host `5433` → container `5432` | Postgres 18 (native `uuidv7()`). Owner `emailhub`. App role `emailhub_app`. Password `emailhub`. |
+| Redis      | `6379`                         | Password: `emailhub`                                                                             |
+| ClickHouse | `8123` (HTTP), `9000` (native) |                                                                                                  |
+| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher                                                                               |
 
 ### App env
 
@@ -139,8 +139,8 @@ cp apps/email-hub/.env.example apps/email-hub/.env
 Default local database URLs. `DATABASE_URL` is the app role. `DATABASE_MIGRATION_URL` is the owner login used by migrations:
 
 ```text
-DATABASE_URL=postgresql://emailhub_app:emailhub@127.0.0.1:5432/emailhub
-DATABASE_MIGRATION_URL=postgresql://emailhub:emailhub@127.0.0.1:5432/emailhub
+DATABASE_URL=postgresql://emailhub_app:emailhub@127.0.0.1:5433/emailhub
+DATABASE_MIGRATION_URL=postgresql://emailhub:emailhub@127.0.0.1:5433/emailhub
 ```
 
 Then:
@@ -206,8 +206,8 @@ Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps
 
 `.github/workflows/deploy.yml` runs on push to `main` (SD#13.6 / T-035):
 
-1. Build and push `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`).
-2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`) then Coolify deploy API.
+1. Build and push `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`); fail if image exceeds 400 MiB.
+2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`), PATCH Coolify app to the git SHA tag, then deploy with `force=true`.
 3. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
 
 Create GitHub Environments **`development`** and **`production`**. Configure these repository secrets (and environment secrets where noted):
@@ -220,6 +220,10 @@ Create GitHub Environments **`development`** and **`production`**. Configure the
 | `DEV_DATABASE_URL` / `DEV_DATABASE_MIGRATION_URL` / `DEV_CLICKHOUSE_URL`    | Dev migrate (Environment `development`)                                         |
 | `PROD_DATABASE_URL` / `PROD_DATABASE_MIGRATION_URL` / `PROD_CLICKHOUSE_URL` | Prod migrate (Environment `production`)                                         |
 
-Point Coolify app image to `ghcr.io/<owner>/<repo>:<sha>` (or update the tag Coolify pulls after each push). Migrate URLs must be reachable from GitHub-hosted runners (SSH tunnel, allowlisted network, or similar) — do not publish DB ports on the droplet firewall.
+The deploy workflow pins Coolify `docker_registry_image_tag` to the git SHA. Migrate URLs must be reachable from GitHub-hosted runners (SSH tunnel, allowlisted network, or similar) — do not publish DB ports on the droplet firewall.
+
+### Droplet harden (T-009)
+
+Terraform mounts `/data` only. After first key-based SSH login, run [`deploy/harden-droplet.sh`](deploy/harden-droplet.sh) (see [`deploy/README-hardening.md`](deploy/README-hardening.md)): SSH key-only, fail2ban, unattended-upgrades (Sunday 04:00 ET reboot), Docker, Coolify on localhost via tunnel. Set `ssh_allowed_cidrs` in each env `terraform.tfvars` to office IPs from P21 — world-open CIDRs are rejected by Terraform validation.
 
 More index links: [docs/README.md](docs/README.md).
