@@ -31,6 +31,7 @@ jobs:
 
     services:
       postgres:
+        # PG 18 required for native uuidv7() used by packages/db migrations.
         image: postgres:18
         env:
           POSTGRES_USER: emailhub

@@ -148,7 +148,8 @@ services:
       - no-new-privileges:true
 
   postgres:
-    image: postgres:17.6-bookworm
+    # PG 18 required: schema defaults use native uuidv7() (migration 0004).
+    image: postgres:18-bookworm
     restart: unless-stopped
     mem_limit: 3072m
     environment:
@@ -156,7 +157,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
     volumes:
-      - /data/postgres:/var/lib/postgresql/data
+      # Postgres 18+ images expect the volume at /var/lib/postgresql (not .../data).
+      - /data/postgres:/var/lib/postgresql
     networks:
       - internal
     security_opt:

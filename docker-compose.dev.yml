@@ -1,5 +1,6 @@
 services:
   postgres:
+    # PG 18 required: schema defaults use native uuidv7() (migration 0004).
     image: postgres:18
     environment:
       POSTGRES_USER: emailhub
