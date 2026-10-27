@@ -49,3 +49,20 @@ export {
   REPORT_MATERIALIZED_VIEWS,
   REPORT_TABLES,
 } from "./report-tables-schema.js"
+export {
+  DATA_CLOUD_DATABASE,
+  DATA_CLOUD_RECIPIENT_TIER_TABLE,
+  DATA_CLOUD_RECIPIENT_TIER_VIEW,
+  DATA_CLOUD_TIER_DAILY_TABLE,
+  DATA_CLOUD_TIER_DAILY_VIEW,
+  DATA_CLOUD_TIERS,
+  DATA_CLOUD_VIEWS,
+  PROVIDER_METRICS_BY_PROVIDER,
+  PROVIDER_METRICS_ORDER_BY,
+  PROVIDER_METRICS_PROVIDERS,
+  PROVIDER_METRICS_TABLE,
+  dataCloudViewQualifiedName,
+  providerMetricsQualifiedName,
+  type DataCloudTier,
+  type ProviderMetricsProvider,
+} from "./provider-metrics-schema.js"

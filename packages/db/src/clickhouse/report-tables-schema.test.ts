@@ -30,7 +30,10 @@ describe("ClickHouse report tables migration", () => {
   const migration = migrations.find((file) => file.version === "0002")
 
   it("ships 0002 after email_events", () => {
-    expect(migrations.map((file) => file.version)).toEqual(["0001", "0002"])
+    expect(migrations.map((file) => file.version).slice(0, 2)).toEqual([
+      "0001",
+      "0002",
+    ])
     expect(migration?.filename).toBe("0002_create_report_tables.sql")
   })
 
