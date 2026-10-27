@@ -4,8 +4,8 @@ ssh_key_ids = [
   #   doctl compute ssh-key list
 ]
 
-# Optional for now (defaults to 0.0.0.0/0). Tighten later to office IPs:
-# ssh_allowed_cidrs = ["203.0.113.10/32"]
+# Required (P21 office IPs). Do not use 0.0.0.0/0.
+ssh_allowed_cidrs = ["203.0.113.10/32"]
 
 # Optional overrides (defaults match SD#13.1 Dev):
 # droplet_size    = "s-2vcpu-8gb-amd"

@@ -7,6 +7,7 @@ export type AuthEventName =
   | "auth.lockout"
   | "auth.lockout_admin_required"
   | "auth.2fa_enrolled"
+  | "auth.2fa_reset"
 
 export type AuthEventFields = {
   user_id?: string
@@ -45,6 +46,10 @@ export function logAuthEvent(
   fields: AuthEventFields = {}
 ): void {
   const level =
-    event === "auth.login" || event === "auth.2fa_enrolled" ? "info" : "warn"
+    event === "auth.login" ||
+    event === "auth.2fa_enrolled" ||
+    event === "auth.2fa_reset"
+      ? "info"
+      : "warn"
   sink(level, event, fields)
 }

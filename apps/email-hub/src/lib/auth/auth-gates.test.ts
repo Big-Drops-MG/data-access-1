@@ -27,7 +27,7 @@ describe("mapGoogleProfileToUser", () => {
     })
   })
 
-  it("rejects unverified email", () => {
+  it("rejects unverified or missing email_verified", () => {
     expect(() =>
       mapGoogleProfileToUser({
         email: "sami@bigdropsmarketing.com",
@@ -38,6 +38,11 @@ describe("mapGoogleProfileToUser", () => {
       mapGoogleProfileToUser({
         email: "sami@bigdropsmarketing.com",
         email_verified: false,
+      })
+    ).toThrow(SIGN_IN_REJECTED_MESSAGE)
+    expect(() =>
+      mapGoogleProfileToUser({
+        email: "sami@bigdropsmarketing.com",
       })
     ).toThrow(SIGN_IN_REJECTED_MESSAGE)
   })

@@ -63,6 +63,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Assert image under 400 MiB (T-025)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          BYTES="$(docker image inspect "$IMAGE" --format '{{.Size}}')"
+          MAX="$((400 * 1024 * 1024))"
+          echo "Image size: ${BYTES} bytes (limit ${MAX})"
+          test "${BYTES}" -le "${MAX}"
+
   migrate-dev:
     name: Migrate Dev databases
     needs: build
@@ -117,24 +128,32 @@ jobs:
     timeout-minutes: 10
     environment: development
     steps:
-      - name: Trigger Coolify Dev deploy
+      - name: Pin Coolify Dev image to git SHA and deploy
         env:
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_DEV_APP_UUID: ${{ secrets.COOLIFY_DEV_APP_UUID }}
-          APP_IMAGE: ${{ needs.build.outputs.image }}:${{ github.sha }}
+          IMAGE_NAME: ${{ needs.build.outputs.image }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           test -n "$COOLIFY_BASE_URL"
           test -n "$COOLIFY_TOKEN"
           test -n "$COOLIFY_DEV_APP_UUID"
-          # Coolify should be configured to pull APP_IMAGE (or force rebuild).
+          curl --fail --silent --show-error \
+            -X PATCH \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "{\"docker_registry_image_name\":\"${IMAGE_NAME}\",\"docker_registry_image_tag\":\"${IMAGE_TAG}\"}" \
+            "${COOLIFY_BASE_URL%/}/api/v1/applications/${COOLIFY_DEV_APP_UUID}"
+          echo
           curl --fail --silent --show-error \
             -X GET \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             -H "Accept: application/json" \
-            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_DEV_APP_UUID}&force=false"
+            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_DEV_APP_UUID}&force=true"
           echo
-          echo "Requested Dev deploy for ${APP_IMAGE}"
+          echo "Requested Dev deploy for ${IMAGE_NAME}:${IMAGE_TAG}"
 
   migrate-prod:
     name: Migrate Prod databases
@@ -190,20 +209,29 @@ jobs:
     timeout-minutes: 10
     environment: production
     steps:
-      - name: Trigger Coolify Prod deploy
+      - name: Pin Coolify Prod image to git SHA and deploy
         env:
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_PROD_APP_UUID }}
-          APP_IMAGE: ${{ needs.build.outputs.image }}:${{ github.sha }}
+          IMAGE_NAME: ${{ needs.build.outputs.image }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           test -n "$COOLIFY_BASE_URL"
           test -n "$COOLIFY_TOKEN"
           test -n "$COOLIFY_PROD_APP_UUID"
           curl --fail --silent --show-error \
+            -X PATCH \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "{\"docker_registry_image_name\":\"${IMAGE_NAME}\",\"docker_registry_image_tag\":\"${IMAGE_TAG}\"}" \
+            "${COOLIFY_BASE_URL%/}/api/v1/applications/${COOLIFY_PROD_APP_UUID}"
+          echo
+          curl --fail --silent --show-error \
             -X GET \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             -H "Accept: application/json" \
-            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_PROD_APP_UUID}&force=false"
+            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_PROD_APP_UUID}&force=true"
           echo
-          echo "Requested Prod deploy for ${APP_IMAGE}"
+          echo "Requested Prod deploy for ${IMAGE_NAME}:${IMAGE_TAG}"
