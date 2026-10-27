@@ -3,6 +3,7 @@ import { deleteSessionCookie } from "better-auth/cookies"
 import { generateRandomString } from "better-auth/crypto"
 
 import { logAuthEvent } from "./auth-events"
+import { userHasTwoFactorEnrolled } from "./two-factor-enrollment"
 import {
   TWO_FACTOR_EMAIL_COOKIE,
   TWO_FACTOR_USER_COOKIE,
@@ -143,13 +144,18 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
     ctx.context.options?.baseURL ?? process.env.BETTER_AUTH_URL ?? ""
   ).replace(/\/$/, "")
 
-  if (!data.user.twoFactorEnabled) {
-    logAuthEvent("auth.login", { user_id: data.user.id })
-    // Session is kept so enrolment APIs work; force setup before the app.
+  const userId = data.user.id
+  const enrolled =
+    data.user.twoFactorEnabled === true ||
+    (await userHasTwoFactorEnrolled(userId))
+
+  if (!enrolled) {
+    logAuthEvent("auth.login", { user_id: userId })
+    // New user: keep session for enrolment APIs; show QR / manual key only.
     throw ctx.redirect(`${appOrigin}/login/2fa-setup`)
   }
 
-  const userId = data.user.id
+  // Existing user: TOTP challenge only (no QR / setup).
   await assertTwoFactorVerifyAllowed(userId)
 
   deleteSessionCookie(ctx, true)

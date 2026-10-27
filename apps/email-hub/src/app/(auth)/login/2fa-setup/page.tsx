@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { TwoFactorSetupView } from "@/components/auth/two-factor-setup-view"
-import { getSession } from "@/lib/auth"
+import { getSession, signOut } from "@/lib/auth"
+import { userHasTwoFactorEnrolled } from "@/lib/auth/two-factor-enrollment"
 import { buildLoginPath } from "@/lib/login/login-path"
 import { safeNextPath } from "@/lib/login/safe-next-path"
 
@@ -32,6 +33,11 @@ export default async function TwoFactorSetupPage({ searchParams }: PageProps) {
   }
   if (session.twoFactorEnabled) {
     redirect(nextPath)
+  }
+  // Enrolled users must never see QR/keys — re-auth into TOTP verify only.
+  if (await userHasTwoFactorEnrolled(session.id)) {
+    await signOut()
+    redirect(buildLoginPath({ next: nextPath }))
   }
 
   return <TwoFactorSetupView email={session.email} nextPath={nextPath} />
