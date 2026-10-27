@@ -121,12 +121,12 @@ From the repo root:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-| Service    | Ports                          | Notes                                                                              |
-| ---------- | ------------------------------ | ---------------------------------------------------------------------------------- |
-| Postgres   | host `5433` → container `5432` | Postgres 17. Owner `emailhub`. App role `emailhub_app`. Local password `emailhub`. |
-| Redis      | `6379`                         | Password: `emailhub`                                                               |
-| ClickHouse | `8123` (HTTP), `9000` (native) |                                                                                    |
-| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher                                                                 |
+| Service    | Ports                          | Notes                                                                                            |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Postgres   | host `5433` → container `5432` | Postgres 18 (native `uuidv7()`). Owner `emailhub`. App role `emailhub_app`. Password `emailhub`. |
+| Redis      | `6379`                         | Password: `emailhub`                                                                             |
+| ClickHouse | `8123` (HTTP), `9000` (native) |                                                                                                  |
+| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher                                                                               |
 
 ### App env
 

@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17
+    # PG 18 required: schema defaults use native uuidv7() (migration 0004).
+    image: postgres:18
     environment:
       POSTGRES_USER: emailhub
       POSTGRES_PASSWORD: emailhub
@@ -9,7 +10,8 @@ services:
       # Host 5433 avoids clashing with a local Windows/Postgres install on 5432.
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ images expect the volume at /var/lib/postgresql (not .../data).
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U emailhub -d emailhub"]
       interval: 5s
