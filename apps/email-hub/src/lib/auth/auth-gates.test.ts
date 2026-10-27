@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { parseAdminEmails } from "./admin-emails"
 import {
+  SIGN_IN_REJECTED_CODE,
   SIGN_IN_REJECTED_MESSAGE,
   assertActiveStaffForSession,
   mapGoogleProfileToUser,
@@ -84,6 +85,24 @@ describe("prepareBootstrapAdminUser", () => {
     expect(() =>
       prepareBootstrapAdminUser({ email: "admin@gmail.com", name: "X" }, admins)
     ).toThrow(APIError)
+  })
+
+  it("uses the unprovisioned code so OAuth redirects to /login?error=", () => {
+    let thrown: unknown
+    try {
+      prepareBootstrapAdminUser(
+        { email: "stranger@bigdropsmarketing.com", name: "X" },
+        admins
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(APIError)
+    expect((thrown as APIError).body).toMatchObject({
+      code: SIGN_IN_REJECTED_CODE,
+      message: SIGN_IN_REJECTED_MESSAGE,
+    })
   })
 })
 

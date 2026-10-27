@@ -5,9 +5,13 @@ import { isAllowedSsoEmailDomain, isBootstrapAdminEmail } from "./admin-emails"
 
 export const SIGN_IN_REJECTED_MESSAGE = "Unable to sign in"
 
+/** Query value Better Auth OAuth callback redirects to `/login?error=`. */
+export const SIGN_IN_REJECTED_CODE = "unprovisioned"
+
 function rejectSignIn(): never {
   throw new APIError("FORBIDDEN", {
     message: SIGN_IN_REJECTED_MESSAGE,
+    code: SIGN_IN_REJECTED_CODE,
   })
 }
 
