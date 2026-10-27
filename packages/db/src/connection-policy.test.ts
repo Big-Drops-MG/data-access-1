@@ -24,6 +24,22 @@ describe("application database URL policy", () => {
     expect(sslForApplicationUrl(tunnelUrl)).toBeUndefined()
   })
 
+  it("allows Coolify/Docker single-label hosts without TLS", () => {
+    const coolifyUrl =
+      "postgresql://emailhub_app:secret@gdhbxcxcr2rsyc9fimbllnvu:5432/emailhub"
+
+    expect(() => assertApplicationDatabaseUrl(coolifyUrl)).not.toThrow()
+    expect(sslForApplicationUrl(coolifyUrl)).toBeUndefined()
+  })
+
+  it("allows RFC1918 private IPs without TLS", () => {
+    const privateUrl =
+      "postgresql://emailhub_app:secret@172.18.0.3:5432/emailhub"
+
+    expect(() => assertApplicationDatabaseUrl(privateUrl)).not.toThrow()
+    expect(sslForApplicationUrl(privateUrl)).toBeUndefined()
+  })
+
   it("rejects the migration login as DATABASE_URL", () => {
     expect(() =>
       assertApplicationDatabaseUrl(
