@@ -6,6 +6,20 @@ import { OnlineStatusProvider } from "@/components/app/online-status"
 import { getSession } from "@/lib/auth"
 import { buildLoginPath } from "@/lib/login/login-path"
 
+function envBadge(): { label: string; className: string } {
+  const env = process.env.EMAILHUB_ENV?.trim().toLowerCase()
+  if (env === "prod") {
+    return {
+      label: "PROD",
+      className: "bg-env-prod text-on-env-prod",
+    }
+  }
+  return {
+    label: "DEV",
+    className: "bg-env-dev text-on-env-dev",
+  }
+}
+
 export default async function AppShellLayout({
   children,
 }: Readonly<{
@@ -16,6 +30,7 @@ export default async function AppShellLayout({
   const pathname =
     headerStore.get("x-pathname") ?? headerStore.get("x-url") ?? "/dashboard"
   const returnPath = pathname.startsWith("/") ? pathname : "/dashboard"
+  const badge = envBadge()
 
   if (!session) {
     redirect(buildLoginPath({ next: returnPath }))
@@ -33,8 +48,10 @@ export default async function AppShellLayout({
           data-testid="app-top-bar"
         >
           <span className="text-body font-medium">EmailHub</span>
-          <span className="ml-3 rounded-sm bg-env-dev px-2 py-0.5 text-caption font-medium text-on-env-dev">
-            DEV
+          <span
+            className={`ml-3 rounded-sm px-2 py-0.5 text-caption font-medium ${badge.className}`}
+          >
+            {badge.label}
           </span>
         </header>
         <nav

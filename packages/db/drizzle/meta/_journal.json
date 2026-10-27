@@ -50,6 +50,13 @@
       "when": 1792300000000,
       "tag": "0006_two_factor_lockout_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0007_two_factor_verified_default_false",
+      "breakpoints": true
     }
   ]
 }

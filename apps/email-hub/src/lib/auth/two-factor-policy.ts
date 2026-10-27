@@ -1,13 +1,4 @@
-/**
- * SD#14.2 TOTP lockout rules:
- * - 5 wrong codes in a 10-minute window → 15-minute lock
- * - 3 consecutive lockouts → locked until Admin resets 2FA
- * Better Auth accountLockout handles the temporary lock (5 / 900s).
- * consecutiveLockoutCount tracks lockout episodes for the admin-reset gate.
- */
-
 export const TWO_FACTOR_MAX_FAILED_ATTEMPTS = 5
-/** Failure window aligned with twoFactorCookieMaxAge / SD "in 10 minutes". */
 export const TWO_FACTOR_FAILURE_WINDOW_MS = 10 * 60 * 1000
 export const TWO_FACTOR_LOCK_DURATION_MS = 15 * 60 * 1000
 export const TWO_FACTOR_LOCK_DURATION_SECONDS = 15 * 60
@@ -21,11 +12,9 @@ export const TWO_FACTOR_ISSUER = "EmailHub"
 
 export type TwoFactorLockoutState = {
   failedVerificationCount: number
-  /** Start of the current failure window; null when no open window. */
   failureWindowStartedAt: Date | null
   lockedUntil: Date | null
   consecutiveLockoutCount: number
-  /** lockedUntil value already counted toward consecutiveLockoutCount. */
   lastCountedLockoutUntil: Date | null
 }
 
@@ -63,10 +52,6 @@ export function getLockoutStatus(
   return "ok"
 }
 
-/**
- * Apply one wrong TOTP/backup code. Implements the 10-minute failure window
- * and promotes to a 15-minute lock after five failures in that window.
- */
 export function applyFailedVerification(
   state: TwoFactorLockoutState,
   now: Date = new Date()
@@ -136,10 +121,6 @@ export function applySuccessfulVerification(
   }
 }
 
-/**
- * When Better Auth has already set lockedUntil, ensure this lock episode is
- * counted once toward the three-lockout admin-reset rule.
- */
 export function syncConsecutiveLockoutFromRow(
   state: TwoFactorLockoutState,
   now: Date = new Date()

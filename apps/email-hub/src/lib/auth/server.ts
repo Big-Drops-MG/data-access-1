@@ -15,6 +15,7 @@ import {
 import {
   SESSION_IDLE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
+  clampSessionExpiresAt,
 } from "./session-policy"
 import { createTwoFactorPlugin } from "./two-factor-config"
 import { twoFactorAfterHook, twoFactorBeforeHook } from "./two-factor-hooks"
@@ -31,8 +32,15 @@ export type EmailHubAuth = ReturnType<typeof createAuth>
 
 let authInstance: EmailHubAuth | undefined
 
+function publicAuthUrlIsHttps(): boolean {
+  const base = process.env.BETTER_AUTH_URL?.trim() ?? ""
+  return /^https:/i.test(base)
+}
+
 function createAuth() {
   const adminEmails = parseAdminEmails(process.env.ADMIN_EMAILS)
+  const secureCookies =
+    process.env.NODE_ENV === "production" || publicAuthUrlIsHttps()
 
   return betterAuth({
     appName: "EmailHub",
@@ -78,12 +86,12 @@ function createAuth() {
       },
     },
     advanced: {
-      useSecureCookies: process.env.NODE_ENV === "production",
+      useSecureCookies: secureCookies,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax" as const,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookies,
       },
       database: {
         generateId: () => uuidv7(),
@@ -105,7 +113,32 @@ function createAuth() {
               .where(eq(user.id, newSession.userId))
               .limit(1)
             assertActiveStaffForSession(row)
-            return { data: newSession }
+            const createdAt = new Date(newSession.createdAt ?? Date.now())
+            const proposed = new Date(
+              newSession.expiresAt ?? Date.now() + SESSION_IDLE_SECONDS * 1000
+            )
+            return {
+              data: {
+                ...newSession,
+                expiresAt: clampSessionExpiresAt(createdAt, proposed),
+              },
+            }
+          },
+        },
+        update: {
+          before: async (session) => {
+            if (!session.createdAt) {
+              return
+            }
+            const createdAt = new Date(session.createdAt)
+            const proposed = new Date(
+              session.expiresAt ?? Date.now() + SESSION_IDLE_SECONDS * 1000
+            )
+            return {
+              data: {
+                expiresAt: clampSessionExpiresAt(createdAt, proposed),
+              },
+            }
           },
         },
       },
@@ -118,7 +151,6 @@ function createAuth() {
   })
 }
 
-/** Lazy Better Auth instance (needs DATABASE_URL / secrets at first use). */
 export function getAuth(): EmailHubAuth {
   if (!authInstance) {
     authInstance = createAuth()
@@ -126,7 +158,6 @@ export function getAuth(): EmailHubAuth {
   return authInstance
 }
 
-/** Test helper — reset the singleton between cases. */
 export function resetAuthForTests(): void {
   authInstance = undefined
 }
