@@ -1,0 +1,199 @@
+import { createAuthMiddleware, APIError, isAPIError } from "better-auth/api"
+import { deleteSessionCookie } from "better-auth/cookies"
+import { generateRandomString } from "better-auth/crypto"
+
+import { logAuthEvent } from "./auth-events"
+import { userHasTwoFactorEnrolled } from "./two-factor-enrollment"
+import {
+  TWO_FACTOR_EMAIL_COOKIE,
+  TWO_FACTOR_USER_COOKIE,
+} from "./two-factor-cookies"
+import {
+  assertTwoFactorVerifyAllowed,
+  recordTwoFactorVerificationFailure,
+  recordTwoFactorVerificationSuccess,
+} from "./two-factor-lockout"
+import { TWO_FACTOR_COOKIE_MAX_AGE_SECONDS } from "./two-factor-policy"
+
+const TWO_FACTOR_COOKIE_NAME = "two_factor"
+
+const VERIFY_PATHS = new Set([
+  "/two-factor/verify-totp",
+  "/two-factor/verify-backup-code",
+])
+
+const OAUTH_CALLBACK_PATH = /^\/callback\//
+
+function isVerifyPath(path: string): boolean {
+  return VERIFY_PATHS.has(path)
+}
+
+async function resolveTwoFactorUserId(ctx: {
+  getSignedCookie: (
+    name: string,
+    secret: string
+  ) => Promise<string | false | null>
+  context: {
+    secret: string
+    session?: { user?: { id?: string } } | null
+    createAuthCookie: (
+      name: string,
+      opts?: { maxAge?: number }
+    ) => { name: string }
+    internalAdapter: {
+      findVerificationValue: (
+        identifier: string
+      ) => Promise<{ value: string } | null>
+    }
+  }
+}): Promise<string | undefined> {
+  const fromSession = ctx.context.session?.user?.id
+  if (typeof fromSession === "string") {
+    return fromSession
+  }
+
+  const cookie = ctx.context.createAuthCookie(TWO_FACTOR_COOKIE_NAME)
+  const signed = await ctx.getSignedCookie(cookie.name, ctx.context.secret)
+  if (!signed) {
+    return undefined
+  }
+  const verification =
+    await ctx.context.internalAdapter.findVerificationValue(signed)
+  return verification?.value
+}
+
+/** Runs before Better Auth handlers: disable gate + verify lockout gate. */
+export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
+  if (ctx.path === "/two-factor/disable") {
+    throw new APIError("FORBIDDEN", {
+      message: "Two-factor authentication can only be reset by an Admin.",
+      code: "TWO_FACTOR_DISABLE_FORBIDDEN",
+    })
+  }
+
+  if (!isVerifyPath(ctx.path)) {
+    return
+  }
+
+  const userId = await resolveTwoFactorUserId(ctx)
+  if (!userId) {
+    return
+  }
+  await assertTwoFactorVerifyAllowed(userId)
+})
+
+/**
+ * After verify/enable/OAuth: lockout counters, auth.* events, and Google SSO
+ * 2FA challenge redirect.
+ */
+export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
+  const path = ctx.path
+  const returned = ctx.context.returned
+
+  if (path === "/two-factor/enable" && returned && !isAPIError(returned)) {
+    const userId = ctx.context.session?.user?.id
+    if (typeof userId === "string") {
+      logAuthEvent("auth.2fa_enrolled", { user_id: userId })
+    }
+    return
+  }
+
+  if (isVerifyPath(path)) {
+    const userId = await resolveTwoFactorUserId(ctx)
+    if (!userId) {
+      return
+    }
+
+    if (isAPIError(returned)) {
+      const code =
+        typeof returned.body === "object" &&
+        returned.body &&
+        "code" in returned.body
+          ? String((returned.body as { code?: string }).code ?? "")
+          : ""
+      if (
+        code === "ACCOUNT_TEMPORARILY_LOCKED" ||
+        code === "TWO_FACTOR_ADMIN_RESET_REQUIRED" ||
+        code === "TWO_FACTOR_DISABLE_FORBIDDEN"
+      ) {
+        return
+      }
+      await recordTwoFactorVerificationFailure(userId)
+      return
+    }
+
+    if (returned) {
+      await recordTwoFactorVerificationSuccess(userId)
+      ctx.setCookie(TWO_FACTOR_EMAIL_COOKIE, "", { maxAge: 0, path: "/" })
+      ctx.setCookie(TWO_FACTOR_USER_COOKIE, "", { maxAge: 0, path: "/" })
+    }
+    return
+  }
+
+  if (!OAUTH_CALLBACK_PATH.test(path)) {
+    return
+  }
+
+  const data = ctx.context.newSession
+  if (!data?.user) {
+    logAuthEvent("auth.login_failed", {})
+    return
+  }
+
+  const appOrigin = String(
+    ctx.context.options?.baseURL ?? process.env.BETTER_AUTH_URL ?? ""
+  ).replace(/\/$/, "")
+
+  const userId = data.user.id
+  const enrolled =
+    data.user.twoFactorEnabled === true ||
+    (await userHasTwoFactorEnrolled(userId))
+
+  if (!enrolled) {
+    logAuthEvent("auth.login", { user_id: userId })
+    // New user: keep session for enrolment APIs; show QR / manual key only.
+    throw ctx.redirect(`${appOrigin}/login/2fa-setup`)
+  }
+
+  // Existing user: TOTP challenge only (no QR / setup).
+  await assertTwoFactorVerifyAllowed(userId)
+
+  deleteSessionCookie(ctx, true)
+  await ctx.context.internalAdapter.deleteSession(data.session.token)
+  ctx.context.setNewSession(null)
+
+  const maxAge = TWO_FACTOR_COOKIE_MAX_AGE_SECONDS
+  const cookie = ctx.context.createAuthCookie(TWO_FACTOR_COOKIE_NAME, {
+    maxAge,
+  })
+  const identifier = `2fa-${generateRandomString(20)}`
+  const expiresAt = new Date(Date.now() + maxAge * 1000)
+  await ctx.context.internalAdapter.createVerificationValue({
+    value: userId,
+    identifier,
+    expiresAt,
+  })
+  await ctx.context.internalAdapter.createVerificationValue({
+    value: "0",
+    identifier: `2fa-attempts-${identifier}`,
+    expiresAt,
+  })
+  await ctx.setSignedCookie(
+    cookie.name,
+    identifier,
+    ctx.context.secret,
+    cookie.attributes
+  )
+
+  const displayCookie = {
+    maxAge,
+    path: "/",
+    sameSite: "lax" as const,
+    httpOnly: true,
+    secure: cookie.attributes.secure,
+  }
+  ctx.setCookie(TWO_FACTOR_EMAIL_COOKIE, data.user.email, displayCookie)
+  ctx.setCookie(TWO_FACTOR_USER_COOKIE, userId, displayCookie)
+
+  throw ctx.redirect(`${appOrigin}/login/2fa-verify`)
+})

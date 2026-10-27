@@ -1,7 +1,26 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalEnv": ["DATABASE_URL", "CLICKHOUSE_URL", "REDIS_URL", "SNS_TOPIC_ARN"],
+  "globalEnv": [
+    "DATABASE_URL",
+    "DATABASE_MIGRATION_URL",
+    "CLICKHOUSE_URL",
+    "REDIS_URL",
+    "NODE_ENV",
+    "NEXT_RUNTIME",
+    "EMAILHUB_ENV",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "ADMIN_EMAILS",
+    "MAIL_TRANSPORT",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SES_REGION",
+    "SNS_TOPIC_ARN",
+    "E2E"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

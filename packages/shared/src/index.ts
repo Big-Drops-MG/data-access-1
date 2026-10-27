@@ -2,14 +2,23 @@ export const PACKAGE_NAME = "@workspace/shared" as const
 
 export { hashEmail, maskEmail, normaliseEmail } from "./email.js"
 export {
+  assertMergeDataHasRequiredTags,
   findOrCreateRecipient,
+  loadRouteSendAssets,
   lockRecipientTx,
+  noRouteAlertDedupeKey,
+  openNoRouteAlert,
+  requiredMergeTagNames,
+  resolveEmailRoute,
   triggerEmail,
   type EmailHubDb,
   type EmailHubTx,
+  type MergeData,
+  type ResolvedRouteAssets,
   type TriggerEmailCreateContext,
   type TriggerEmailInput,
   type TriggerEmailResult,
+  type TriggerEmailType,
 } from "./trigger-email.js"
 export {
   AppError,
@@ -31,6 +40,15 @@ export {
   type Pagination,
   type Uuid,
 } from "./schemas.js"
+export {
+  EnvValidationError,
+  loadServerEnv,
+  parseServerEnv,
+  resetServerEnvCache,
+  type ServerEnv,
+  type ServerEnvRole,
+  type WebServerEnv,
+} from "./env.js"
 export {
   ET_TIME_ZONE,
   etToUtc,

@@ -111,7 +111,7 @@ pnpm test
 pnpm build
 ```
 
-Coverage and integration tests: `pnpm test:coverage`, `pnpm test:int` (see root [README.md](README.md)).
+Coverage and integration tests: `pnpm test:coverage`, `pnpm test:int` (see root [README.md](README.md)). `pnpm test:int` migrates one Postgres template and gives each Vitest worker a copy.
 
 ### Dependencies (Docker)
 
@@ -121,12 +121,12 @@ From the repo root:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-| Service    | Ports                          | Notes                        |
-| ---------- | ------------------------------ | ---------------------------- |
-| Postgres   | `5432`                         | User/db/password: `emailhub` |
-| Redis      | `6379`                         | Password: `emailhub`         |
-| ClickHouse | `8123` (HTTP), `9000` (native) |                              |
-| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher           |
+| Service    | Ports                          | Notes                                                                              |
+| ---------- | ------------------------------ | ---------------------------------------------------------------------------------- |
+| Postgres   | `5432`                         | Owner `emailhub`. App role `emailhub_app`. Database and local password `emailhub`. |
+| Redis      | `6379`                         | Password: `emailhub`                                                               |
+| ClickHouse | `8123` (HTTP), `9000` (native) |                                                                                    |
+| Mailpit    | `1025` (SMTP), `8025` (UI)     | Local mail catcher                                                                 |
 
 ### App env
 
@@ -136,10 +136,11 @@ Copy and edit the app env (Drizzle reads this file only — not a root `.env`):
 cp apps/email-hub/.env.example apps/email-hub/.env
 ```
 
-Default local `DATABASE_URL`:
+Default local database URLs. `DATABASE_URL` is the app role. `DATABASE_MIGRATION_URL` is the owner login used by migrations:
 
 ```text
-postgresql://emailhub:emailhub@127.0.0.1:5432/emailhub
+DATABASE_URL=postgresql://emailhub_app:emailhub@127.0.0.1:5432/emailhub
+DATABASE_MIGRATION_URL=postgresql://emailhub:emailhub@127.0.0.1:5432/emailhub
 ```
 
 Then:
@@ -153,7 +154,7 @@ pnpm dev
 Schema changes ship only as Drizzle migrations under `packages/db`. Never edit a migration that is already merged — add a new one.
 
 1. Change schema TypeScript under `packages/db/src/schema/`.
-2. Ensure `apps/email-hub/.env` has the correct `DATABASE_URL` (must match any `DATABASE_URL` in the process environment).
+2. Ensure `apps/email-hub/.env` sets `DATABASE_URL` (app role) and `DATABASE_MIGRATION_URL` (owner). When the same variable is also set in the process environment, the two values must match.
 3. From **`packages/db`** (required — paths are relative to that package):
 
    ```bash
@@ -162,7 +163,9 @@ Schema changes ship only as Drizzle migrations under `packages/db`. Never edit a
    ```
 
    Or `cd packages/db` then `pnpm db:generate` / `pnpm db:migrate`.
-   `db:migrate` runs Drizzle (Postgres) then the ClickHouse runner.
+   `db:migrate` applies the Postgres migrations, grants `emailhub_app` (insert and select only on `audit_log`), then the ClickHouse runner.
+
+   Dev catalog data is separate from migrate. `pnpm --filter @workspace/db db:seed` inserts categories, frequency rules, one offer, and sample recipients. It only runs when `DATABASE_URL` points at a loopback host.
 
 4. Commit the SQL under `packages/db/drizzle/`, snapshots under `packages/db/drizzle/meta/`, and schema sources together.
 5. Migrations must stay backward compatible with the previous app version.
@@ -187,6 +190,8 @@ ClickHouse DDL lives under `packages/db/clickhouse/` as numbered files (`0001_�
 
 Root `docker-compose.yml` is the Dev/Prod host stack (SD#13.2): Caddy (only published ports 80/443), web, worker, Postgres, ClickHouse, Redis, Alloy. Volumes live under `/data/...`. Copy `.env.compose.example` to `.env.compose` on the host (mode 600) or inject the same keys in Coolify.
 
+App container secrets (SD#11.11) belong in Coolify encrypted env. Use `deploy/coolify-app-env.example` as the checklist. Set `EMAILHUB_ENV=dev` on Dev (SMTP/Mailpit allowed) and `EMAILHUB_ENV=prod` on Prod (`MAIL_TRANSPORT=ses`, do not set `E2E`). Missing or invalid env stops web/worker boot with a clear message (`loadServerEnv`).
+
 ```bash
 # Prod droplet
 docker compose --env-file .env.compose up -d
@@ -196,5 +201,25 @@ docker compose -f docker-compose.yml -f docker-compose.dev-server.yml --env-file
 ```
 
 Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps stay on `docker-compose.dev.yml`.
+
+### Deploy workflow (GHCR + Coolify)
+
+`.github/workflows/deploy.yml` runs on push to `main` (SD#13.6 / T-035):
+
+1. Build and push `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`).
+2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`) then Coolify deploy API.
+3. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
+
+Create GitHub Environments **`development`** and **`production`**. Configure these repository secrets (and environment secrets where noted):
+
+| Secret                                                                      | Purpose                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `COOLIFY_BASE_URL`                                                          | Coolify API origin (e.g. `http://127.0.0.1:8000` via tunnel, or public API URL) |
+| `COOLIFY_TOKEN`                                                             | Coolify API token                                                               |
+| `COOLIFY_DEV_APP_UUID` / `COOLIFY_PROD_APP_UUID`                            | Application UUIDs in Coolify                                                    |
+| `DEV_DATABASE_URL` / `DEV_DATABASE_MIGRATION_URL` / `DEV_CLICKHOUSE_URL`    | Dev migrate (Environment `development`)                                         |
+| `PROD_DATABASE_URL` / `PROD_DATABASE_MIGRATION_URL` / `PROD_CLICKHOUSE_URL` | Prod migrate (Environment `production`)                                         |
+
+Point Coolify app image to `ghcr.io/<owner>/<repo>:<sha>` (or update the tag Coolify pulls after each push). Migrate URLs must be reachable from GitHub-hosted runners (SSH tunnel, allowlisted network, or similar) — do not publish DB ports on the droplet firewall.
 
 More index links: [docs/README.md](docs/README.md).

@@ -49,6 +49,12 @@ describe("email sending tables", () => {
         "message_send_status_idx",
       ])
     )
+    expect(getTableConfig(message).checks.map((entry) => entry.name)).toEqual(
+      expect.arrayContaining([
+        "message_skip_reason_check",
+        "message_no_route_assets_check",
+      ])
+    )
   })
 
   it("allows one effective frequency rule and one active route", () => {
