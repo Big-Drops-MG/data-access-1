@@ -1,11 +1,29 @@
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+
 import { OfflineBanner } from "@/components/app/offline-banner"
 import { OnlineStatusProvider } from "@/components/app/online-status"
+import { getSession } from "@/lib/auth"
+import { buildLoginPath } from "@/lib/login/login-path"
 
-export default function AppShellLayout({
+export default async function AppShellLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const session = await getSession()
+  const headerStore = await headers()
+  const pathname =
+    headerStore.get("x-pathname") ?? headerStore.get("x-url") ?? "/dashboard"
+  const returnPath = pathname.startsWith("/") ? pathname : "/dashboard"
+
+  if (!session) {
+    redirect(buildLoginPath({ next: returnPath }))
+  }
+  if (!session.twoFactorEnabled) {
+    redirect(`/login/2fa-setup?next=${encodeURIComponent(returnPath)}`)
+  }
+
   return (
     <OnlineStatusProvider>
       <div className="flex min-h-svh min-w-[1280px] flex-col bg-bg text-fg">

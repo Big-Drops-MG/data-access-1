@@ -17,7 +17,9 @@ export function clickhouseUrlFromEmailHub(): string | undefined {
     return undefined
   }
 
-  const parsed = parseEnv(fs.readFileSync(emailHubEnvPath, "utf8"))
+  const text = fs.readFileSync(emailHubEnvPath, "utf8")
+  const withoutBom = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+  const parsed = parseEnv(withoutBom)
   const url = parsed.CLICKHOUSE_URL?.trim()
   return url ? url : undefined
 }

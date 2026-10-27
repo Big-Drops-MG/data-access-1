@@ -4,6 +4,10 @@ import { generateRandomString } from "better-auth/crypto"
 
 import { logAuthEvent } from "./auth-events"
 import {
+  TWO_FACTOR_EMAIL_COOKIE,
+  TWO_FACTOR_USER_COOKIE,
+} from "./two-factor-cookies"
+import {
   assertTwoFactorVerifyAllowed,
   recordTwoFactorVerificationFailure,
   recordTwoFactorVerificationSuccess,
@@ -119,6 +123,8 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
 
     if (returned) {
       await recordTwoFactorVerificationSuccess(userId)
+      ctx.setCookie(TWO_FACTOR_EMAIL_COOKIE, "", { maxAge: 0, path: "/" })
+      ctx.setCookie(TWO_FACTOR_USER_COOKIE, "", { maxAge: 0, path: "/" })
     }
     return
   }
@@ -133,9 +139,14 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
     return
   }
 
+  const appOrigin = String(
+    ctx.context.options?.baseURL ?? process.env.BETTER_AUTH_URL ?? ""
+  ).replace(/\/$/, "")
+
   if (!data.user.twoFactorEnabled) {
     logAuthEvent("auth.login", { user_id: data.user.id })
-    return
+    // Session is kept so enrolment APIs work; force setup before the app.
+    throw ctx.redirect(`${appOrigin}/login/2fa-setup`)
   }
 
   const userId = data.user.id
@@ -168,8 +179,15 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
     cookie.attributes
   )
 
-  const appOrigin = String(
-    ctx.context.options?.baseURL ?? process.env.BETTER_AUTH_URL ?? ""
-  ).replace(/\/$/, "")
+  const displayCookie = {
+    maxAge,
+    path: "/",
+    sameSite: "lax" as const,
+    httpOnly: true,
+    secure: cookie.attributes.secure,
+  }
+  ctx.setCookie(TWO_FACTOR_EMAIL_COOKIE, data.user.email, displayCookie)
+  ctx.setCookie(TWO_FACTOR_USER_COOKIE, userId, displayCookie)
+
   throw ctx.redirect(`${appOrigin}/login/2fa-verify`)
 })

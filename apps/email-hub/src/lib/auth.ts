@@ -8,6 +8,7 @@ export type SessionUser = {
   email: string
   name: string
   role: "viewer" | "operator" | "admin"
+  twoFactorEnabled: boolean
 }
 
 function toSessionUser(user: {
@@ -15,6 +16,7 @@ function toSessionUser(user: {
   email: string
   name: string
   role?: string | null
+  twoFactorEnabled?: boolean | null
 }): SessionUser | null {
   const role = user.role
   if (role !== "viewer" && role !== "operator" && role !== "admin") {
@@ -25,6 +27,7 @@ function toSessionUser(user: {
     email: user.email,
     name: user.name,
     role,
+    twoFactorEnabled: user.twoFactorEnabled === true,
   }
 }
 

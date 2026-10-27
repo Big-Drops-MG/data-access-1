@@ -4,7 +4,13 @@ import type { SessionUser } from "@/lib/auth"
 import { canAccessAdmin, canManageUsers } from "@/lib/permissions"
 
 function user(role: SessionUser["role"]): SessionUser {
-  return { id: "1", email: "a@example.com", name: "A", role }
+  return {
+    id: "1",
+    email: "a@example.com",
+    name: "A",
+    role,
+    twoFactorEnabled: true,
+  }
 }
 
 describe("canAccessAdmin", () => {

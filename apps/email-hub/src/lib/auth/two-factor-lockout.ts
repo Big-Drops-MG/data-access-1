@@ -84,6 +84,7 @@ export async function assertTwoFactorVerifyAllowed(
     throw new APIError("TOO_MANY_REQUESTS", {
       message: TWO_FACTOR_TEMPORARILY_LOCKED_MESSAGE,
       code: "ACCOUNT_TEMPORARILY_LOCKED",
+      lockedUntil: state.lockedUntil?.toISOString(),
     })
   }
 }
