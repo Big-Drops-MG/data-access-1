@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { LoginView } from "@/components/auth/login-view"
-import { getSession } from "@/lib/auth"
+import { getSession, signOut } from "@/lib/auth"
+import { userHasTwoFactorEnrolled } from "@/lib/auth/two-factor-enrollment"
 import { resolveLoginError } from "@/lib/login/login-error"
 import { safeNextPath } from "@/lib/login/safe-next-path"
 
@@ -40,6 +41,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     redirect(callbackURL)
   }
   if (session && !session.twoFactorEnabled) {
+    // Stale session flag but already enrolled → force SSO → TOTP verify (no QR).
+    if (await userHasTwoFactorEnrolled(session.id)) {
+      await signOut()
+      return <LoginView callbackURL={callbackURL} error={error} />
+    }
     redirect(`/login/2fa-setup?next=${encodeURIComponent(callbackURL)}`)
   }
 

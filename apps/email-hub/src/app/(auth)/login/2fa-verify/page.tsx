@@ -2,8 +2,10 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { TwoFactorVerifyView } from "@/components/auth/two-factor-verify-view"
-import { getSession } from "@/lib/auth"
+import { getSession, signOut } from "@/lib/auth"
 import { getTwoFactorChallengeState } from "@/lib/auth/two-factor-challenge"
+import { userHasTwoFactorEnrolled } from "@/lib/auth/two-factor-enrollment"
+import { buildLoginPath } from "@/lib/login/login-path"
 import { safeNextPath } from "@/lib/login/safe-next-path"
 
 export const metadata: Metadata = {
@@ -30,6 +32,10 @@ export default async function TwoFactorVerifyPage({ searchParams }: PageProps) {
     redirect(nextPath)
   }
   if (session && !session.twoFactorEnabled) {
+    if (await userHasTwoFactorEnrolled(session.id)) {
+      await signOut()
+      redirect(buildLoginPath({ next: nextPath }))
+    }
     redirect(`/login/2fa-setup?next=${encodeURIComponent(nextPath)}`)
   }
 
