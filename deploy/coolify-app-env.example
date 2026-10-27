@@ -5,6 +5,9 @@
 # Deploy target: `dev` (Mailpit/SMTP allowed) or `prod` (requires MAIL_TRANSPORT=ses, no E2E)
 EMAILHUB_ENV=dev
 
+# App role only. Owner login belongs in GitHub DEV_/PROD_DATABASE_MIGRATION_URL, not here.
+# If you rotate this password in Coolify, also ALTER ROLE emailhub_app (or re-run
+# deploy/bootstrap-coolify-postgres.sh) — Postgres volumes keep the old password.
 DATABASE_URL=postgresql://emailhub_app:replace-me@postgres:5432/emailhub
 REDIS_URL=redis://:replace-me@redis:6379
 CLICKHOUSE_URL=http://default:replace-me@clickhouse:8123
