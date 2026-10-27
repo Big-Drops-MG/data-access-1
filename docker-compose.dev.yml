@@ -6,9 +6,11 @@ services:
       POSTGRES_PASSWORD: emailhub
       POSTGRES_DB: emailhub
     ports:
-      - "5432:5432"
+      # Host 5433 avoids clashing with a local Windows/Postgres install on 5432.
+      - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ images expect the volume at /var/lib/postgresql (not .../data).
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U emailhub -d emailhub"]
       interval: 5s
@@ -17,6 +19,10 @@ services:
 
   clickhouse:
     image: clickhouse:26.8
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: emailhub
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     ports:
       - "8123:8123"
       - "9000:9000"

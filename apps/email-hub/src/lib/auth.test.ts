@@ -40,6 +40,7 @@ describe("getSession", () => {
         name: "Admin",
         role: "admin",
         status: "active",
+        twoFactorEnabled: true,
       },
     })
     const { getSession } = await import("./auth.js")
@@ -48,6 +49,7 @@ describe("getSession", () => {
       email: "admin@example.com",
       name: "Admin",
       role: "admin",
+      twoFactorEnabled: true,
     })
   })
 

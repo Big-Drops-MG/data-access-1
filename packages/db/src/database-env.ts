@@ -94,12 +94,16 @@ function matchedUrl(
   return fromFile
 }
 
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+}
+
 function readEmailHubEnv(): DatabaseUrlValues {
   if (!fs.existsSync(emailHubEnvPath)) {
     return {}
   }
 
-  const parsed = parseEnv(fs.readFileSync(emailHubEnvPath, "utf8"))
+  const parsed = parseEnv(stripBom(fs.readFileSync(emailHubEnvPath, "utf8")))
   return {
     DATABASE_URL: parsed.DATABASE_URL,
     DATABASE_MIGRATION_URL: parsed.DATABASE_MIGRATION_URL,
