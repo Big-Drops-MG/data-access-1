@@ -7,8 +7,9 @@ describe("loginRedirectPath", () => {
     expect(loginRedirectPath("/page-states")).toBe("/login?next=%2Fpage-states")
   })
 
-  it("prefixes a leading slash when missing", () => {
-    expect(loginRedirectPath("dashboard")).toBe("/login?next=%2Fdashboard")
+  it("omits next when the path falls back to the default post-login path", () => {
+    expect(loginRedirectPath("dashboard")).toBe("/login")
+    expect(loginRedirectPath("/dashboard")).toBe("/login")
   })
 
   it("encodes query characters in the return path", () => {

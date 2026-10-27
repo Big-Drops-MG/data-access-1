@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 
-import { DEFAULT_POST_LOGIN_PATH } from "./safe-next-path"
 import { buildLoginPath } from "./login-path"
 
 describe("buildLoginPath", () => {
@@ -10,15 +9,15 @@ describe("buildLoginPath", () => {
     )
   })
 
-  it("falls back to the default post-login path for unsafe next", () => {
-    expect(buildLoginPath({ next: "https://evil.example" })).toBe(
-      `/login?next=${encodeURIComponent(DEFAULT_POST_LOGIN_PATH)}`
-    )
+  it("omits next when it resolves to the default post-login path", () => {
+    expect(buildLoginPath({ next: "https://evil.example" })).toBe("/login")
+    expect(buildLoginPath({ next: "/dashboard" })).toBe("/login")
+    expect(buildLoginPath()).toBe("/login")
   })
 
-  it("appends a generic error code when provided", () => {
+  it("appends a generic error code without a default next", () => {
     expect(buildLoginPath({ next: "/dashboard", error: "unprovisioned" })).toBe(
-      `/login?next=${encodeURIComponent("/dashboard")}&error=unprovisioned`
+      "/login?error=unprovisioned"
     )
   })
 })
