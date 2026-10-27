@@ -8,7 +8,7 @@ import type {
   TemplateVersion,
 } from "@workspace/db"
 
-import type { AppError } from "./errors.js"
+import { AppError } from "./errors.js"
 import {
   assertMergeDataHasRequiredTags,
   findOrCreateRecipient,
@@ -279,6 +279,30 @@ describe("requiredMergeTagNames / assertMergeDataHasRequiredTags", () => {
       status: 422,
       details: [{ path: "merge_data.quote_url", message: "Required" }],
     } satisfies Partial<AppError>)
+  })
+
+  it("rejects empty or whitespace-only string values", () => {
+    expect(() =>
+      assertMergeDataHasRequiredTags(
+        { first_name: "", quote_url: "https://x" },
+        { first_name: "string", quote_url: "string" }
+      )
+    ).toThrow(AppError)
+    expect(() =>
+      assertMergeDataHasRequiredTags(
+        { first_name: "   ", quote_url: "https://x" },
+        { first_name: "string", quote_url: "string" }
+      )
+    ).toThrow(AppError)
+  })
+
+  it("allows numeric zero and boolean false as present values", () => {
+    expect(() =>
+      assertMergeDataHasRequiredTags(
+        { count: 0, opted_in: false },
+        { count: "number", opted_in: "boolean" }
+      )
+    ).not.toThrow()
   })
 })
 

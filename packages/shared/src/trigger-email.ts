@@ -207,7 +207,13 @@ export function assertMergeDataHasRequiredTags(
 ): void {
   const data = mergeData ?? {}
   const details = requiredMergeTagNames(mergeTags)
-    .filter((tag) => data[tag] === undefined || data[tag] === null)
+    .filter((tag) => {
+      const value = data[tag]
+      if (value === undefined || value === null) {
+        return true
+      }
+      return typeof value === "string" && value.trim() === ""
+    })
     .map((tag) => ({
       path: `merge_data.${tag}`,
       message: "Required",
