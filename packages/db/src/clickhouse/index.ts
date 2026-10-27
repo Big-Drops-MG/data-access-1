@@ -22,3 +22,17 @@ export {
   splitSqlStatements,
   type ClickHouseMigrationFile,
 } from "./migrations.js"
+export {
+  EMAIL_EVENTS_ORDER_BY,
+  EMAIL_EVENTS_TABLE,
+  EMAIL_EVENT_TYPES,
+  FORBIDDEN_EMAIL_EVENTS_COLUMNS,
+  RAW_PAYLOAD_TTL_INTERVAL,
+  RECIPIENT_ACTIVITY_MV,
+  RECIPIENT_ACTIVITY_ORDER_BY,
+  RECIPIENT_ACTIVITY_TABLE,
+  clickHouseColumnNamesFromCreateTable,
+  emailEventsQualifiedName,
+  recipientActivityQualifiedName,
+  type EmailEventType,
+} from "./email-events-schema.js"
