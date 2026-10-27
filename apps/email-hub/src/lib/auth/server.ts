@@ -31,8 +31,15 @@ export type EmailHubAuth = ReturnType<typeof createAuth>
 
 let authInstance: EmailHubAuth | undefined
 
+function publicAuthUrlIsHttps(): boolean {
+  const base = process.env.BETTER_AUTH_URL?.trim() ?? ""
+  return /^https:/i.test(base)
+}
+
 function createAuth() {
   const adminEmails = parseAdminEmails(process.env.ADMIN_EMAILS)
+  const secureCookies =
+    process.env.NODE_ENV === "production" || publicAuthUrlIsHttps()
 
   return betterAuth({
     appName: "EmailHub",
@@ -78,12 +85,12 @@ function createAuth() {
       },
     },
     advanced: {
-      useSecureCookies: process.env.NODE_ENV === "production",
+      useSecureCookies: secureCookies,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax" as const,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookies,
       },
       database: {
         generateId: () => uuidv7(),
@@ -118,7 +125,6 @@ function createAuth() {
   })
 }
 
-/** Lazy Better Auth instance (needs DATABASE_URL / secrets at first use). */
 export function getAuth(): EmailHubAuth {
   if (!authInstance) {
     authInstance = createAuth()
@@ -126,7 +132,6 @@ export function getAuth(): EmailHubAuth {
   return authInstance
 }
 
-/** Test helper — reset the singleton between cases. */
 export function resetAuthForTests(): void {
   authInstance = undefined
 }

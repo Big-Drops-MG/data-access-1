@@ -14,6 +14,7 @@ import {
   recordTwoFactorVerificationSuccess,
 } from "./two-factor-lockout"
 import { TWO_FACTOR_COOKIE_MAX_AGE_SECONDS } from "./two-factor-policy"
+import { tryConsumeTrustDevice } from "./two-factor-trust-device"
 
 const TWO_FACTOR_COOKIE_NAME = "two_factor"
 
@@ -21,6 +22,8 @@ const VERIFY_PATHS = new Set([
   "/two-factor/verify-totp",
   "/two-factor/verify-backup-code",
 ])
+
+const LOCKOUT_FAILURE_CODES = new Set(["INVALID_CODE", "INVALID_BACKUP_CODE"])
 
 const OAUTH_CALLBACK_PATH = /^\/callback\//
 
@@ -62,7 +65,6 @@ async function resolveTwoFactorUserId(ctx: {
   return verification?.value
 }
 
-/** Runs before Better Auth handlers: disable gate + verify lockout gate. */
 export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
   if (ctx.path === "/two-factor/disable") {
     throw new APIError("FORBIDDEN", {
@@ -82,19 +84,11 @@ export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
   await assertTwoFactorVerifyAllowed(userId)
 })
 
-/**
- * After verify/enable/OAuth: lockout counters, auth.* events, and Google SSO
- * 2FA challenge redirect.
- */
 export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
   const path = ctx.path
   const returned = ctx.context.returned
 
-  if (path === "/two-factor/enable" && returned && !isAPIError(returned)) {
-    const userId = ctx.context.session?.user?.id
-    if (typeof userId === "string") {
-      logAuthEvent("auth.2fa_enrolled", { user_id: userId })
-    }
+  if (path === "/two-factor/enable") {
     return
   }
 
@@ -111,11 +105,7 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
         "code" in returned.body
           ? String((returned.body as { code?: string }).code ?? "")
           : ""
-      if (
-        code === "ACCOUNT_TEMPORARILY_LOCKED" ||
-        code === "TWO_FACTOR_ADMIN_RESET_REQUIRED" ||
-        code === "TWO_FACTOR_DISABLE_FORBIDDEN"
-      ) {
+      if (!LOCKOUT_FAILURE_CODES.has(code)) {
         return
       }
       await recordTwoFactorVerificationFailure(userId)
@@ -123,7 +113,12 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
     }
 
     if (returned) {
+      const enrolledDuringSetup =
+        typeof ctx.context.session?.user?.id === "string"
       await recordTwoFactorVerificationSuccess(userId)
+      if (enrolledDuringSetup) {
+        logAuthEvent("auth.2fa_enrolled", { user_id: userId })
+      }
       ctx.setCookie(TWO_FACTOR_EMAIL_COOKIE, "", { maxAge: 0, path: "/" })
       ctx.setCookie(TWO_FACTOR_USER_COOKIE, "", { maxAge: 0, path: "/" })
     }
@@ -150,12 +145,14 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
     (await userHasTwoFactorEnrolled(userId))
 
   if (!enrolled) {
-    logAuthEvent("auth.login", { user_id: userId })
-    // New user: keep session for enrolment APIs; show QR / manual key only.
     throw ctx.redirect(`${appOrigin}/login/2fa-setup`)
   }
 
-  // Existing user: TOTP challenge only (no QR / setup).
+  if (await tryConsumeTrustDevice(ctx, userId)) {
+    logAuthEvent("auth.login", { user_id: userId })
+    return
+  }
+
   await assertTwoFactorVerifyAllowed(userId)
 
   deleteSessionCookie(ctx, true)
