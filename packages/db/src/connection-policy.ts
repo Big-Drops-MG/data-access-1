@@ -123,11 +123,18 @@ function isPrivateIpv4(host: string): boolean {
   if (!match) {
     return false
   }
-  const octets = match.slice(1).map((part) => Number(part))
-  if (octets.some((octet) => octet > 255)) {
+  const octets = match.slice(1, 5).map((part) => Number(part))
+  const a = octets[0]
+  const b = octets[1]
+  if (
+    a === undefined ||
+    b === undefined ||
+    octets[2] === undefined ||
+    octets[3] === undefined ||
+    octets.some((octet) => octet > 255)
+  ) {
     return false
   }
-  const [a, b] = octets
   if (a === 10) {
     return true
   }
