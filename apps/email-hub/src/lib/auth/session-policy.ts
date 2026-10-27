@@ -10,3 +10,22 @@ export function isSessionPastAbsoluteLimit(
 ): boolean {
   return now.getTime() - createdAt.getTime() > SESSION_ABSOLUTE_SECONDS * 1000
 }
+
+/** Hard stop: createdAt + 12h. */
+export function absoluteSessionExpiresAt(createdAt: Date): Date {
+  return new Date(createdAt.getTime() + SESSION_ABSOLUTE_SECONDS * 1000)
+}
+
+/**
+ * Cap a proposed idle expiry so it never exceeds the absolute 12h lifetime
+ * (SD#14.1). Used on session create/update so sliding idle cannot extend past absolute.
+ */
+export function clampSessionExpiresAt(
+  createdAt: Date,
+  proposedExpiresAt: Date
+): Date {
+  const absolute = absoluteSessionExpiresAt(createdAt)
+  return proposedExpiresAt.getTime() <= absolute.getTime()
+    ? proposedExpiresAt
+    : absolute
+}

@@ -19,3 +19,15 @@ sudo bash deploy/harden-droplet.sh
 5. Confirm `ss -tlnp | grep 8000` shows localhost only, and password auth is rejected.
 
 Cloud-init on the droplet only mounts `/data`. Hardening is intentional as a post-provision script so existing droplets can be updated without recreating them.
+
+## Coolify public ports
+
+Coolify’s Traefik dashboard (`8080`) and optional DB TCP proxies must not listen on `0.0.0.0`. After Coolify upgrades, run:
+
+```bash
+sudo python3 deploy/lock-coolify-ports.py
+cd /data/coolify/proxy && docker compose up -d --force-recreate
+cd /data/coolify/databases/<uuid>/proxy && docker compose up -d --force-recreate
+```
+
+Verify with `ss -tlnp | grep -E ':(8080|54329)\\b'` — bindings should be `127.0.0.1` only.

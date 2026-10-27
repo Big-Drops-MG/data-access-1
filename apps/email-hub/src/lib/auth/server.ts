@@ -15,6 +15,7 @@ import {
 import {
   SESSION_IDLE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
+  clampSessionExpiresAt,
 } from "./session-policy"
 import { createTwoFactorPlugin } from "./two-factor-config"
 import { twoFactorAfterHook, twoFactorBeforeHook } from "./two-factor-hooks"
@@ -112,7 +113,32 @@ function createAuth() {
               .where(eq(user.id, newSession.userId))
               .limit(1)
             assertActiveStaffForSession(row)
-            return { data: newSession }
+            const createdAt = new Date(newSession.createdAt ?? Date.now())
+            const proposed = new Date(
+              newSession.expiresAt ?? Date.now() + SESSION_IDLE_SECONDS * 1000
+            )
+            return {
+              data: {
+                ...newSession,
+                expiresAt: clampSessionExpiresAt(createdAt, proposed),
+              },
+            }
+          },
+        },
+        update: {
+          before: async (session) => {
+            if (!session.createdAt) {
+              return
+            }
+            const createdAt = new Date(session.createdAt)
+            const proposed = new Date(
+              session.expiresAt ?? Date.now() + SESSION_IDLE_SECONDS * 1000
+            )
+            return {
+              data: {
+                expiresAt: clampSessionExpiresAt(createdAt, proposed),
+              },
+            }
           },
         },
       },

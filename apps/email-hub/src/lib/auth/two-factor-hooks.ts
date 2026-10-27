@@ -3,6 +3,7 @@ import { deleteSessionCookie } from "better-auth/cookies"
 import { generateRandomString } from "better-auth/crypto"
 
 import { logAuthEvent } from "./auth-events"
+import { isSessionPastAbsoluteLimit } from "./session-policy"
 import { userHasTwoFactorEnrolled } from "./two-factor-enrollment"
 import {
   TWO_FACTOR_EMAIL_COOKIE,
@@ -65,7 +66,23 @@ async function resolveTwoFactorUserId(ctx: {
   return verification?.value
 }
 
+/** Runs before Better Auth handlers: absolute session + 2FA gates. */
 export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
+  const activeSession = ctx.context.session?.session
+  if (activeSession?.createdAt) {
+    const createdAt = new Date(activeSession.createdAt)
+    if (isSessionPastAbsoluteLimit(createdAt)) {
+      if (activeSession.token) {
+        await ctx.context.internalAdapter.deleteSession(activeSession.token)
+      }
+      deleteSessionCookie(ctx)
+      throw new APIError("UNAUTHORIZED", {
+        message: "Session expired",
+        code: "SESSION_ABSOLUTE_EXPIRED",
+      })
+    }
+  }
+
   if (ctx.path === "/two-factor/disable") {
     throw new APIError("FORBIDDEN", {
       message: "Two-factor authentication can only be reset by an Admin.",

@@ -79,6 +79,8 @@
 
   --env-dev: #fbbf24;
   --on-env-dev: #3a2a00;
+  --env-prod: #16a34a;
+  --on-env-prod: #052e16;
 
   --chart-1: #0592ae;
   --chart-2: #3b5bdb;
@@ -199,6 +201,8 @@
   --color-topbar-line: var(--topbar-line);
   --color-env-dev: var(--env-dev);
   --color-on-env-dev: var(--on-env-dev);
+  --color-env-prod: var(--env-prod);
+  --color-on-env-prod: var(--on-env-prod);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
