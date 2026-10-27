@@ -1,7 +1,13 @@
-import { twoFactor, trustedDevice, user } from "@workspace/db"
+import {
+  session,
+  twoFactor,
+  trustedDevice,
+  user,
+  verification,
+} from "@workspace/db"
 import { getDb } from "@workspace/db/client"
 import { APIError } from "better-auth/api"
-import { and, eq, isNull } from "drizzle-orm"
+import { and, eq, isNull, like, or } from "drizzle-orm"
 
 import { logAuthEvent } from "./auth-events"
 import {
@@ -89,7 +95,6 @@ export async function assertTwoFactorVerifyAllowed(
   }
 }
 
-/** Record a failed TOTP/backup verification and emit auth.* events. */
 export async function recordTwoFactorVerificationFailure(
   userId: string,
   now: Date = new Date()
@@ -102,7 +107,6 @@ export async function recordTwoFactorVerificationFailure(
   }
 }
 
-/** Clear lockout counters after a successful verification. */
 export async function recordTwoFactorVerificationSuccess(
   userId: string
 ): Promise<void> {
@@ -111,13 +115,22 @@ export async function recordTwoFactorVerificationSuccess(
   logAuthEvent("auth.login", { user_id: userId })
 }
 
-/**
- * Admin reset (SD#9.11): delete two_factor + trusted devices, clear
- * twoFactorEnabled. User must enrol again on next login.
- */
 export async function resetTwoFactorForAdmin(userId: string): Promise<void> {
   const db = getDb()
   await db.delete(twoFactor).where(eq(twoFactor.userId, userId))
+
+  await db
+    .delete(verification)
+    .where(
+      and(
+        eq(verification.value, userId),
+        or(
+          like(verification.identifier, "trust-device-%"),
+          like(verification.identifier, "2fa-%")
+        )
+      )
+    )
+  await db.delete(session).where(eq(session.userId, userId))
   await db
     .update(trustedDevice)
     .set({ revokedAt: new Date() })
