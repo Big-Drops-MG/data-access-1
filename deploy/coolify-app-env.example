@@ -9,7 +9,11 @@ DATABASE_URL=postgresql://emailhub_app:replace-me@postgres:5432/emailhub
 REDIS_URL=redis://:replace-me@redis:6379
 CLICKHOUSE_URL=http://default:replace-me@clickhouse:8123
 
+# Encrypts sessions AND TOTP/backup secrets at rest. Local and Coolify must
+# use different secrets (and different DBs). Never rotate without Admin 2FA
+# reset + re-enrolment for every user — wrong secret looks like invalid codes.
 BETTER_AUTH_SECRET=replace-me-32+-chars
+# Must match the public HTTPS origin (Secure cookies follow this URL).
 BETTER_AUTH_URL=https://emailhub-dev.dataaccess1.com
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
@@ -37,6 +41,7 @@ IMAP_USER=
 IMAP_PASSWORD=
 BLOCKLISTS=zen.spamhaus.org
 
+# App-level crypto (non-auth). TOTP secrets use BETTER_AUTH_SECRET, not this.
 APP_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef
 UNSUBSCRIBE_TOKEN_SECRET=replace-me
 

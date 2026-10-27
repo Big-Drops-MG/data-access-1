@@ -26,6 +26,8 @@ type TwoFactorVerifyViewProps = {
   initialLockout: TwoFactorChallengeLockout | null
 }
 
+type VerifyMode = "totp" | "backup"
+
 function lockoutToError(
   lockout: TwoFactorChallengeLockout
 ): TwoFactorVerifyError {
@@ -40,14 +42,15 @@ function lockoutToError(
   })
 }
 
-/** Login-time TOTP challenge: code, trust device, lockout countdown. */
 export function TwoFactorVerifyView({
   email,
   nextPath,
   initialLockout,
 }: TwoFactorVerifyViewProps) {
   const router = useRouter()
+  const [mode, setMode] = useState<VerifyMode>("totp")
   const [code, setCode] = useState("")
+  const [backupCode, setBackupCode] = useState("")
   const [trustDevice, setTrustDevice] = useState(false)
   const [pending, setPending] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -67,6 +70,8 @@ export function TwoFactorVerifyView({
   const busy = pending || isPending
   const activeError =
     error?.kind === "temporary_lock" && !temporaryLockActive ? null : error
+  const canSubmitTotp = code.length === 6
+  const canSubmitBackup = backupCode.trim().length >= 8
 
   useEffect(() => {
     if (!lockedUntil || remaining <= 0) {
@@ -76,7 +81,33 @@ export function TwoFactorVerifyView({
     return () => window.clearInterval(timer)
   }, [lockedUntil, remaining])
 
-  async function submitCode(nextCode: string) {
+  async function completeVerify(result: {
+    error?: { code?: string; message?: string } | null
+  }) {
+    if (result.error) {
+      const body = result.error as {
+        code?: string
+        message?: string
+        lockedUntil?: string
+      }
+      setError(
+        resolveTwoFactorVerifyError({
+          code: body.code ?? result.error.code,
+          message: body.message ?? result.error.message,
+          lockedUntil: body.lockedUntil,
+        })
+      )
+      setCode("")
+      setBackupCode("")
+      setPending(false)
+      return
+    }
+    startTransition(() => {
+      router.replace(nextPath)
+    })
+  }
+
+  async function submitTotp(nextCode: string) {
     if (nextCode.length !== 6 || locked || busy) {
       return
     }
@@ -87,26 +118,7 @@ export function TwoFactorVerifyView({
         code: nextCode,
         trustDevice,
       })
-      if (result.error) {
-        const body = result.error as {
-          code?: string
-          message?: string
-          lockedUntil?: string
-        }
-        setError(
-          resolveTwoFactorVerifyError({
-            code: body.code ?? result.error.code,
-            message: body.message ?? result.error.message,
-            lockedUntil: body.lockedUntil,
-          })
-        )
-        setCode("")
-        setPending(false)
-        return
-      }
-      startTransition(() => {
-        router.replace(nextPath)
-      })
+      await completeVerify(result)
     } catch (caught) {
       const body =
         caught && typeof caught === "object"
@@ -122,11 +134,46 @@ export function TwoFactorVerifyView({
     }
   }
 
+  async function submitBackup() {
+    const next = backupCode.trim()
+    if (next.length < 8 || locked || busy) {
+      return
+    }
+    setPending(true)
+    setError(null)
+    try {
+      const result = await authClient.twoFactor.verifyBackupCode({
+        code: next,
+        trustDevice,
+      })
+      await completeVerify(result)
+    } catch (caught) {
+      const body =
+        caught && typeof caught === "object"
+          ? (caught as {
+              code?: string
+              message?: string
+              lockedUntil?: string
+            })
+          : {}
+      setError(resolveTwoFactorVerifyError(body))
+      setBackupCode("")
+      setPending(false)
+    }
+  }
+
   function handleCodeChange(next: string) {
     setCode(next)
     if (next.length === 6) {
-      void submitCode(next)
+      void submitTotp(next)
     }
+  }
+
+  function switchMode(next: VerifyMode) {
+    setMode(next)
+    setError(null)
+    setCode("")
+    setBackupCode("")
   }
 
   const subtitle = email
@@ -134,15 +181,23 @@ export function TwoFactorVerifyView({
     : "Open your authenticator app."
 
   return (
-    <AuthCard title="Enter your 6-digit code">
+    <AuthCard
+      title={
+        mode === "totp" ? "Enter your 6-digit code" : "Enter a backup code"
+      }
+    >
       <p className="text-center text-sm text-fg-muted">
-        {email ? (
-          <>
-            Open your authenticator app for{" "}
-            <span className="font-semibold text-fg">{email}</span>.
-          </>
+        {mode === "totp" ? (
+          email ? (
+            <>
+              Open your authenticator app for{" "}
+              <span className="font-semibold text-fg">{email}</span>.
+            </>
+          ) : (
+            subtitle
+          )
         ) : (
-          subtitle
+          "Use one of the one-time backup codes from when you enrolled."
         )}
       </p>
 
@@ -160,12 +215,28 @@ export function TwoFactorVerifyView({
         </p>
       ) : null}
 
-      <OtpCodeInput
-        value={code}
-        onChange={handleCodeChange}
-        disabled={locked || busy}
-        autoFocus={!locked}
-      />
+      {mode === "totp" ? (
+        <OtpCodeInput
+          value={code}
+          onChange={handleCodeChange}
+          disabled={locked || busy}
+          autoFocus={!locked}
+        />
+      ) : (
+        <label className="grid gap-2 text-sm text-fg-muted">
+          <span className="sr-only">Backup code</span>
+          <input
+            type="text"
+            autoComplete="one-time-code"
+            spellCheck={false}
+            className="h-11 w-full rounded-md border border-border-strong bg-bg px-3 font-mono text-fg"
+            value={backupCode}
+            disabled={locked || busy}
+            onChange={(event) => setBackupCode(event.target.value)}
+            data-testid="two-factor-backup-code"
+          />
+        </label>
+      )}
 
       <label className="flex items-center justify-center gap-2 text-sm text-fg-muted">
         <input
@@ -182,8 +253,14 @@ export function TwoFactorVerifyView({
         type="button"
         size="lg"
         className="h-11 w-full"
-        disabled={locked || busy || code.length !== 6}
-        onClick={() => void submitCode(code)}
+        disabled={
+          locked ||
+          busy ||
+          (mode === "totp" ? !canSubmitTotp : !canSubmitBackup)
+        }
+        onClick={() =>
+          void (mode === "totp" ? submitTotp(code) : submitBackup())
+        }
         data-testid="two-factor-verify-submit"
       >
         {temporaryLockActive
@@ -194,6 +271,20 @@ export function TwoFactorVerifyView({
               ? "Verifying…"
               : "Verify"}
       </Button>
+
+      <p className="text-center text-sm text-fg-muted">
+        <button
+          type="button"
+          className="underline underline-offset-2 hover:text-fg"
+          disabled={locked || busy}
+          onClick={() => switchMode(mode === "totp" ? "backup" : "totp")}
+          data-testid="two-factor-verify-mode-toggle"
+        >
+          {mode === "totp"
+            ? "Use a backup code instead"
+            : "Use authenticator code instead"}
+        </button>
+      </p>
     </AuthCard>
   )
 }

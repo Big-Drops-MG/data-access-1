@@ -176,10 +176,10 @@ describe("two-factor-lockout store", () => {
     expect(logAuthEvent).toHaveBeenCalledWith("auth.login", { user_id: userId })
   })
 
-  it("deletes two_factor, revokes trusted devices, and clears the flag", async () => {
+  it("deletes two_factor, BA verification tokens, sessions, and clears the flag", async () => {
     const { resetTwoFactorForAdmin } = await import("./two-factor-lockout")
     await resetTwoFactorForAdmin(userId)
-    expect(db.delete).toHaveBeenCalled()
+    expect(db.delete).toHaveBeenCalledTimes(3)
     expect(db.update).toHaveBeenCalled()
     expect(db.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({ revokedAt: expect.any(Date) })
