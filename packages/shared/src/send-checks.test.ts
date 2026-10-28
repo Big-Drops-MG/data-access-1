@@ -1,10 +1,64 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
+import type { Message, Recipient } from "@workspace/db"
+
+import { type AppError } from "./errors.js"
 import {
   firstFailedSendCheck,
+  insertSkippedSendCheckMessage,
   isTransactionalEmailType,
+  runSendChecks,
   type SendCheckFacts,
 } from "./send-checks.js"
+import type { EmailHubTx } from "./trigger-email.js"
+
+const recipientRow = {
+  id: "01900000-0000-7000-8000-000000000001",
+  email: "jane@example.com",
+  emailHash: "abc123",
+  externalUserId: null,
+  tier: "standard",
+  tierUpdatedAt: new Date(),
+  status: "active",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  lastEmailedAt: null,
+} as Recipient
+
+const now = new Date("2026-10-28T12:00:00.000Z")
+
+/** Queue of results for each `select()` call (thenable query chain). */
+function createTx(selectResults: unknown[][]): EmailHubTx {
+  let selectIndex = 0
+  return {
+    select: vi.fn(() => {
+      const result = selectResults[selectIndex] ?? []
+      selectIndex += 1
+      const chain: {
+        from: ReturnType<typeof vi.fn>
+        where: ReturnType<typeof vi.fn>
+        leftJoin: ReturnType<typeof vi.fn>
+        limit: ReturnType<typeof vi.fn>
+        then: (
+          onFulfilled?: (value: unknown) => unknown,
+          onRejected?: (reason: unknown) => unknown
+        ) => Promise<unknown>
+      } = {
+        from: vi.fn(),
+        where: vi.fn(),
+        leftJoin: vi.fn(),
+        limit: vi.fn(async () => result),
+        then: (onFulfilled, onRejected) =>
+          Promise.resolve(result).then(onFulfilled, onRejected),
+      }
+      chain.from.mockReturnValue(chain)
+      chain.where.mockReturnValue(chain)
+      chain.leftJoin.mockReturnValue(chain)
+      return chain
+    }),
+    insert: vi.fn(),
+  } as unknown as EmailHubTx
+}
 
 const baseFacts = (): SendCheckFacts => ({
   emailType: "engagement",
@@ -229,5 +283,301 @@ describe("firstFailedSendCheck", () => {
         frequencyCapHit: true,
       })
     ).toBe("collision")
+  })
+})
+
+describe("runSendChecks", () => {
+  it("returns null for thank_you when suppression and cap are clear", async () => {
+    // Parallel: hard/complaint only. Cap: category miss, global miss.
+    const tx = createTx([[], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "thank_you",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBeNull()
+  })
+
+  it("returns suppressed when a hard_bounce row exists", async () => {
+    const tx = createTx([[{ id: "sup-1" }], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "thank_you",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("suppressed")
+  })
+
+  it("returns suppressed for engagement Optizmo without checking opt-out first", async () => {
+    // Parallel: hard/complaint miss, engagement hit, opt-out unused for order
+    // Cap still runs: category miss, global miss
+    const tx = createTx([[], [{ id: "eng-sup" }], [], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "engagement",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("suppressed")
+  })
+
+  it("checks offer-scoped engagement suppression when offerId is set", async () => {
+    const tx = createTx([[], [{ id: "offer-sup" }], [], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "engagement",
+        offerId: "offer-1",
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("suppressed")
+  })
+
+  it("returns opted_out for engagement category preference", async () => {
+    const tx = createTx([[], [], [{ id: "pref-1" }], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "engagement",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("opted_out")
+  })
+
+  it("returns recipient_bounced from recipient status without needing suppressions", async () => {
+    const bounced = { ...recipientRow, status: "bounced" as const }
+    const tx = createTx([[], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: bounced,
+        emailType: "thank_you",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("recipient_bounced")
+  })
+
+  it("returns not_premium for feedback_request on standard tier", async () => {
+    // hard/complaint; collision category miss + global miss; cap category + global
+    const tx = createTx([[], [], [], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "feedback_request",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("not_premium")
+  })
+
+  it("returns collision when a blocking thank_you is in the gap window", async () => {
+    const premium = { ...recipientRow, tier: "premium" as const }
+    // hard/complaint; collision category rule; recent thank_you; cap category+global miss
+    const tx = createTx([
+      [],
+      [
+        {
+          blocksWithType: "thank_you",
+          minGapHours: 24,
+          maxCount: null,
+          windowDays: null,
+        },
+      ],
+      [{ id: "msg-ty" }],
+      [],
+      [],
+    ])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: premium,
+        emailType: "feedback_request",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("collision")
+  })
+
+  it("uses the global collision rule when no category rule exists", async () => {
+    const premium = { ...recipientRow, tier: "premium" as const }
+    const tx = createTx([
+      [],
+      [],
+      [
+        {
+          blocksWithType: "thank_you",
+          minGapHours: 24,
+          maxCount: null,
+          windowDays: null,
+        },
+      ],
+      [{ id: "msg-ty" }],
+      [],
+      [],
+    ])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: premium,
+        emailType: "feedback_request",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("collision")
+  })
+
+  it("skips collision when no collision rule is configured", async () => {
+    const premium = { ...recipientRow, tier: "premium" as const }
+    // hard/complaint; collision category miss; global miss; cap miss; global miss
+    const tx = createTx([[], [], [], [], []])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: premium,
+        emailType: "feedback_request",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBeNull()
+  })
+
+  it("returns frequency_cap when the category cap is already reached", async () => {
+    const tx = createTx([
+      [],
+      [],
+      [],
+      [{ maxCount: 2, windowDays: 7, blocksWithType: null, minGapHours: null }],
+      [{ count: 2 }],
+    ])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "engagement",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("frequency_cap")
+  })
+
+  it("uses the global frequency cap when no category cap exists", async () => {
+    const tx = createTx([
+      [],
+      [],
+      [],
+      [],
+      [{ maxCount: 3, windowDays: 7, blocksWithType: null, minGapHours: null }],
+      [{ count: 3 }],
+    ])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "engagement",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBe("frequency_cap")
+  })
+
+  it("treats a missing count row as zero under the cap", async () => {
+    const tx = createTx([
+      [],
+      [],
+      [],
+      [{ maxCount: 2, windowDays: 7, blocksWithType: null, minGapHours: null }],
+      [],
+    ])
+
+    await expect(
+      runSendChecks(tx, {
+        recipient: recipientRow,
+        emailType: "engagement",
+        offerId: null,
+        categoryId: "cat-1",
+        now,
+      })
+    ).resolves.toBeNull()
+  })
+})
+
+describe("insertSkippedSendCheckMessage", () => {
+  it("inserts a skipped message with template and sender", async () => {
+    const skipped = {
+      id: "01900000-0000-7000-8000-000000000099",
+      status: "skipped",
+      skipReason: "suppressed",
+    } as Message
+    const returning = vi.fn(async () => [skipped])
+    const values = vi.fn(() => ({ returning }))
+    const tx = {
+      insert: vi.fn(() => ({ values })),
+    } as unknown as EmailHubTx
+
+    await expect(
+      insertSkippedSendCheckMessage(tx, {
+        recipientId: recipientRow.id,
+        emailType: "thank_you",
+        offerId: null,
+        idempotencyKey: "key-1",
+        templateVersionId: "tv-1",
+        senderId: "snd-1",
+        skipReason: "suppressed",
+      })
+    ).resolves.toBe(skipped)
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "skipped",
+        skipReason: "suppressed",
+        templateVersionId: "tv-1",
+        senderId: "snd-1",
+      })
+    )
+  })
+
+  it("throws internal when insert returns no row", async () => {
+    const returning = vi.fn(async () => [])
+    const values = vi.fn(() => ({ returning }))
+    const tx = {
+      insert: vi.fn(() => ({ values })),
+    } as unknown as EmailHubTx
+
+    await expect(
+      insertSkippedSendCheckMessage(tx, {
+        recipientId: recipientRow.id,
+        emailType: "thank_you",
+        offerId: null,
+        idempotencyKey: "key-1",
+        templateVersionId: "tv-1",
+        senderId: "snd-1",
+        skipReason: "opted_out",
+      })
+    ).rejects.toMatchObject({ code: "internal" } satisfies Partial<AppError>)
   })
 })
