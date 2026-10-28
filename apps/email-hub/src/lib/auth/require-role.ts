@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { AppError } from "@workspace/shared"
 
 import { getSession, type SessionUser } from "@/lib/auth"
-import { loginPath } from "@/lib/login/login-path"
+import { buildLoginPath } from "@/lib/login/login-path"
 import { hasAtLeastRole, type AppRole } from "@/lib/permissions"
 
 /** Require an authenticated staff session (API). Throws 401. */
@@ -37,7 +37,7 @@ export async function requireRoleForPage(
 ): Promise<{ user: SessionUser } | { forbidden: true }> {
   const session = await getSession()
   if (!session) {
-    redirect(loginPath({ next: options?.nextPath }))
+    redirect(buildLoginPath({ next: options?.nextPath }))
   }
   if (!hasAtLeastRole(session, minimum)) {
     return { forbidden: true }

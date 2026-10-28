@@ -2,15 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const getSession = vi.hoisted(() => vi.fn())
 const redirect = vi.hoisted(() => vi.fn())
-const loginPath = vi.hoisted(() =>
-  vi.fn((options?: { next?: string }) => {
-    const next = options?.next
-    return next ? `/login?next=${encodeURIComponent(next)}` : "/login"
-  })
-)
-
 vi.mock("@/lib/auth", () => ({ getSession }))
-vi.mock("@/lib/login/login-path", () => ({ loginPath }))
 vi.mock("next/navigation", () => ({ redirect }))
 
 import { type AppError } from "@workspace/shared"
@@ -69,8 +61,8 @@ describe("requireSession / requireRole", () => {
   it("requireRoleForPage redirects when unauthenticated", async () => {
     getSession.mockResolvedValue(null)
     await expect(
-      requireRoleForPage("viewer", { nextPath: "/dashboard" })
-    ).rejects.toThrow("REDIRECT:/login?next=%2Fdashboard")
+      requireRoleForPage("viewer", { nextPath: "/reports" })
+    ).rejects.toThrow("REDIRECT:/login?next=%2Freports")
   })
 
   it("requireRoleForPage returns forbidden for under-privileged roles", async () => {
