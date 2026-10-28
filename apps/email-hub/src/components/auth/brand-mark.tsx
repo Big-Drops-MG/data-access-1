@@ -4,10 +4,18 @@ import { cn } from "@workspace/ui/lib/utils"
 
 type BrandMarkProps = {
   className?: string
+  /** Auth cards use `lg`; top bar uses medium `md` for balance. */
+  size?: "md" | "lg"
 }
 
-/** DA1 | EmailHub logo for auth surfaces (theme-aware asset). */
-export function BrandMark({ className }: BrandMarkProps) {
+const sizeClass = {
+  md: "h-5 w-auto",
+  lg: "h-6 w-auto",
+} as const
+
+/** DA1 | EmailHub logo (theme-aware asset). */
+export function BrandMark({ className, size = "lg" }: BrandMarkProps) {
+  const imageClass = sizeClass[size]
   return (
     <div
       className={cn("flex items-center justify-center", className)}
@@ -19,7 +27,7 @@ export function BrandMark({ className }: BrandMarkProps) {
         width={150}
         height={19}
         priority
-        className="h-6 w-auto dark:hidden"
+        className={cn(imageClass, "dark:hidden")}
       />
       <Image
         src="/brand-logo-white.svg"
@@ -27,7 +35,7 @@ export function BrandMark({ className }: BrandMarkProps) {
         width={150}
         height={19}
         priority
-        className="hidden h-6 w-auto dark:block"
+        className={cn("hidden dark:block", imageClass)}
         aria-hidden
       />
     </div>

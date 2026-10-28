@@ -1,7 +1,12 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { PageHeader } from "@/components/app/page-header"
 import { StatusBadge } from "@/components/app/status-badge"
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+}
 
 export default function DashboardPage() {
   return (

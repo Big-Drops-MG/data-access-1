@@ -1,3 +1,9 @@
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Unsubscribe",
+}
+
 type UnsubscribePageProps = {
   params: Promise<{ token: string }>
 }

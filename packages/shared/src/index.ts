@@ -41,6 +41,12 @@ export {
   type Uuid,
 } from "./schemas.js"
 export {
+  JOB_TITLES,
+  isJobTitle,
+  jobTitleSchema,
+  type JobTitle,
+} from "./job-title.js"
+export {
   EnvValidationError,
   loadServerEnv,
   parseServerEnv,

@@ -24,7 +24,7 @@ function onlyDigits(raw: string): string {
   return raw.replace(/\D/g, "")
 }
 
-/** Six-box TOTP input split as 3 + 3 (matches auth mockups). */
+/** Six-box TOTP input split as 3 + 3 with even gaps. */
 export function OtpCodeInput({
   value,
   onChange,
@@ -110,48 +110,56 @@ export function OtpCodeInput({
   }
 
   const mid = Math.floor(length / 2)
+  const left = digits.slice(0, mid)
+  const right = digits.slice(mid)
+
+  function renderDigit(digit: string, index: number) {
+    return (
+      <input
+        key={`${id}-${index}`}
+        ref={(node) => {
+          inputsRef.current[index] = node
+        }}
+        id={`${id}-${index}`}
+        type="text"
+        inputMode="numeric"
+        autoComplete={index === 0 ? "one-time-code" : "off"}
+        maxLength={1}
+        disabled={disabled}
+        value={digit.trim()}
+        onChange={(event) => handleChange(index, event.target.value)}
+        onKeyDown={(event) => handleKeyDown(index, event)}
+        onPaste={handlePaste}
+        onFocus={(event) => event.target.select()}
+        className={cn(
+          "size-11 rounded-lg border border-border-strong bg-surface text-center text-lg font-semibold text-fg outline-none",
+          "focus-visible:border-accent",
+          "disabled:cursor-not-allowed disabled:opacity-60"
+        )}
+        aria-label={`Digit ${index + 1}`}
+        data-testid={`otp-digit-${index}`}
+      />
+    )
+  }
 
   return (
     <div
-      className={cn("flex items-center justify-center gap-2.5", className)}
+      className={cn("flex items-center justify-center gap-2", className)}
       role="group"
       aria-label={ariaLabel}
     >
-      {digits.map((digit, index) => (
-        <span key={`${id}-${index}`} className="contents">
-          {index === mid ? (
-            <span
-              className="px-1.5 text-xl font-semibold text-fg-subtle"
-              aria-hidden
-            >
-              -
-            </span>
-          ) : null}
-          <input
-            ref={(node) => {
-              inputsRef.current[index] = node
-            }}
-            id={`${id}-${index}`}
-            type="text"
-            inputMode="numeric"
-            autoComplete={index === 0 ? "one-time-code" : "off"}
-            maxLength={1}
-            disabled={disabled}
-            value={digit.trim()}
-            onChange={(event) => handleChange(index, event.target.value)}
-            onKeyDown={(event) => handleKeyDown(index, event)}
-            onPaste={handlePaste}
-            onFocus={(event) => event.target.select()}
-            className={cn(
-              "size-14 rounded-xl border border-border-strong bg-surface text-center text-2xl font-bold tracking-wide text-fg shadow-none outline-none",
-              "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring",
-              "disabled:cursor-not-allowed disabled:opacity-60"
-            )}
-            aria-label={`Digit ${index + 1}`}
-            data-testid={`otp-digit-${index}`}
-          />
-        </span>
-      ))}
+      <div className="flex items-center gap-2">
+        {left.map((digit, index) => renderDigit(digit, index))}
+      </div>
+      <span
+        className="flex size-11 items-center justify-center text-base font-medium text-fg-subtle"
+        aria-hidden
+      >
+        -
+      </span>
+      <div className="flex items-center gap-2">
+        {right.map((digit, index) => renderDigit(digit, mid + index))}
+      </div>
     </div>
   )
 }

@@ -76,6 +76,11 @@ function createAuth() {
           defaultValue: "active",
           input: false,
         },
+        jobTitle: {
+          type: "string",
+          required: false,
+          input: false,
+        },
       },
     },
     session: {

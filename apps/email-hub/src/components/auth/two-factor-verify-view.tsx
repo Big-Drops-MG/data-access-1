@@ -176,31 +176,40 @@ export function TwoFactorVerifyView({
     setBackupCode("")
   }
 
-  const subtitle = email
-    ? `Open your authenticator app for ${email}.`
-    : "Open your authenticator app."
+  const description =
+    mode === "totp" ? (
+      email ? (
+        <>
+          Open your authenticator app for{" "}
+          <span className="font-semibold text-fg">{email}</span>.
+        </>
+      ) : (
+        "Open your authenticator app."
+      )
+    ) : (
+      "Use one of the one-time backup codes from when you enrolled."
+    )
 
   return (
     <AuthCard
       title={
         mode === "totp" ? "Enter your 6-digit code" : "Enter a backup code"
       }
+      description={description}
+      footer={
+        <button
+          type="button"
+          className="text-link underline underline-offset-2 hover:text-fg"
+          disabled={locked || busy}
+          onClick={() => switchMode(mode === "totp" ? "backup" : "totp")}
+          data-testid="two-factor-verify-mode-toggle"
+        >
+          {mode === "totp"
+            ? "Use a backup code instead"
+            : "Use authenticator code instead"}
+        </button>
+      }
     >
-      <p className="text-center text-sm text-fg-muted">
-        {mode === "totp" ? (
-          email ? (
-            <>
-              Open your authenticator app for{" "}
-              <span className="font-semibold text-fg">{email}</span>.
-            </>
-          ) : (
-            subtitle
-          )
-        ) : (
-          "Use one of the one-time backup codes from when you enrolled."
-        )}
-      </p>
-
       {activeError &&
       (activeError.kind === "temporary_lock" ||
         activeError.kind === "admin_required") ? (
@@ -223,13 +232,13 @@ export function TwoFactorVerifyView({
           autoFocus={!locked}
         />
       ) : (
-        <label className="grid gap-2 text-sm text-fg-muted">
+        <label className="block">
           <span className="sr-only">Backup code</span>
           <input
             type="text"
             autoComplete="one-time-code"
             spellCheck={false}
-            className="h-11 w-full rounded-md border border-border-strong bg-bg px-3 font-mono text-fg"
+            className="h-11 w-full rounded-lg border border-border-strong bg-bg px-3 font-mono text-fg outline-none focus-visible:border-accent"
             value={backupCode}
             disabled={locked || busy}
             onChange={(event) => setBackupCode(event.target.value)}
@@ -238,10 +247,10 @@ export function TwoFactorVerifyView({
         </label>
       )}
 
-      <label className="flex items-center justify-center gap-2 text-sm text-fg-muted">
+      <label className="flex items-center gap-3 text-sm text-fg-muted">
         <input
           type="checkbox"
-          className="size-4 rounded border-border-strong"
+          className="size-4 shrink-0 rounded border-border-strong"
           checked={trustDevice}
           disabled={locked || busy}
           onChange={(event) => setTrustDevice(event.target.checked)}
@@ -271,20 +280,6 @@ export function TwoFactorVerifyView({
               ? "Verifying…"
               : "Verify"}
       </Button>
-
-      <p className="text-center text-sm text-fg-muted">
-        <button
-          type="button"
-          className="underline underline-offset-2 hover:text-fg"
-          disabled={locked || busy}
-          onClick={() => switchMode(mode === "totp" ? "backup" : "totp")}
-          data-testid="two-factor-verify-mode-toggle"
-        >
-          {mode === "totp"
-            ? "Use a backup code instead"
-            : "Use authenticator code instead"}
-        </button>
-      </p>
     </AuthCard>
   )
 }
