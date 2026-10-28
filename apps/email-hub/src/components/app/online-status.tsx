@@ -3,9 +3,9 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react"
 
@@ -17,11 +17,21 @@ type OnlineStatusContextValue = {
 
 const OnlineStatusContext = createContext<OnlineStatusContextValue | null>(null)
 
-function readNavigatorOnline(): boolean {
-  if (typeof navigator === "undefined") {
-    return true
+function subscribeToOnlineStatus(onStoreChange: () => void) {
+  window.addEventListener("online", onStoreChange)
+  window.addEventListener("offline", onStoreChange)
+  return () => {
+    window.removeEventListener("online", onStoreChange)
+    window.removeEventListener("offline", onStoreChange)
   }
+}
+
+function readBrowserOnline() {
   return navigator.onLine
+}
+
+function readServerOnline() {
+  return true
 }
 
 export function OnlineStatusProvider({
@@ -32,19 +42,12 @@ export function OnlineStatusProvider({
   children: ReactNode
   forceOffline?: boolean | null
 }) {
-  const [browserOnline, setBrowserOnline] = useState(readNavigatorOnline)
+  const browserOnline = useSyncExternalStore(
+    subscribeToOnlineStatus,
+    readBrowserOnline,
+    readServerOnline
+  )
   const [userForced, setForcedOffline] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    const onOnline = () => setBrowserOnline(true)
-    const onOffline = () => setBrowserOnline(false)
-    window.addEventListener("online", onOnline)
-    window.addEventListener("offline", onOffline)
-    return () => {
-      window.removeEventListener("online", onOnline)
-      window.removeEventListener("offline", onOffline)
-    }
-  }, [])
 
   const forced = forceOffline ?? userForced
   const isOnline =

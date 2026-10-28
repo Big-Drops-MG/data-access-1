@@ -4,10 +4,13 @@ import { generateRandomString } from "better-auth/crypto"
 
 import { logAuthEvent } from "./auth-events"
 import { isSessionPastAbsoluteLimit } from "./session-policy"
+import { acceptTrustedDevice, issueTrustedDevice } from "./trusted-device"
 import { userHasTwoFactorEnrolled } from "./two-factor-enrollment"
 import {
+  TRUSTED_DEVICE_COOKIE,
   TWO_FACTOR_EMAIL_COOKIE,
   TWO_FACTOR_USER_COOKIE,
+  trustedDeviceCookieAttributes,
 } from "./two-factor-cookies"
 import {
   assertTwoFactorVerifyAllowed,
@@ -101,7 +104,112 @@ export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
   await assertTwoFactorVerifyAllowed(userId)
 })
 
-export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
+type TwoFactorAfterHookContext = {
+  path: string
+  body?: unknown
+  headers?: { get(name: string): string | null }
+  request?: { headers?: { get(name: string): string | null } }
+  getCookie: (name: string) => string | null | undefined
+  getSignedCookie: (
+    name: string,
+    secret: string
+  ) => Promise<string | false | null>
+  setCookie: (
+    name: string,
+    value: string,
+    options?: {
+      maxAge?: number
+      path?: string
+      sameSite?: "lax" | "strict" | "none"
+      httpOnly?: boolean
+      secure?: boolean
+    }
+  ) => void
+  setSignedCookie: (
+    name: string,
+    value: string,
+    secret: string,
+    attributes: { secure?: boolean }
+  ) => Promise<void>
+  redirect: (url: string) => never
+  context: {
+    returned?: unknown
+    newSession?: {
+      user: { id: string; email: string; twoFactorEnabled?: boolean | null }
+      session: { token: string }
+    } | null
+    options?: { baseURL?: string }
+    secret: string
+    session?: { user?: { id?: string } } | null
+    setNewSession: (session: null) => void
+    createAuthCookie: (
+      name: string,
+      opts?: { maxAge?: number }
+    ) => { name: string; attributes: { secure?: boolean } }
+    internalAdapter: {
+      findVerificationValue: (
+        identifier: string
+      ) => Promise<{ value: string } | null>
+      deleteSession: (token: string) => Promise<void>
+      createVerificationValue: (value: {
+        value: string
+        identifier: string
+        expiresAt: Date
+      }) => Promise<void>
+    }
+  }
+}
+
+function trustCookieIsSecure(): boolean {
+  return process.env.NODE_ENV === "production"
+}
+
+function requestTrustsDevice(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "trustDevice" in body &&
+    (body as { trustDevice?: unknown }).trustDevice === true
+  )
+}
+
+function readUserAgent(ctx: TwoFactorAfterHookContext): string | null {
+  const fromRequest = ctx.request?.headers?.get("user-agent")
+  if (fromRequest) {
+    return fromRequest
+  }
+  return ctx.headers?.get("user-agent") || null
+}
+
+function clearTrustedDeviceCookie(ctx: TwoFactorAfterHookContext): void {
+  ctx.setCookie(TRUSTED_DEVICE_COOKIE, "", {
+    ...trustedDeviceCookieAttributes(trustCookieIsSecure()),
+    maxAge: 0,
+  })
+}
+
+async function skipChallengeForTrustedDevice(
+  ctx: TwoFactorAfterHookContext,
+  userId: string
+): Promise<boolean> {
+  const token = ctx.getCookie(TRUSTED_DEVICE_COOKIE)
+  if (!token) {
+    return false
+  }
+  if (await acceptTrustedDevice({ userId, token })) {
+    return true
+  }
+  clearTrustedDeviceCookie(ctx)
+  return false
+}
+
+/**
+ * After verify/enable/OAuth: lockout counters, trusted-device cookie, and
+ * Google SSO 2FA challenge redirect.
+ */
+export async function runTwoFactorAfterHook(
+  ctx: TwoFactorAfterHookContext
+): Promise<void> {
   const path = ctx.path
   const returned = ctx.context.returned
 
@@ -138,6 +246,17 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
       }
       ctx.setCookie(TWO_FACTOR_EMAIL_COOKIE, "", { maxAge: 0, path: "/" })
       ctx.setCookie(TWO_FACTOR_USER_COOKIE, "", { maxAge: 0, path: "/" })
+      if (requestTrustsDevice(ctx.body)) {
+        const issued = await issueTrustedDevice({
+          userId,
+          userAgent: readUserAgent(ctx),
+        })
+        ctx.setCookie(
+          TRUSTED_DEVICE_COOKIE,
+          issued.token,
+          trustedDeviceCookieAttributes(trustCookieIsSecure())
+        )
+      }
     }
     return
   }
@@ -165,14 +284,23 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
     throw ctx.redirect(`${appOrigin}/login/2fa-setup`)
   }
 
-  if (await tryConsumeTrustDevice(ctx, userId)) {
+  if (
+    (await skipChallengeForTrustedDevice(ctx, userId)) ||
+    (await tryConsumeTrustDevice(
+      ctx as unknown as Parameters<typeof tryConsumeTrustDevice>[0],
+      userId
+    ))
+  ) {
     logAuthEvent("auth.login", { user_id: userId })
     return
   }
 
   await assertTwoFactorVerifyAllowed(userId)
 
-  deleteSessionCookie(ctx, true)
+  deleteSessionCookie(
+    ctx as unknown as Parameters<typeof deleteSessionCookie>[0],
+    true
+  )
   await ctx.context.internalAdapter.deleteSession(data.session.token)
   ctx.context.setNewSession(null)
 
@@ -210,4 +338,8 @@ export const twoFactorAfterHook = createAuthMiddleware(async (ctx) => {
   ctx.setCookie(TWO_FACTOR_USER_COOKIE, userId, displayCookie)
 
   throw ctx.redirect(`${appOrigin}/login/2fa-verify`)
-})
+}
+
+export const twoFactorAfterHook = createAuthMiddleware((ctx) =>
+  runTwoFactorAfterHook(ctx as unknown as TwoFactorAfterHookContext)
+)

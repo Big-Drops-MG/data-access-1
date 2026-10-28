@@ -1,15 +1,10 @@
-import {
-  session,
-  twoFactor,
-  trustedDevice,
-  user,
-  verification,
-} from "@workspace/db"
+import { session, twoFactor, user, verification } from "@workspace/db"
 import { getDb } from "@workspace/db/client"
 import { APIError } from "better-auth/api"
-import { and, eq, isNull, like, or } from "drizzle-orm"
+import { and, eq, like, or } from "drizzle-orm"
 
 import { logAuthEvent } from "./auth-events"
+import { deleteTrustedDevicesForUser } from "./trusted-device"
 import {
   applyFailedVerification,
   applySuccessfulVerification,
@@ -117,28 +112,24 @@ export async function recordTwoFactorVerificationSuccess(
 
 export async function resetTwoFactorForAdmin(userId: string): Promise<void> {
   const db = getDb()
-  await db.delete(twoFactor).where(eq(twoFactor.userId, userId))
-
-  await db
-    .delete(verification)
-    .where(
-      and(
-        eq(verification.value, userId),
-        or(
-          like(verification.identifier, "trust-device-%"),
-          like(verification.identifier, "2fa-%")
+  await db.transaction(async (tx) => {
+    await tx.delete(twoFactor).where(eq(twoFactor.userId, userId))
+    await tx
+      .delete(verification)
+      .where(
+        and(
+          eq(verification.value, userId),
+          or(
+            like(verification.identifier, "trust-device-%"),
+            like(verification.identifier, "2fa-%")
+          )
         )
       )
-    )
-  await db.delete(session).where(eq(session.userId, userId))
-  await db
-    .update(trustedDevice)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(eq(trustedDevice.userId, userId), isNull(trustedDevice.revokedAt))
-    )
-  await db
-    .update(user)
-    .set({ twoFactorEnabled: false })
-    .where(eq(user.id, userId))
+    await tx.delete(session).where(eq(session.userId, userId))
+    await deleteTrustedDevicesForUser(userId, tx)
+    await tx
+      .update(user)
+      .set({ twoFactorEnabled: false })
+      .where(eq(user.id, userId))
+  })
 }

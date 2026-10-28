@@ -21,6 +21,15 @@ const db = vi.hoisted(() => {
   const deleteWhere = vi.fn()
   const del = vi.fn(() => ({ where: deleteWhere }))
 
+  const tx = {
+    select,
+    update,
+    delete: del,
+  }
+  const transaction = vi.fn(async (run: (trx: typeof tx) => Promise<void>) =>
+    run(tx)
+  )
+
   return {
     select,
     selectFrom,
@@ -31,10 +40,12 @@ const db = vi.hoisted(() => {
     updateWhere,
     delete: del,
     deleteWhere,
+    transaction,
     getDb: vi.fn(() => ({
       select,
       update,
       delete: del,
+      transaction,
     })),
   }
 })
@@ -46,6 +57,16 @@ vi.mock("@workspace/db/client", () => ({
 vi.mock("./auth-events", () => ({
   logAuthEvent: vi.fn(),
 }))
+
+import { logAuthEvent } from "./auth-events"
+import {
+  assertTwoFactorVerifyAllowed,
+  recordTwoFactorVerificationFailure,
+  recordTwoFactorVerificationSuccess,
+  resetTwoFactorForAdmin,
+  TWO_FACTOR_ADMIN_RESET_REQUIRED_MESSAGE,
+  TWO_FACTOR_TEMPORARILY_LOCKED_MESSAGE,
+} from "./two-factor-lockout"
 
 describe("two-factor-lockout store", () => {
   const userId = "01900000-0000-7000-8000-000000000001"
@@ -59,8 +80,6 @@ describe("two-factor-lockout store", () => {
   })
 
   it("allows verify when there is no two_factor row", async () => {
-    const { assertTwoFactorVerifyAllowed } =
-      await import("./two-factor-lockout")
     await expect(
       assertTwoFactorVerifyAllowed(userId, t0)
     ).resolves.toBeUndefined()
@@ -73,10 +92,6 @@ describe("two-factor-lockout store", () => {
         consecutiveLockoutCount: TWO_FACTOR_MAX_CONSECUTIVE_LOCKOUTS,
       },
     ])
-    const {
-      assertTwoFactorVerifyAllowed,
-      TWO_FACTOR_ADMIN_RESET_REQUIRED_MESSAGE,
-    } = await import("./two-factor-lockout")
     await expect(
       assertTwoFactorVerifyAllowed(userId, t0)
     ).rejects.toBeInstanceOf(APIError)
@@ -98,10 +113,6 @@ describe("two-factor-lockout store", () => {
         ),
       },
     ])
-    const {
-      assertTwoFactorVerifyAllowed,
-      TWO_FACTOR_TEMPORARILY_LOCKED_MESSAGE,
-    } = await import("./two-factor-lockout")
     await expect(
       assertTwoFactorVerifyAllowed(userId, t0)
     ).rejects.toMatchObject({
@@ -110,9 +121,6 @@ describe("two-factor-lockout store", () => {
   })
 
   it("persists failure state and logs events", async () => {
-    const { logAuthEvent } = await import("./auth-events")
-    const { recordTwoFactorVerificationFailure } =
-      await import("./two-factor-lockout")
     await recordTwoFactorVerificationFailure(userId, t0)
     expect(db.update).toHaveBeenCalled()
     expect(db.updateSet).toHaveBeenCalledWith(
@@ -127,7 +135,6 @@ describe("two-factor-lockout store", () => {
   })
 
   it("locks and logs auth.lockout on the fifth failure", async () => {
-    const { logAuthEvent } = await import("./auth-events")
     db.selectLimit.mockResolvedValue([
       {
         failedVerificationCount: TWO_FACTOR_MAX_FAILED_ATTEMPTS - 1,
@@ -137,8 +144,6 @@ describe("two-factor-lockout store", () => {
         lastCountedLockoutUntil: null,
       },
     ])
-    const { recordTwoFactorVerificationFailure } =
-      await import("./two-factor-lockout")
     await recordTwoFactorVerificationFailure(userId, t0)
     expect(logAuthEvent).toHaveBeenCalledWith("auth.lockout", {
       user_id: userId,
@@ -153,7 +158,6 @@ describe("two-factor-lockout store", () => {
   })
 
   it("clears counters and logs auth.login on success", async () => {
-    const { logAuthEvent } = await import("./auth-events")
     db.selectLimit.mockResolvedValue([
       {
         failedVerificationCount: 2,
@@ -163,8 +167,6 @@ describe("two-factor-lockout store", () => {
         lastCountedLockoutUntil: null,
       },
     ])
-    const { recordTwoFactorVerificationSuccess } =
-      await import("./two-factor-lockout")
     await recordTwoFactorVerificationSuccess(userId)
     expect(db.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -176,14 +178,14 @@ describe("two-factor-lockout store", () => {
     expect(logAuthEvent).toHaveBeenCalledWith("auth.login", { user_id: userId })
   })
 
-  it("deletes two_factor, BA verification tokens, sessions, and clears the flag", async () => {
-    const { resetTwoFactorForAdmin } = await import("./two-factor-lockout")
+  it("deletes factor, trust rows, sessions, and trusted devices in one transaction", async () => {
     await resetTwoFactorForAdmin(userId)
-    expect(db.delete).toHaveBeenCalledTimes(3)
-    expect(db.update).toHaveBeenCalled()
-    expect(db.updateSet).toHaveBeenCalledWith(
+    expect(db.transaction).toHaveBeenCalledTimes(1)
+    expect(db.delete).toHaveBeenCalledTimes(4)
+    expect(db.update).toHaveBeenCalledTimes(1)
+    expect(db.updateSet).toHaveBeenCalledWith({ twoFactorEnabled: false })
+    expect(db.updateSet).not.toHaveBeenCalledWith(
       expect.objectContaining({ revokedAt: expect.any(Date) })
     )
-    expect(db.updateSet).toHaveBeenCalledWith({ twoFactorEnabled: false })
   })
 })
