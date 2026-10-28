@@ -20,6 +20,7 @@ import { and, eq, isNull, sql } from "drizzle-orm"
 import { hashEmail, normaliseEmail } from "./email.js"
 import { AppError } from "./errors.js"
 import { emailSchema } from "./schemas.js"
+import { insertSkippedSendCheckMessage, runSendChecks } from "./send-checks.js"
 
 export type EmailHubDb = Database
 export type EmailHubTx = DatabaseTransaction
@@ -41,6 +42,7 @@ export type ResolvedRouteAssets = {
   route: EmailRoute
   templateVersion: TemplateVersion
   sender: Sender
+  categoryId: string
 }
 
 export type TriggerEmailCreateContext = {
@@ -255,7 +257,12 @@ export async function loadRouteSendAssets(
     throw new AppError("internal")
   }
 
-  return { route, templateVersion: version, sender: from }
+  return {
+    route,
+    templateVersion: version,
+    sender: from,
+    categoryId: tpl.categoryId,
+  }
 }
 
 export function noRouteAlertDedupeKey(
@@ -324,8 +331,8 @@ async function insertNoRouteSkippedMessage(
 }
 
 /**
- * Stage A steps 2–6 (SD#7): recipient, lock, idempotency, route resolve,
- * merge tag check. `createMessage` runs later Stage A steps (T-036+ / T-045).
+ * Stage A steps 2–7 (SD#7): recipient, lock, idempotency, route resolve,
+ * merge tags, send checks. `createMessage` queues the send (T-045).
  */
 export async function triggerEmail(
   db: EmailHubDb,
@@ -348,10 +355,17 @@ export async function triggerEmail(
     input.email,
     externalUserId
   )
-  const email = foundRecipient.email
 
   return db.transaction(async (tx) => {
     await lockRecipientTx(tx, foundRecipient.id)
+
+    const [lockedRecipient] = await tx
+      .select()
+      .from(recipient)
+      .where(eq(recipient.id, foundRecipient.id))
+      .limit(1)
+    const activeRecipient = lockedRecipient ?? foundRecipient
+    const email = activeRecipient.email
 
     const existing = await tx
       .select()
@@ -362,7 +376,7 @@ export async function triggerEmail(
     if (existing[0]) {
       return {
         message: existing[0],
-        recipient: foundRecipient,
+        recipient: activeRecipient,
         created: false,
       }
     }
@@ -371,14 +385,14 @@ export async function triggerEmail(
     if (!route) {
       await openNoRouteAlert(tx, emailType, offerId)
       const skipped = await insertNoRouteSkippedMessage(tx, {
-        recipientId: foundRecipient.id,
+        recipientId: activeRecipient.id,
         emailType,
         offerId,
         idempotencyKey,
       })
       return {
         message: skipped,
-        recipient: foundRecipient,
+        recipient: activeRecipient,
         created: true,
       }
     }
@@ -386,9 +400,32 @@ export async function triggerEmail(
     const assets = await loadRouteSendAssets(tx, route)
     assertMergeDataHasRequiredTags(mergeData, assets.templateVersion.mergeTags)
 
+    const skipReason = await runSendChecks(tx, {
+      recipient: activeRecipient,
+      emailType,
+      offerId,
+      categoryId: assets.categoryId,
+    })
+    if (skipReason) {
+      const skipped = await insertSkippedSendCheckMessage(tx, {
+        recipientId: activeRecipient.id,
+        emailType,
+        offerId,
+        idempotencyKey,
+        templateVersionId: assets.templateVersion.id,
+        senderId: assets.sender.id,
+        skipReason,
+      })
+      return {
+        message: skipped,
+        recipient: activeRecipient,
+        created: true,
+      }
+    }
+
     const created = await createMessage({
       tx,
-      recipient: foundRecipient,
+      recipient: activeRecipient,
       idempotencyKey,
       email,
       externalUserId,
@@ -402,7 +439,7 @@ export async function triggerEmail(
 
     return {
       message: created,
-      recipient: foundRecipient,
+      recipient: activeRecipient,
       created: true,
     }
   })

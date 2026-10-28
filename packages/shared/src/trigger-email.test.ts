@@ -9,6 +9,8 @@ import type {
 } from "@workspace/db"
 
 import { AppError } from "./errors.js"
+import type * as SendChecks from "./send-checks.js"
+import { insertSkippedSendCheckMessage, runSendChecks } from "./send-checks.js"
 import {
   assertMergeDataHasRequiredTags,
   findOrCreateRecipient,
@@ -20,6 +22,15 @@ import {
   type EmailHubDb,
   type EmailHubTx,
 } from "./trigger-email.js"
+
+vi.mock("./send-checks.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof SendChecks
+  return {
+    ...actual,
+    runSendChecks: vi.fn(async () => null),
+    insertSkippedSendCheckMessage: vi.fn(),
+  }
+})
 
 const recipientRow = {
   id: "01900000-0000-7000-8000-000000000001",
@@ -354,6 +365,7 @@ describe("noRouteAlertDedupeKey", () => {
 describe("triggerEmail", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(runSendChecks).mockResolvedValue(null)
   })
 
   it("rejects an empty idempotency key before touching the database", async () => {
@@ -385,11 +397,17 @@ describe("triggerEmail", () => {
 
   it("returns an existing message for a used idempotency key", async () => {
     const selectRecipient = createChain([recipientRow])
-    const selectMessage = createChain([messageRow])
     const execute = vi.fn(async () => undefined)
+    let selectCalls = 0
     const tx = {
       execute,
-      select: vi.fn(() => selectMessage),
+      select: vi.fn(() => {
+        selectCalls += 1
+        if (selectCalls === 1) {
+          return createChain([recipientRow])
+        }
+        return createChain([messageRow])
+      }),
     } as unknown as EmailHubTx
 
     const db = {
@@ -425,8 +443,6 @@ describe("triggerEmail", () => {
 
   it("skips with no_route and opens an alert when no route exists", async () => {
     const selectRecipient = createChain([recipientRow])
-    const selectMessage = createChain([])
-    const selectNoRoute = createChain([])
     const skipped = {
       ...messageRow,
       id: "01900000-0000-7000-8000-000000000088",
@@ -449,9 +465,12 @@ describe("triggerEmail", () => {
       select: vi.fn(() => {
         selectCalls += 1
         if (selectCalls === 1) {
-          return selectMessage
+          return createChain([recipientRow])
         }
-        return selectNoRoute
+        if (selectCalls === 2) {
+          return createChain([])
+        }
+        return createChain([])
       }),
       insert: vi
         .fn()
@@ -505,6 +524,7 @@ describe("triggerEmail", () => {
   it("falls back to the default route and validates merge tags", async () => {
     const selectRecipient = createChain([recipientRow])
     const execute = vi.fn(async () => undefined)
+    vi.mocked(runSendChecks).mockResolvedValueOnce(null)
 
     let selectCalls = 0
     const tx = {
@@ -512,18 +532,21 @@ describe("triggerEmail", () => {
       select: vi.fn(() => {
         selectCalls += 1
         if (selectCalls === 1) {
-          return createChain([])
+          return createChain([recipientRow])
         }
         if (selectCalls === 2) {
           return createChain([])
         }
         if (selectCalls === 3) {
-          return createChain([routeRow])
+          return createChain([])
         }
         if (selectCalls === 4) {
-          return createChain([templateRow])
+          return createChain([routeRow])
         }
         if (selectCalls === 5) {
+          return createChain([templateRow])
+        }
+        if (selectCalls === 6) {
           return createChain([versionRow])
         }
         return createChain([senderRow])
@@ -562,6 +585,14 @@ describe("triggerEmail", () => {
 
     expect(result.created).toBe(true)
     expect(result.message).toBe(created)
+    expect(runSendChecks).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        recipient: recipientRow,
+        emailType: "thank_you",
+        categoryId: templateRow.categoryId,
+      })
+    )
     expect(createMessage).toHaveBeenCalledWith({
       tx,
       recipient: recipientRow,
@@ -580,6 +611,77 @@ describe("triggerEmail", () => {
     })
   })
 
+  it("inserts a skipped message when a send check fails", async () => {
+    const selectRecipient = createChain([recipientRow])
+    const execute = vi.fn(async () => undefined)
+    const skipped = {
+      ...messageRow,
+      status: "skipped",
+      skipReason: "suppressed",
+    } as Message
+    vi.mocked(runSendChecks).mockResolvedValueOnce("suppressed")
+    vi.mocked(insertSkippedSendCheckMessage).mockResolvedValueOnce(skipped)
+
+    let selectCalls = 0
+    const tx = {
+      execute,
+      select: vi.fn(() => {
+        selectCalls += 1
+        if (selectCalls === 1) {
+          return createChain([recipientRow])
+        }
+        if (selectCalls === 2) {
+          return createChain([])
+        }
+        if (selectCalls === 3) {
+          return createChain([routeRow])
+        }
+        if (selectCalls === 4) {
+          return createChain([templateRow])
+        }
+        if (selectCalls === 5) {
+          return createChain([versionRow])
+        }
+        return createChain([senderRow])
+      }),
+    } as unknown as EmailHubTx
+
+    const db = {
+      select: vi.fn(() => selectRecipient),
+      insert: vi.fn(),
+      transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
+        fn(tx)
+      ),
+    } as unknown as EmailHubDb
+
+    const createMessage = vi.fn(async () => messageRow)
+    const result = await triggerEmail(
+      db,
+      {
+        email: "jane@example.com",
+        idempotencyKey: "key-suppressed",
+        emailType: "thank_you",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
+      },
+      createMessage
+    )
+
+    expect(result.message).toBe(skipped)
+    expect(result.created).toBe(true)
+    expect(createMessage).not.toHaveBeenCalled()
+    expect(insertSkippedSendCheckMessage).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        skipReason: "suppressed",
+        templateVersionId: versionRow.id,
+        senderId: senderRow.id,
+      })
+    )
+  })
+
   it("rejects missing merge tags with 422 before createMessage", async () => {
     const selectRecipient = createChain([recipientRow])
     const execute = vi.fn(async () => undefined)
@@ -590,15 +692,18 @@ describe("triggerEmail", () => {
       select: vi.fn(() => {
         selectCalls += 1
         if (selectCalls === 1) {
-          return createChain([])
+          return createChain([recipientRow])
         }
         if (selectCalls === 2) {
-          return createChain([routeRow])
+          return createChain([])
         }
         if (selectCalls === 3) {
-          return createChain([templateRow])
+          return createChain([routeRow])
         }
         if (selectCalls === 4) {
+          return createChain([templateRow])
+        }
+        if (selectCalls === 5) {
           return createChain([versionRow])
         }
         return createChain([senderRow])
@@ -632,5 +737,6 @@ describe("triggerEmail", () => {
       details: [{ path: "merge_data.quote_url", message: "Required" }],
     })
     expect(createMessage).not.toHaveBeenCalled()
+    expect(runSendChecks).not.toHaveBeenCalled()
   })
 })
