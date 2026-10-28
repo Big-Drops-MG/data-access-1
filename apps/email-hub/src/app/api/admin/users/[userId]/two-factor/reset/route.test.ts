@@ -11,12 +11,31 @@ vi.mock("@/lib/auth/auth-events", () => ({ logAuthEvent }))
 import { POST } from "./route"
 
 const userId = "019a0000-0000-7000-8000-000000000001"
+const url = `http://localhost/api/admin/users/${userId}/two-factor/reset`
 
 describe("POST /api/admin/users/[userId]/two-factor/reset", () => {
   beforeEach(() => {
     getSession.mockReset()
     resetTwoFactorForAdmin.mockReset()
     logAuthEvent.mockReset()
+  })
+
+  it("returns 403 for viewer writes", async () => {
+    getSession.mockResolvedValue({
+      id: "v",
+      email: "viewer@bigdropsmarketing.com",
+      name: "Viewer",
+      role: "viewer",
+      twoFactorEnabled: true,
+    })
+    const response = await POST(new Request(url, { method: "POST" }), {
+      params: Promise.resolve({ userId }),
+    })
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "forbidden" },
+    })
+    expect(resetTwoFactorForAdmin).not.toHaveBeenCalled()
   })
 
   it("returns 403 for non-admin sessions", async () => {
@@ -27,10 +46,29 @@ describe("POST /api/admin/users/[userId]/two-factor/reset", () => {
       role: "operator",
       twoFactorEnabled: true,
     })
-    const response = await POST(new Request("http://localhost"), {
+    const response = await POST(new Request(url, { method: "POST" }), {
       params: Promise.resolve({ userId }),
     })
     expect(response.status).toBe(403)
+    expect(resetTwoFactorForAdmin).not.toHaveBeenCalled()
+  })
+
+  it("returns 401 when machine keys hit the staff API", async () => {
+    getSession.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@bigdropsmarketing.com",
+      name: "Admin",
+      role: "admin",
+      twoFactorEnabled: true,
+    })
+    const response = await POST(
+      new Request(url, {
+        method: "POST",
+        headers: { "X-Key-Id": "k1", "X-Signature": "sig" },
+      }),
+      { params: Promise.resolve({ userId }) }
+    )
+    expect(response.status).toBe(401)
     expect(resetTwoFactorForAdmin).not.toHaveBeenCalled()
   })
 
@@ -44,7 +82,7 @@ describe("POST /api/admin/users/[userId]/two-factor/reset", () => {
     })
     resetTwoFactorForAdmin.mockResolvedValue(undefined)
 
-    const response = await POST(new Request("http://localhost"), {
+    const response = await POST(new Request(url, { method: "POST" }), {
       params: Promise.resolve({ userId }),
     })
 
@@ -65,9 +103,13 @@ describe("POST /api/admin/users/[userId]/two-factor/reset", () => {
       role: "admin",
       twoFactorEnabled: true,
     })
-    const response = await POST(new Request("http://localhost"), {
-      params: Promise.resolve({ userId: "not-a-uuid" }),
-    })
+    const response = await POST(
+      new Request(
+        "http://localhost/api/admin/users/not-a-uuid/two-factor/reset",
+        { method: "POST" }
+      ),
+      { params: Promise.resolve({ userId: "not-a-uuid" }) }
+    )
     expect(response.status).toBe(400)
     expect(resetTwoFactorForAdmin).not.toHaveBeenCalled()
   })
