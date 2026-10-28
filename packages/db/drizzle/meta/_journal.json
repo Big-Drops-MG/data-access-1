@@ -57,6 +57,13 @@
       "when": 1792400000000,
       "tag": "0007_two_factor_verified_default_false",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0008_user_job_title",
+      "breakpoints": true
     }
   ]
 }

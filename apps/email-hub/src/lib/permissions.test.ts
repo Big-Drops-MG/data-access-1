@@ -8,7 +8,9 @@ function user(role: SessionUser["role"]): SessionUser {
     id: "1",
     email: "a@example.com",
     name: "A",
+    image: null,
     role,
+    jobTitle: "Web Developer",
     twoFactorEnabled: true,
   }
 }

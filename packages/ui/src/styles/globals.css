@@ -317,7 +317,7 @@
 /* ---------- Base ---------- */
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
 
   html {
@@ -331,11 +331,13 @@
     line-height: 20px;
     -webkit-font-smoothing: antialiased;
   }
+}
 
-  :focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--ring);
-  }
+/* No focus rings anywhere (overrides utility focus-visible:ring-*). */
+:is(:focus, :focus-visible, :focus-within) {
+  outline: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
 
 @layer components {

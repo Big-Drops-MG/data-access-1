@@ -11,6 +11,7 @@ describe("user table", () => {
       "emailVerified",
       "id",
       "image",
+      "jobTitle",
       "name",
       "role",
       "status",

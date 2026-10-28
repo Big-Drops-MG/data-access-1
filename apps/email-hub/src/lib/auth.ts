@@ -7,7 +7,11 @@ export type SessionUser = {
   id: string
   email: string
   name: string
+  image: string | null
+  /** Permission role (admin | operator | viewer). */
   role: "viewer" | "operator" | "admin"
+  /** Display job title from onboarding; null until /onboarding is completed. */
+  jobTitle: string | null
   twoFactorEnabled: boolean
 }
 
@@ -15,7 +19,9 @@ function toSessionUser(user: {
   id: string
   email: string
   name: string
+  image?: string | null
   role?: string | null
+  jobTitle?: string | null
   twoFactorEnabled?: boolean | null
 }): SessionUser | null {
   const role = user.role
@@ -26,7 +32,9 @@ function toSessionUser(user: {
     id: user.id,
     email: user.email,
     name: user.name,
+    image: user.image ?? null,
     role,
+    jobTitle: user.jobTitle ?? null,
     twoFactorEnabled: user.twoFactorEnabled === true,
   }
 }

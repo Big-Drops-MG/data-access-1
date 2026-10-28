@@ -22,6 +22,8 @@ export const user = pgTable(
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
     role: userRole("role").notNull(),
+    /** Display job title from /onboarding (distinct from permission `role`). */
+    jobTitle: text("job_title"),
     status: userStatus("status").notNull(),
     twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
