@@ -57,29 +57,44 @@ export function TwoFactorVerifyView({
   const [error, setError] = useState<TwoFactorVerifyError | null>(
     initialLockout ? lockoutToError(initialLockout) : null
   )
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState<number | null>(null)
 
   const lockedUntil =
     error?.kind === "temporary_lock" ? error.lockedUntil : undefined
   const remaining = useMemo(
-    () => remainingLockMs(lockedUntil, new Date(now)),
+    () => (now === null ? null : remainingLockMs(lockedUntil, new Date(now))),
     [lockedUntil, now]
   )
-  const temporaryLockActive = error?.kind === "temporary_lock" && remaining > 0
+  const temporaryLockActive =
+    error?.kind === "temporary_lock" && (remaining === null || remaining > 0)
   const locked = error?.kind === "admin_required" || temporaryLockActive
   const busy = pending || isPending
   const activeError =
-    error?.kind === "temporary_lock" && !temporaryLockActive ? null : error
+    error?.kind === "temporary_lock" && remaining !== null && remaining <= 0
+      ? null
+      : error
   const canSubmitTotp = code.length === 6
   const canSubmitBackup = backupCode.trim().length >= 8
 
   useEffect(() => {
-    if (!lockedUntil || remaining <= 0) {
+    if (!lockedUntil) {
       return
     }
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [lockedUntil, remaining])
+    let timer = 0
+    const update = () => {
+      const next = Date.now()
+      setNow(next)
+      if (remainingLockMs(lockedUntil, new Date(next)) <= 0) {
+        window.clearInterval(timer)
+      }
+    }
+    const start = window.setTimeout(update, 0)
+    timer = window.setInterval(update, 1000)
+    return () => {
+      window.clearTimeout(start)
+      window.clearInterval(timer)
+    }
+  }, [lockedUntil])
 
   async function completeVerify(result: {
     error?: { code?: string; message?: string } | null
@@ -273,7 +288,9 @@ export function TwoFactorVerifyView({
         data-testid="two-factor-verify-submit"
       >
         {temporaryLockActive
-          ? `Locked (${formatLockCountdown(remaining)})`
+          ? remaining === null
+            ? "Locked"
+            : `Locked (${formatLockCountdown(remaining)})`
           : locked
             ? "Locked"
             : busy
