@@ -21,6 +21,14 @@ export {
   type TriggerEmailType,
 } from "./trigger-email.js"
 export {
+  firstFailedSendCheck,
+  insertSkippedSendCheckMessage,
+  isTransactionalEmailType,
+  runSendChecks,
+  type SendCheckFacts,
+  type SendCheckSkipReason,
+} from "./send-checks.js"
+export {
   AppError,
   ERROR_CODES,
   ERROR_STATUS,
