@@ -29,11 +29,35 @@ function readStoredTheme(): ThemeChoice {
   }
 }
 
+const themeListeners = new Set<() => void>()
+
+function subscribeToTheme(onStoreChange: () => void) {
+  themeListeners.add(onStoreChange)
+  return () => {
+    themeListeners.delete(onStoreChange)
+  }
+}
+
+function notifyThemeListeners() {
+  for (const listener of themeListeners) {
+    listener()
+  }
+}
+
+function readResolvedTheme(): ResolvedTheme {
+  return document.documentElement.classList.contains("dark") ? "dark" : "light"
+}
+
+function readServerTheme(): ResolvedTheme {
+  return "light"
+}
+
 function applyThemeClass(resolved: ResolvedTheme) {
   const root = document.documentElement
   root.classList.remove("light", "dark")
   root.classList.add(resolved)
   root.style.colorScheme = resolved
+  notifyThemeListeners()
 }
 
 function withoutThemeTransition(apply: () => void) {
@@ -62,6 +86,16 @@ function setTheme(theme: ThemeChoice) {
   withoutThemeTransition(() => {
     applyThemeClass(resolveTheme(theme))
   })
+}
+
+function useTheme() {
+  const resolvedTheme = React.useSyncExternalStore(
+    subscribeToTheme,
+    readResolvedTheme,
+    readServerTheme
+  )
+
+  return { resolvedTheme, setTheme }
 }
 
 function ThemeBoot() {
@@ -158,4 +192,4 @@ function ThemeHotkey() {
   return null
 }
 
-export { ThemeProvider }
+export { ThemeProvider, useTheme }

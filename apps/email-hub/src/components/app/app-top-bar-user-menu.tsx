@@ -3,7 +3,6 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useTheme } from "next-themes"
 import { useState, useTransition } from "react"
 import {
   LogOutIcon,
@@ -22,6 +21,7 @@ import {
 } from "@workspace/ui/components/popover"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { useTheme } from "@/components/theme-provider"
 import { authClient } from "@/lib/auth-client"
 
 type AppTopBarUserMenuProps = {
