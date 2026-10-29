@@ -1,6 +1,16 @@
 import { AppError } from "@workspace/shared"
 
 import { getSession } from "@/lib/auth"
+import {
+  authenticateMachineRequest,
+  type AuthenticateMachineDeps,
+  type MachineClientAuthRecord,
+} from "@/lib/auth/machine-hmac"
+import {
+  resolveMachineClientFromDb,
+  touchMachineClientLastUsed,
+} from "@/lib/auth/machine-client-lookup"
+import { consumeMachineRateLimitFromEnv } from "@/lib/auth/machine-rate-limit"
 
 const MACHINE_HEADER_NAMES = ["x-key-id", "x-signature", "x-timestamp"] as const
 
@@ -26,8 +36,7 @@ export function assertStaffApiCaller(request: Request): void {
 
 /**
  * `/api/ext/**` rejects pure session callers (SD#14.3).
- * Full HMAC verification is a separate machine-auth task; this enforces the
- * session-vs-machine boundary and requires machine headers to be present.
+ * Prefer {@link requireMachineAuth} for HMAC-protected routes.
  */
 export async function requireMachineCaller(request: Request): Promise<void> {
   if (!isMachineAuthAttempt(request)) {
@@ -47,4 +56,43 @@ export async function requireMachineCaller(request: Request): Promise<void> {
       },
     ])
   }
+}
+
+export type RequireMachineAuthOptions = {
+  scope: string
+  /** Injected for unit tests (Done When). */
+  deps?: Partial<AuthenticateMachineDeps>
+  /** Skip last_used_at update (tests). */
+  skipTouch?: boolean
+}
+
+/**
+ * Full HMAC machine auth for `/api/ext/**` (SD#10.2 / SD#14.4).
+ * Do not use on `/api/ext/webhooks/ses` (SNS signature instead).
+ */
+export async function requireMachineAuth(
+  request: Request,
+  options: RequireMachineAuthOptions
+): Promise<{ client: MachineClientAuthRecord; rawBody: Buffer }> {
+  await requireMachineCaller(request)
+
+  const rawBody = Buffer.from(await request.arrayBuffer())
+  const client = await authenticateMachineRequest(request, rawBody, {
+    requiredScope: options.scope,
+    resolveClient: options.deps?.resolveClient ?? resolveMachineClientFromDb,
+    consumeRateLimit:
+      options.deps?.consumeRateLimit ?? consumeMachineRateLimitFromEnv,
+    now: options.deps?.now,
+    clientIp: options.deps?.clientIp,
+  })
+
+  if (!options.skipTouch) {
+    try {
+      await touchMachineClientLastUsed(client.id)
+    } catch {
+      // Auth already succeeded; last_used_at is best-effort.
+    }
+  }
+
+  return { client, rawBody }
 }
