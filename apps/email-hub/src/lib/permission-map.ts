@@ -6,6 +6,7 @@ import type { AppRole } from "@/lib/permissions"
  */
 export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "POST /api/admin/users/*/two-factor/reset": "admin",
+  "GET /api/domains": "viewer",
 }
 
 function normalizePath(pathname: string): string {
