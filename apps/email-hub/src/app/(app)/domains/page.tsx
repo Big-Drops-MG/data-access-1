@@ -1,11 +1,11 @@
 ﻿import type { Metadata } from "next"
 
-import { ModulePlaceholderPage } from "@/components/app/module-placeholder-page"
+import { DomainsPage } from "@/features/domains/domains-page"
 
 export const metadata: Metadata = {
   title: "Domains",
 }
 
 export default function Page() {
-  return <ModulePlaceholderPage title="Domains" />
+  return <DomainsPage />
 }

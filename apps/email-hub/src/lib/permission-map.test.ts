@@ -12,6 +12,10 @@ describe("minRoleForStaffApi", () => {
     ).toBe("admin")
   })
 
+  it("allows viewers to list domains", () => {
+    expect(minRoleForStaffApi("GET", "/api/domains")).toBe("viewer")
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
