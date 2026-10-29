@@ -45,18 +45,13 @@ export type ResolvedRouteAssets = {
   categoryId: string
 }
 
-export type TriggerEmailCreateContext = {
-  tx: EmailHubTx
-  recipient: Recipient
-  idempotencyKey: string
-  email: string
-  externalUserId: string | null
-  emailType: TriggerEmailType
-  offerId: string | null
-  mergeData: MergeData
-  route: EmailRoute
-  templateVersion: TemplateVersion
-  sender: Sender
+/** Dependencies for Stage A commit + enqueue (T-045). */
+export type TriggerEmailDeps = {
+  /**
+   * Enqueue `send-email` after the message row is committed.
+   * Failures must not change the message; leave `queued` for the watchdog.
+   */
+  enqueueSendEmail: (messageId: string) => Promise<void>
 }
 
 export type TriggerEmailResult = {
@@ -331,13 +326,48 @@ async function insertNoRouteSkippedMessage(
 }
 
 /**
- * Stage A steps 2–7 (SD#7): recipient, lock, idempotency, route resolve,
- * merge tags, send checks. `createMessage` queues the send (T-045).
+ * Insert a queued message inside the Stage A transaction (SD#7 step 9 / T-045).
+ */
+export async function insertQueuedMessage(
+  tx: EmailHubTx,
+  input: {
+    recipientId: string
+    offerId: string | null
+    emailType: TriggerEmailType
+    templateVersionId: string
+    senderId: string
+    idempotencyKey: string
+  }
+): Promise<Message> {
+  const [created] = await tx
+    .insert(message)
+    .values({
+      recipientId: input.recipientId,
+      offerId: input.offerId,
+      emailType: input.emailType,
+      templateVersionId: input.templateVersionId,
+      senderId: input.senderId,
+      idempotencyKey: input.idempotencyKey,
+      status: "queued",
+      queuedAt: new Date(),
+    })
+    .returning()
+  if (!created) {
+    throw new AppError("internal")
+  }
+  return created
+}
+
+/**
+ * Stage A steps 2–9 (SD#7): recipient, lock, idempotency, route resolve,
+ * merge tags, send checks, insert queued message, commit, then enqueue
+ * `send-email` with `jobId = message_id` (T-045). Enqueue failures leave
+ * the row `queued` for the queue-watchdog (SD#15.5).
  */
 export async function triggerEmail(
   db: EmailHubDb,
   input: TriggerEmailInput,
-  createMessage: (ctx: TriggerEmailCreateContext) => Promise<Message>
+  deps: TriggerEmailDeps
 ): Promise<TriggerEmailResult> {
   const idempotencyKey = input.idempotencyKey.trim()
   if (!idempotencyKey) {
@@ -356,7 +386,7 @@ export async function triggerEmail(
     externalUserId
   )
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await lockRecipientTx(tx, foundRecipient.id)
 
     const [lockedRecipient] = await tx
@@ -365,7 +395,6 @@ export async function triggerEmail(
       .where(eq(recipient.id, foundRecipient.id))
       .limit(1)
     const activeRecipient = lockedRecipient ?? foundRecipient
-    const email = activeRecipient.email
 
     const existing = await tx
       .select()
@@ -423,18 +452,13 @@ export async function triggerEmail(
       }
     }
 
-    const created = await createMessage({
-      tx,
-      recipient: activeRecipient,
-      idempotencyKey,
-      email,
-      externalUserId,
-      emailType,
+    const created = await insertQueuedMessage(tx, {
+      recipientId: activeRecipient.id,
       offerId,
-      mergeData,
-      route: assets.route,
-      templateVersion: assets.templateVersion,
-      sender: assets.sender,
+      emailType,
+      templateVersionId: assets.templateVersion.id,
+      senderId: assets.sender.id,
+      idempotencyKey,
     })
 
     return {
@@ -443,4 +467,14 @@ export async function triggerEmail(
       created: true,
     }
   })
+
+  if (result.created && result.message.status === "queued") {
+    try {
+      await deps.enqueueSendEmail(result.message.id)
+    } catch {
+      // Message stays queued; queue-watchdog re-enqueues (SD#15.5).
+    }
+  }
+
+  return result
 }

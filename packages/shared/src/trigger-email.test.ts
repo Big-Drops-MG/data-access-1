@@ -368,6 +368,56 @@ describe("triggerEmail", () => {
     vi.mocked(runSendChecks).mockResolvedValue(null)
   })
 
+  function happyPathTx(
+    created: Message = messageRow,
+    options: { withOfferLookup?: boolean } = {}
+  ) {
+    const withOfferLookup = options.withOfferLookup === true
+    const execute = vi.fn(async () => undefined)
+    const insertMessage = createChain([created])
+    insertMessage.values = vi.fn(() => insertMessage)
+    let selectCalls = 0
+    const tx = {
+      execute,
+      select: vi.fn(() => {
+        selectCalls += 1
+        if (selectCalls === 1) {
+          return createChain([recipientRow])
+        }
+        if (selectCalls === 2) {
+          return createChain([])
+        }
+        if (withOfferLookup) {
+          if (selectCalls === 3) {
+            return createChain([])
+          }
+          if (selectCalls === 4) {
+            return createChain([routeRow])
+          }
+          if (selectCalls === 5) {
+            return createChain([templateRow])
+          }
+          if (selectCalls === 6) {
+            return createChain([versionRow])
+          }
+          return createChain([senderRow])
+        }
+        if (selectCalls === 3) {
+          return createChain([routeRow])
+        }
+        if (selectCalls === 4) {
+          return createChain([templateRow])
+        }
+        if (selectCalls === 5) {
+          return createChain([versionRow])
+        }
+        return createChain([senderRow])
+      }),
+      insert: vi.fn(() => insertMessage),
+    } as unknown as EmailHubTx
+    return { tx, execute, insertMessage }
+  }
+
   it("rejects an empty idempotency key before touching the database", async () => {
     const db = {
       select: vi.fn(),
@@ -384,8 +434,10 @@ describe("triggerEmail", () => {
           idempotencyKey: "   ",
           emailType: "thank_you",
         },
-        async () => {
-          throw new Error("should not create")
+        {
+          enqueueSendEmail: async () => {
+            throw new Error("should not enqueue")
+          },
         }
       )
     ).rejects.toMatchObject({
@@ -418,8 +470,8 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => {
-      throw new Error("should not create")
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("should not enqueue")
     })
 
     const result = await triggerEmail(
@@ -429,7 +481,7 @@ describe("triggerEmail", () => {
         idempotencyKey: "key-1",
         emailType: "thank_you",
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
     expect(result).toEqual({
@@ -437,7 +489,7 @@ describe("triggerEmail", () => {
       recipient: recipientRow,
       created: false,
     })
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
@@ -486,8 +538,8 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => {
-      throw new Error("should not create")
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("should not enqueue")
     })
 
     const result = await triggerEmail(
@@ -498,12 +550,12 @@ describe("triggerEmail", () => {
         emailType: "thank_you",
         offerId: "01900000-0000-7000-8000-000000000020",
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
     expect(result.message).toBe(skipped)
     expect(result.created).toBe(true)
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
     expect(insertAlert.values).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "no_route",
@@ -521,37 +573,17 @@ describe("triggerEmail", () => {
     )
   })
 
-  it("falls back to the default route and validates merge tags", async () => {
+  it("inserts a queued message then enqueues after commit", async () => {
     const selectRecipient = createChain([recipientRow])
-    const execute = vi.fn(async () => undefined)
-    vi.mocked(runSendChecks).mockResolvedValueOnce(null)
-
-    let selectCalls = 0
-    const tx = {
-      execute,
-      select: vi.fn(() => {
-        selectCalls += 1
-        if (selectCalls === 1) {
-          return createChain([recipientRow])
-        }
-        if (selectCalls === 2) {
-          return createChain([])
-        }
-        if (selectCalls === 3) {
-          return createChain([])
-        }
-        if (selectCalls === 4) {
-          return createChain([routeRow])
-        }
-        if (selectCalls === 5) {
-          return createChain([templateRow])
-        }
-        if (selectCalls === 6) {
-          return createChain([versionRow])
-        }
-        return createChain([senderRow])
-      }),
-    } as unknown as EmailHubTx
+    const created = {
+      ...messageRow,
+      id: "01900000-0000-7000-8000-000000000099",
+      offerId: "01900000-0000-7000-8000-000000000020",
+      idempotencyKey: "key-new",
+    } as Message
+    const { tx, insertMessage } = happyPathTx(created, {
+      withOfferLookup: true,
+    })
 
     const db = {
       select: vi.fn(() => selectRecipient),
@@ -561,11 +593,7 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const created = {
-      ...messageRow,
-      id: "01900000-0000-7000-8000-000000000099",
-    }
-    const createMessage = vi.fn(async () => created)
+    const enqueueSendEmail = vi.fn(async () => undefined)
 
     const result = await triggerEmail(
       db,
@@ -580,7 +608,7 @@ describe("triggerEmail", () => {
         },
         externalUserId: "ext-9",
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
     expect(result.created).toBe(true)
@@ -593,22 +621,52 @@ describe("triggerEmail", () => {
         categoryId: templateRow.categoryId,
       })
     )
-    expect(createMessage).toHaveBeenCalledWith({
-      tx,
-      recipient: recipientRow,
-      idempotencyKey: "key-new",
-      email: recipientRow.email,
-      externalUserId: "ext-9",
-      emailType: "thank_you",
-      offerId: "01900000-0000-7000-8000-000000000020",
-      mergeData: {
-        first_name: "Jane",
-        quote_url: "https://example.com/q",
-      },
-      route: routeRow,
-      templateVersion: versionRow,
-      sender: senderRow,
+    expect(insertMessage.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: recipientRow.id,
+        offerId: "01900000-0000-7000-8000-000000000020",
+        emailType: "thank_you",
+        templateVersionId: versionRow.id,
+        senderId: senderRow.id,
+        idempotencyKey: "key-new",
+        status: "queued",
+      })
+    )
+    expect(enqueueSendEmail).toHaveBeenCalledWith(created.id)
+  })
+
+  it("leaves the message queued when enqueue fails", async () => {
+    const selectRecipient = createChain([recipientRow])
+    const { tx } = happyPathTx(messageRow)
+    const db = {
+      select: vi.fn(() => selectRecipient),
+      insert: vi.fn(),
+      transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
+        fn(tx)
+      ),
+    } as unknown as EmailHubDb
+
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("redis down")
     })
+
+    const result = await triggerEmail(
+      db,
+      {
+        email: "jane@example.com",
+        idempotencyKey: "key-enqueue-fail",
+        emailType: "thank_you",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
+      },
+      { enqueueSendEmail }
+    )
+
+    expect(result.created).toBe(true)
+    expect(result.message.status).toBe("queued")
+    expect(enqueueSendEmail).toHaveBeenCalledWith(messageRow.id)
   })
 
   it("inserts a skipped message when a send check fails", async () => {
@@ -654,7 +712,9 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => messageRow)
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("should not enqueue")
+    })
     const result = await triggerEmail(
       db,
       {
@@ -666,12 +726,12 @@ describe("triggerEmail", () => {
           quote_url: "https://example.com/q",
         },
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
     expect(result.message).toBe(skipped)
     expect(result.created).toBe(true)
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
     expect(insertSkippedSendCheckMessage).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -682,7 +742,7 @@ describe("triggerEmail", () => {
     )
   })
 
-  it("rejects missing merge tags with 422 before createMessage", async () => {
+  it("rejects missing merge tags with 422 before insert", async () => {
     const selectRecipient = createChain([recipientRow])
     const execute = vi.fn(async () => undefined)
 
@@ -718,7 +778,7 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => messageRow)
+    const enqueueSendEmail = vi.fn(async () => undefined)
 
     await expect(
       triggerEmail(
@@ -729,14 +789,14 @@ describe("triggerEmail", () => {
           emailType: "thank_you",
           mergeData: { first_name: "Jane" },
         },
-        createMessage
+        { enqueueSendEmail }
       )
     ).rejects.toMatchObject({
       code: "validation_failed",
       status: 422,
       details: [{ path: "merge_data.quote_url", message: "Required" }],
     })
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
     expect(runSendChecks).not.toHaveBeenCalled()
   })
 })
