@@ -1,11 +1,12 @@
 "use server"
 
 import { eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { user } from "@workspace/db"
 import { getDb } from "@workspace/db/client"
-import { jobTitleSchema } from "@workspace/shared"
+import { jobTitleSchema, writeAudit } from "@workspace/shared"
 
 import { getSession } from "@/lib/auth"
 import { DEFAULT_POST_LOGIN_PATH } from "@/lib/login/safe-next-path"
@@ -34,10 +35,22 @@ export async function completeOnboardingAction(
     return { error: "Select a role to continue." }
   }
 
-  await getDb()
-    .update(user)
-    .set({ jobTitle: parsed.data, updatedAt: new Date() })
-    .where(eq(user.id, session.id))
+  const requestId = (await headers()).get("x-request-id")
+  await getDb().transaction(async (tx) => {
+    await tx
+      .update(user)
+      .set({ jobTitle: parsed.data, updatedAt: new Date() })
+      .where(eq(user.id, session.id))
+    await writeAudit(tx, {
+      actor: { type: "user", id: session.id },
+      action: "user.job_title_set",
+      objectType: "user",
+      objectId: session.id,
+      requestId,
+      before: { jobTitle: null },
+      after: { jobTitle: parsed.data },
+    })
+  })
 
   redirect(DEFAULT_POST_LOGIN_PATH)
 }

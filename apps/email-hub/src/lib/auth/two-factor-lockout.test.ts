@@ -20,11 +20,15 @@ const db = vi.hoisted(() => {
 
   const deleteWhere = vi.fn()
   const del = vi.fn(() => ({ where: deleteWhere }))
+  const returning = vi.fn(async () => [{ id: "audit-row" }])
+  const values = vi.fn(() => ({ returning }))
+  const insert = vi.fn(() => ({ values }))
 
   const tx = {
     select,
     update,
     delete: del,
+    insert,
   }
   const transaction = vi.fn(async (run: (trx: typeof tx) => Promise<void>) =>
     run(tx)
@@ -40,6 +44,8 @@ const db = vi.hoisted(() => {
     updateWhere,
     delete: del,
     deleteWhere,
+    insert,
+    values,
     transaction,
     getDb: vi.fn(() => ({
       select,
@@ -179,13 +185,28 @@ describe("two-factor-lockout store", () => {
   })
 
   it("deletes factor, trust rows, sessions, and trusted devices in one transaction", async () => {
-    await resetTwoFactorForAdmin(userId)
+    const adminId = "01900000-0000-7000-8000-000000000099"
+    await resetTwoFactorForAdmin(userId, {
+      actorId: adminId,
+      requestId: "req-reset",
+    })
     expect(db.transaction).toHaveBeenCalledTimes(1)
     expect(db.delete).toHaveBeenCalledTimes(4)
     expect(db.update).toHaveBeenCalledTimes(1)
     expect(db.updateSet).toHaveBeenCalledWith({ twoFactorEnabled: false })
     expect(db.updateSet).not.toHaveBeenCalledWith(
       expect.objectContaining({ revokedAt: expect.any(Date) })
+    )
+    expect(db.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorType: "user",
+        actorId: adminId,
+        action: "user.two_factor_reset",
+        entityType: "user",
+        entityId: userId,
+        requestId: "req-reset",
+        after: { twoFactorEnabled: false },
+      })
     )
   })
 })

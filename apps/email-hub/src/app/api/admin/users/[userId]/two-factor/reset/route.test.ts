@@ -88,7 +88,10 @@ describe("POST /api/admin/users/[userId]/two-factor/reset", () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true })
-    expect(resetTwoFactorForAdmin).toHaveBeenCalledWith(userId)
+    expect(resetTwoFactorForAdmin).toHaveBeenCalledWith(userId, {
+      actorId: "admin-1",
+      requestId: null,
+    })
     expect(logAuthEvent).toHaveBeenCalledWith("auth.2fa_reset", {
       user_id: userId,
       admin_user_id: "admin-1",

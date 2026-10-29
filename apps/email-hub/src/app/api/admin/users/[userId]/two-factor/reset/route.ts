@@ -30,7 +30,10 @@ export async function POST(request: Request, context: RouteContext) {
       throw AppError.badRequest([{ path: "userId", message: "Must be a uuid" }])
     }
 
-    await resetTwoFactorForAdmin(userId)
+    await resetTwoFactorForAdmin(userId, {
+      actorId: session.id,
+      requestId: request.headers.get("x-request-id"),
+    })
     logAuthEvent("auth.2fa_reset", {
       user_id: userId,
       admin_user_id: session.id,
