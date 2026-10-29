@@ -2,8 +2,15 @@ export const PACKAGE_NAME = "@workspace/shared" as const
 
 export { hashEmail, maskEmail, normaliseEmail } from "./email.js"
 export {
+  writeAudit,
+  type AuditActor,
+  type AuditActorType,
+  type WriteAuditInput,
+} from "./audit.js"
+export {
   assertMergeDataHasRequiredTags,
   findOrCreateRecipient,
+  insertQueuedMessage,
   loadRouteSendAssets,
   lockRecipientTx,
   noRouteAlertDedupeKey,
@@ -15,11 +22,20 @@ export {
   type EmailHubTx,
   type MergeData,
   type ResolvedRouteAssets,
-  type TriggerEmailCreateContext,
+  type TriggerEmailDeps,
   type TriggerEmailInput,
   type TriggerEmailResult,
   type TriggerEmailType,
 } from "./trigger-email.js"
+export {
+  BULLMQ_PREFIX,
+  SEND_EMAIL_JOB_NAME,
+  SEND_EMAIL_JOB_OPTIONS,
+  SEND_EMAIL_QUEUE_NAME,
+  createEnqueueSendEmail,
+  enqueueSendEmailJob,
+  type SendEmailJobData,
+} from "./send-email-queue.js"
 export {
   firstFailedSendCheck,
   insertSkippedSendCheckMessage,

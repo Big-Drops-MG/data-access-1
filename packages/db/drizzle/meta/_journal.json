@@ -64,6 +64,13 @@
       "when": 1792500000000,
       "tag": "0008_user_job_title",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0009_api_client_hmac_columns",
+      "breakpoints": true
     }
   ]
 }

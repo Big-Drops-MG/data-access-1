@@ -1,5 +1,6 @@
 import { session, twoFactor, user, verification } from "@workspace/db"
 import { getDb } from "@workspace/db/client"
+import { writeAudit } from "@workspace/shared"
 import { APIError } from "better-auth/api"
 import { and, eq, like, or } from "drizzle-orm"
 
@@ -110,7 +111,10 @@ export async function recordTwoFactorVerificationSuccess(
   logAuthEvent("auth.login", { user_id: userId })
 }
 
-export async function resetTwoFactorForAdmin(userId: string): Promise<void> {
+export async function resetTwoFactorForAdmin(
+  userId: string,
+  audit: { actorId: string; requestId?: string | null }
+): Promise<void> {
   const db = getDb()
   await db.transaction(async (tx) => {
     await tx.delete(twoFactor).where(eq(twoFactor.userId, userId))
@@ -131,5 +135,14 @@ export async function resetTwoFactorForAdmin(userId: string): Promise<void> {
       .update(user)
       .set({ twoFactorEnabled: false })
       .where(eq(user.id, userId))
+    await writeAudit(tx, {
+      actor: { type: "user", id: audit.actorId },
+      action: "user.two_factor_reset",
+      objectType: "user",
+      objectId: userId,
+      requestId: audit.requestId,
+      before: null,
+      after: { twoFactorEnabled: false },
+    })
   })
 }

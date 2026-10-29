@@ -38,7 +38,7 @@ export default async function AppShellLayout({
           jobTitle={session.jobTitle}
           image={session.image}
         />
-        <AppTabs />
+        <AppTabs role={session.role} />
         <div className="mx-auto w-full max-w-360 flex-1 p-6">{children}</div>
       </div>
     </OnlineStatusProvider>

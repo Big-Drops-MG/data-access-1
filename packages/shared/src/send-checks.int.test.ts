@@ -20,11 +20,11 @@ import { getDb, getPool } from "@workspace/db/client"
 import { eq } from "drizzle-orm"
 
 import { hashEmail } from "./email.js"
-import {
-  triggerEmail,
-  type TriggerEmailCreateContext,
-  type TriggerEmailType,
-} from "./trigger-email.js"
+import { triggerEmail, type TriggerEmailType } from "./trigger-email.js"
+
+const enqueueDeps = {
+  enqueueSendEmail: async () => undefined,
+}
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
 
@@ -209,34 +209,6 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
     await getPool().end()
   })
 
-  async function createQueued({
-    tx,
-    recipient: row,
-    idempotencyKey: key,
-    emailType,
-    templateVersion: version,
-    sender: from,
-    offerId: offer,
-  }: TriggerEmailCreateContext) {
-    const [created] = await tx
-      .insert(message)
-      .values({
-        recipientId: row.id,
-        offerId: offer,
-        emailType,
-        templateVersionId: version.id,
-        senderId: from.id,
-        idempotencyKey: key,
-        status: "queued",
-        queuedAt: new Date(),
-      })
-      .returning()
-    if (!created) {
-      throw new Error("insert message failed")
-    }
-    return created
-  }
-
   it("skips with recipient_bounced when the recipient is bounced", async ({
     skip,
   }) => {
@@ -262,7 +234,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "thank_you",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.status).toBe("skipped")
@@ -299,7 +271,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "thank_you",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.skipReason).toBe("suppressed")
@@ -331,7 +303,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "engagement",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.skipReason).toBe("suppressed")
@@ -363,7 +335,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "engagement",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
     expect(engagement.message.skipReason).toBe("suppressed")
 
@@ -375,7 +347,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "thank_you",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
     expect(thankYou.message.status).toBe("queued")
     expect(thankYou.message.skipReason).toBeNull()
@@ -420,7 +392,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         offerId,
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.skipReason).toBe("suppressed")
@@ -457,7 +429,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "engagement",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
     expect(engagement.message.skipReason).toBe("opted_out")
 
@@ -469,7 +441,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "thank_you",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
     expect(thankYou.message.status).toBe("queued")
   }, 30_000)
@@ -496,7 +468,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "feedback_request",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.skipReason).toBe("not_premium")
@@ -539,7 +511,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "feedback_request",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.skipReason).toBe("collision")
@@ -588,7 +560,7 @@ describe.skipIf(!databaseUrl)("triggerEmail send checks (int)", () => {
         emailType: "engagement",
         mergeData: { name: "Ada" },
       },
-      createQueued
+      enqueueDeps
     )
 
     expect(result.message.skipReason).toBe("frequency_cap")

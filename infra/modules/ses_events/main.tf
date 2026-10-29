@@ -1,4 +1,4 @@
-resource "aws_sqs_queue" "ses_events_dlq" {
+﻿resource "aws_sqs_queue" "ses_events_dlq" {
   name                       = "${var.name_prefix}-ses-events-dlq"
   message_retention_seconds  = 1209600 # 14 days (SD#11.3)
   visibility_timeout_seconds = 60
@@ -33,10 +33,71 @@ resource "aws_sqs_queue_policy" "ses_events_dlq" {
 }
 
 data "aws_caller_identity" "current" {}
+resource "aws_kms_key" "ses_events" {
+  description             = "SNS encryption for ${var.name_prefix} SES events"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  tags                    = var.tags
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "${var.name_prefix}-ses-events-kms"
+    Statement = [
+      {
+        Sid    = "EnableRootAccountAdmin"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowSNS"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey*",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "AllowSES"
+        Effect = "Allow"
+        Principal = {
+          Service = "ses.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey*",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_kms_alias" "ses_events" {
+  name          = "alias/${var.name_prefix}-ses-events"
+  target_key_id = aws_kms_key.ses_events.key_id
+}
 
 resource "aws_sns_topic" "ses_events" {
   name              = "${var.name_prefix}-ses-events"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = aws_kms_key.ses_events.arn
   tags              = var.tags
 }
 
