@@ -2,6 +2,12 @@ export const PACKAGE_NAME = "@workspace/shared" as const
 
 export { hashEmail, maskEmail, normaliseEmail } from "./email.js"
 export {
+  writeAudit,
+  type AuditActor,
+  type AuditActorType,
+  type WriteAuditInput,
+} from "./audit.js"
+export {
   assertMergeDataHasRequiredTags,
   findOrCreateRecipient,
   loadRouteSendAssets,
