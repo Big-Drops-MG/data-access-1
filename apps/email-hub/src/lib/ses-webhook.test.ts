@@ -575,6 +575,62 @@ describe("handleSesWebhook", () => {
     expect(harness.updateStatus).toHaveBeenCalledWith(SES_ID, "bounced")
   })
 
+  it("passes Permanent bounceType through processEvent for hard-bounce handling", async () => {
+    const harness = createHarness()
+    const processEvent = vi.fn(async () => undefined)
+    const body = signRecord(
+      baseNotification(
+        JSON.stringify({
+          eventType: "Bounce",
+          bounce: { bounceType: "Permanent", bounceSubType: "General" },
+          mail: { messageId: SES_ID },
+        })
+      )
+    )
+
+    await handleSesWebhook(
+      { contentType: "text/plain", body },
+      { ...harness.dependencies, processEvent }
+    )
+
+    expect(processEvent).toHaveBeenCalledWith({
+      eventType: "Bounce",
+      sesMessageId: SES_ID,
+      bounceType: "Permanent",
+      recipientEmails: [],
+    })
+    expect(harness.updateStatus).not.toHaveBeenCalled()
+  })
+
+  it("extracts bounced recipient emails for orphan hard-bounce lookup", async () => {
+    const harness = createHarness()
+    const processEvent = vi.fn(async () => undefined)
+    const body = signRecord(
+      baseNotification(
+        JSON.stringify({
+          eventType: "Bounce",
+          bounce: {
+            bounceType: "Permanent",
+            bouncedRecipients: [{ emailAddress: "Ada@Example.com" }],
+          },
+          mail: { messageId: SES_ID, destination: ["Ada@Example.com"] },
+        })
+      )
+    )
+
+    await handleSesWebhook(
+      { contentType: "text/plain", body },
+      { ...harness.dependencies, processEvent }
+    )
+
+    expect(processEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bounceType: "Permanent",
+        recipientEmails: ["Ada@Example.com"],
+      })
+    )
+  })
+
   it("acknowledges open, click, delay, and unknown events without a status change", async () => {
     for (const eventType of [
       "Open",
