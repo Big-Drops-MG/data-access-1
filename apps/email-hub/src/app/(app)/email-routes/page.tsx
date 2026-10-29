@@ -3,9 +3,9 @@
 import { ModulePlaceholderPage } from "@/components/app/module-placeholder-page"
 
 export const metadata: Metadata = {
-  title: "Routes",
+  title: "Email routes",
 }
 
 export default function Page() {
-  return <ModulePlaceholderPage title="Routes" />
+  return <ModulePlaceholderPage title="Email routes" />
 }
