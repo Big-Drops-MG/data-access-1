@@ -19,13 +19,22 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "mail:test": "node --env-file=../../.env --import tsx scripts/send-dev-mail.ts",
+    "mail:check:ses": "node --env-file=../../.env --import tsx scripts/check-ses.ts",
+    "mail:test:ses": "node --env-file=../../.env --import tsx scripts/check-ses.ts"
   },
   "devDependencies": {
     "@types/node": "^24",
+    "@types/nodemailer": "^8.0.2",
     "@workspace/config": "workspace:*",
     "eslint": "^10",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1158.0",
+    "nodemailer": "^10.2.1"
   }
 }
