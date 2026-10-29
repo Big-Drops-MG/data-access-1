@@ -8,6 +8,13 @@ import {
 import { getPool } from "@workspace/db/client"
 import { Redis } from "ioredis"
 
+import {
+  applySesNotificationEvent,
+  isComplaintEvent,
+  isHardBounceEvent,
+  type ParsedSesEvent,
+} from "@/lib/ses-event-effects"
+
 const MAX_BODY_BYTES = 256 * 1024
 const MAX_CERTIFICATE_BYTES = 64 * 1024
 const CERTIFICATE_CACHE_LIMIT = 32
@@ -91,11 +98,18 @@ type StatusUpdater = (
   status: SesMessageStatus
 ) => Promise<void>
 
+export type SesEventProcessor = (event: ParsedSesEvent) => Promise<void>
+
 export type SesWebhookDependencies = {
   fetch?: typeof fetch
   certificates?: Map<string, string>
   dedupe?: SnsDedupe
+  /**
+   * Test override for status-only updates. Production uses
+   * {@link processSesEvent} (status + hard-bounce / complaint side effects).
+   */
   updateStatus?: StatusUpdater
+  processEvent?: SesEventProcessor
   topicArn?: string
 }
 
@@ -233,10 +247,7 @@ export async function handleSesWebhook(
         fetchImpl
       )
     } else if (envelope.Type === "Notification") {
-      await applyNotification(
-        envelope.Message,
-        dependencies.updateStatus ?? updateMessageStatus
-      )
+      await applyNotification(envelope.Message, dependencies)
     }
   } catch (error) {
     await dedupe.release(envelope.MessageId).catch(() => undefined)
@@ -577,18 +588,38 @@ async function confirmSubscription(
 
 async function applyNotification(
   message: string,
-  updateStatus: StatusUpdater
+  dependencies: SesWebhookDependencies
 ): Promise<void> {
   const event = readSesEvent(message)
   if (!event) return
   const status = statusForSesEvent(event.eventType)
   if (status === null || status === "ignore") return
-  await updateStatus(event.sesMessageId, status)
+
+  if (dependencies.processEvent) {
+    await dependencies.processEvent(event)
+    return
+  }
+
+  if (dependencies.updateStatus) {
+    await dependencies.updateStatus(event.sesMessageId, status)
+    return
+  }
+
+  // Hard bounce / complaint: status + side effects in one transaction (SD#7 Stage C).
+  if (isHardBounceEvent(event) || isComplaintEvent(event)) {
+    try {
+      await applySesNotificationEvent(event, status)
+    } catch (error) {
+      if (error instanceof SesWebhookError) throw error
+      throw new SesWebhookError("unavailable", "postgres")
+    }
+    return
+  }
+
+  await updateMessageStatus(event.sesMessageId, status)
 }
 
-function readSesEvent(
-  message: string
-): { eventType: string; sesMessageId: string } | null {
+export function readSesEvent(message: string): ParsedSesEvent | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(message)
@@ -606,5 +637,95 @@ function readSesEvent(
   if (typeof sesMessageId !== "string" || !SES_MESSAGE_ID.test(sesMessageId)) {
     return null
   }
-  return { eventType, sesMessageId }
+  return {
+    eventType,
+    sesMessageId,
+    bounceType: readBounceType(record),
+    recipientEmails: readRecipientEmails(record),
+  }
+}
+
+function readBounceType(record: Record<string, unknown>): string | null {
+  const bounce = record.bounce
+  if (!bounce || typeof bounce !== "object" || Array.isArray(bounce)) {
+    return null
+  }
+  const bounceType = (bounce as Record<string, unknown>).bounceType
+  return typeof bounceType === "string" && bounceType.length > 0
+    ? bounceType
+    : null
+}
+
+function readRecipientEmails(record: Record<string, unknown>): string[] {
+  const fromLists = [
+    ...emailsFromRecipientList(
+      nestedRecord(record, "bounce"),
+      "bouncedRecipients"
+    ),
+    ...emailsFromRecipientList(
+      nestedRecord(record, "complaint"),
+      "complainedRecipients"
+    ),
+  ]
+  if (fromLists.length > 0) {
+    return uniqueEmails(fromLists)
+  }
+
+  const mail = nestedRecord(record, "mail")
+  const destination = mail?.destination
+  if (!Array.isArray(destination)) {
+    return []
+  }
+  return uniqueEmails(
+    destination.filter((value): value is string => typeof value === "string")
+  )
+}
+
+function nestedRecord(
+  record: Record<string, unknown>,
+  key: string
+): Record<string, unknown> | null {
+  const value = record[key]
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null
+  }
+  return value as Record<string, unknown>
+}
+
+function emailsFromRecipientList(
+  parent: Record<string, unknown> | null,
+  key: string
+): string[] {
+  if (!parent) {
+    return []
+  }
+  const list = parent[key]
+  if (!Array.isArray(list)) {
+    return []
+  }
+  const emails: string[] = []
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      continue
+    }
+    const email = (entry as Record<string, unknown>).emailAddress
+    if (typeof email === "string" && email.trim().length > 0) {
+      emails.push(email)
+    }
+  }
+  return emails
+}
+
+function uniqueEmails(emails: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const email of emails) {
+    const key = email.trim().toLowerCase()
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    out.push(email.trim())
+  }
+  return out
 }
