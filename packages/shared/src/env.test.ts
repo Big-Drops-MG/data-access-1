@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   EnvValidationError,
+  loadServerEnv,
   parseServerEnv,
   resetServerEnvCache,
+  sesSendRatePerSecond,
 } from "./env.js"
 
 const baseWorkerEnv = {
@@ -26,6 +28,7 @@ const baseWebEnv = {
 
 afterEach(() => {
   resetServerEnvCache()
+  vi.unstubAllEnvs()
 })
 
 describe("parseServerEnv", () => {
@@ -174,5 +177,52 @@ describe("parseServerEnv", () => {
     expect(() => parseServerEnv({ ...baseWorkerEnv }, "web")).toThrow(
       /BETTER_AUTH_SECRET/
     )
+  })
+})
+
+describe("sesSendRatePerSecond", () => {
+  it("returns undefined when mail uses SMTP", () => {
+    expect(sesSendRatePerSecond({ MAIL_TRANSPORT: "smtp" })).toBeUndefined()
+  })
+
+  it("returns the configured SES rate", () => {
+    expect(
+      sesSendRatePerSecond({
+        MAIL_TRANSPORT: "ses",
+        SES_MAX_SEND_RATE: "14",
+      })
+    ).toBe(14)
+  })
+
+  it("rejects a missing or invalid SES rate", () => {
+    expect(() => sesSendRatePerSecond({ MAIL_TRANSPORT: "ses" })).toThrow(
+      /positive integer/
+    )
+    expect(() =>
+      sesSendRatePerSecond({
+        MAIL_TRANSPORT: "ses",
+        SES_MAX_SEND_RATE: "0",
+      })
+    ).toThrow(/positive integer/)
+  })
+})
+
+describe("loadServerEnv", () => {
+  it("caches the worker env and the web env separately", () => {
+    for (const [key, value] of Object.entries(baseWebEnv)) {
+      vi.stubEnv(key, value)
+    }
+    vi.stubEnv("EMAILHUB_ENV", "")
+    vi.stubEnv("E2E", "")
+
+    const worker = loadServerEnv("worker")
+    expect(loadServerEnv()).toBe(worker)
+    expect(worker.MAIL_TRANSPORT).toBe("smtp")
+
+    const web = loadServerEnv("web")
+    expect(loadServerEnv("web")).toBe(web)
+    expect(web).toMatchObject({
+      BETTER_AUTH_URL: "http://localhost:3000",
+    })
   })
 })
