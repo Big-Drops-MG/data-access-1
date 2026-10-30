@@ -28,7 +28,7 @@
   },
   "prettier": "@workspace/config/prettier",
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
     "@vitest/coverage-v8": "^3.2.7",
     "@workspace/config": "workspace:*",
     "eslint": "^10",
