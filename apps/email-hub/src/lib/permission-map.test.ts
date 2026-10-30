@@ -16,6 +16,41 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("GET", "/api/domains")).toBe("viewer")
   })
 
+  it("maps templates staff routes (viewer read, operator write)", () => {
+    expect(minRoleForStaffApi("GET", "/api/templates")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/templates")).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "GET",
+        "/api/templates/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("viewer")
+    expect(
+      minRoleForStaffApi(
+        "PATCH",
+        "/api/templates/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "POST",
+        "/api/templates/019a0000-0000-7000-8000-000000000001/versions"
+      )
+    ).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "POST",
+        "/api/templates/019a0000-0000-7000-8000-000000000001/publish"
+      )
+    ).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "PUT",
+        "/api/templates/019a0000-0000-7000-8000-000000000001/versions"
+      )
+    ).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
