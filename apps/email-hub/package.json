@@ -16,6 +16,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.105.0",
     "@workspace/db": "workspace:*",
+    "@workspace/emails": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.7.10",

@@ -50,6 +50,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/emails':
+        specifier: workspace:*
+        version: link:../../packages/emails
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared
