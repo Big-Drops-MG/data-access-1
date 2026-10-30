@@ -12,6 +12,7 @@ data "aws_iam_policy_document" "app" {
     actions = [
       "ses:SendEmail",
       "ses:CreateEmailIdentity",
+      "ses:PutEmailIdentityMailFromAttributes",
       "ses:GetEmailIdentity",
       "ses:GetAccount",
     ]
