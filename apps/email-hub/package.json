@@ -19,7 +19,7 @@
     "@workspace/emails": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",
-    "better-auth": "^1.7.10",
+    "better-auth": "^1.7.14",
     "drizzle-orm": "^0.45.4",
     "ioredis": "^5.11.1",
     "lucide-react": "^1.55.0",
