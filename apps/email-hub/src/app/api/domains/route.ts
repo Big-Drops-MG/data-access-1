@@ -1,27 +1,54 @@
 import { AppError } from "@workspace/shared"
 
 import { jsonAppError, toErrorResponse } from "@/lib/api-response"
-import { assertStaffApiCaller } from "@/lib/auth/require-machine"
-import { requireRole } from "@/lib/auth/require-role"
-import { minRoleForStaffApi } from "@/lib/permission-map"
+import {
+  createDomainBodySchema,
+  domainListQuerySchema,
+} from "@/lib/domains/schemas"
+import { createDomain, listDomains } from "@/lib/domains/service"
+import { requireDomainsStaffAccess } from "@/lib/domains/staff-access"
+import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
-/**
- * Domains list (staff). Empty shell until Domains CRUD; powers T-050 query usage.
- * Contract: `{ data, next_cursor }` (SD#10.1).
- */
+/** GET /api/domains — list (Viewer+). */
 export async function GET(request: Request) {
   try {
-    assertStaffApiCaller(request)
-    const minRole = minRoleForStaffApi("GET", new URL(request.url).pathname)
-    if (!minRole) {
-      throw AppError.forbidden()
-    }
-    await requireRole(minRole)
+    await requireDomainsStaffAccess(request, "GET")
+    const url = new URL(request.url)
+    const query = parseOrThrow(
+      domainListQuerySchema,
+      Object.fromEntries(url.searchParams.entries())
+    )
 
-    return Response.json({
-      data: [],
-      next_cursor: null,
+    const result = await listDomains({
+      limit: query.limit,
+      cursor: query.cursor,
+      status: query.status,
     })
+
+    return Response.json(result)
+  } catch (error) {
+    if (error instanceof AppError) {
+      return jsonAppError(error)
+    }
+    return toErrorResponse(error)
+  }
+}
+
+/** POST /api/domains — create with SES identity + DNS (Admin). */
+export async function POST(request: Request) {
+  try {
+    const session = await requireDomainsStaffAccess(request, "POST")
+    const body = parseOrThrow(
+      createDomainBodySchema,
+      await parseJsonBody(request)
+    )
+
+    const created = await createDomain(body.name, {
+      userId: session.id,
+      requestId: request.headers.get("x-request-id"),
+    })
+
+    return Response.json(created, { status: 201 })
   } catch (error) {
     if (error instanceof AppError) {
       return jsonAppError(error)

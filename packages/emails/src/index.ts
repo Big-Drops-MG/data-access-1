@@ -18,3 +18,15 @@ export type {
   SesEmailClient,
   SmtpSender,
 } from "./mail-transport.js"
+export {
+  SesIdentityError,
+  buildDnsRecordsFromSes,
+  mailFromDomainFor,
+  provisionSesDomainIdentity,
+} from "./ses-identity.js"
+export type {
+  DnsRecordDraft,
+  ProvisionSesIdentityInput,
+  ProvisionedSesIdentity,
+  SesIdentityClient,
+} from "./ses-identity.js"

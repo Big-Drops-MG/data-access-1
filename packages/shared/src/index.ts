@@ -27,6 +27,7 @@ export {
   type TriggerEmailResult,
   type TriggerEmailType,
 } from "./trigger-email.js"
+export { buildMergeTagsRecord, extractMergeTagNames } from "./merge-tags.js"
 export {
   BULLMQ_PREFIX,
   SEND_EMAIL_JOB_NAME,
