@@ -32,6 +32,6 @@
     "@workspace/db": "workspace:*",
     "bullmq": "^5.81.5",
     "drizzle-orm": "^0.45.4",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   }
 }
