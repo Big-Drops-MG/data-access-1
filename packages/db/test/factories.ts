@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto"
 
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import type { Database } from "../src/client.js"
 import { hashNormalisedEmail } from "../src/dev-seed.js"
 import {
+  alert,
   domain,
   emailCategory,
   message,
@@ -14,6 +15,7 @@ import {
   templateVersion,
   user,
 } from "../src/schema/index.js"
+import type { Alert } from "../src/schema/alert.js"
 import type { Domain } from "../src/schema/domain.js"
 import type { EmailCategory } from "../src/schema/email-category.js"
 import type { Message } from "../src/schema/message.js"
@@ -250,6 +252,28 @@ export async function createMessage(
     .returning()
 
   return required(row, "message")
+}
+
+export async function findMessage(
+  db: Database,
+  id: string
+): Promise<Message | undefined> {
+  const [row] = await db
+    .select()
+    .from(message)
+    .where(eq(message.id, id))
+    .limit(1)
+  return row
+}
+
+export async function findOpenAlerts(
+  db: Database,
+  dedupeKey: string
+): Promise<Alert[]> {
+  return db
+    .select()
+    .from(alert)
+    .where(and(eq(alert.dedupeKey, dedupeKey), eq(alert.status, "open")))
 }
 
 function token(): string {

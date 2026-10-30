@@ -99,6 +99,7 @@ describe("parseServerEnv", () => {
           EMAILHUB_ENV: "prod",
           MAIL_TRANSPORT: "ses",
           SES_REGION: "us-east-1",
+          SES_MAX_SEND_RATE: "14",
           SMTP_HOST: undefined,
           SMTP_PORT: undefined,
           E2E: "1",
@@ -116,13 +117,44 @@ describe("parseServerEnv", () => {
         EMAILHUB_ENV: "prod",
         MAIL_TRANSPORT: "ses",
         SES_REGION: "us-east-1",
+        SES_MAX_SEND_RATE: "14",
         SMTP_HOST: undefined,
         SMTP_PORT: undefined,
       },
       "worker"
     )
     expect(env.MAIL_TRANSPORT).toBe("ses")
+    expect(env.SES_MAX_SEND_RATE).toBe("14")
     expect(env.E2E).toBeUndefined()
+  })
+
+  it("requires a positive SES_MAX_SEND_RATE when MAIL_TRANSPORT=ses", () => {
+    expect(() =>
+      parseServerEnv(
+        {
+          ...baseWorkerEnv,
+          MAIL_TRANSPORT: "ses",
+          SES_REGION: "us-east-1",
+          SMTP_HOST: undefined,
+          SMTP_PORT: undefined,
+        },
+        "worker"
+      )
+    ).toThrow(/SES_MAX_SEND_RATE[\s\S]*required when MAIL_TRANSPORT=ses/)
+
+    expect(() =>
+      parseServerEnv(
+        {
+          ...baseWorkerEnv,
+          MAIL_TRANSPORT: "ses",
+          SES_REGION: "us-east-1",
+          SES_MAX_SEND_RATE: "0",
+          SMTP_HOST: undefined,
+          SMTP_PORT: undefined,
+        },
+        "worker"
+      )
+    ).toThrow(/SES_MAX_SEND_RATE[\s\S]*positive integer/)
   })
 
   it("allows Dev droplet smtp when EMAILHUB_ENV=dev", () => {

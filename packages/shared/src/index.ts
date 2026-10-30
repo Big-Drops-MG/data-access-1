@@ -37,6 +37,20 @@ export {
   type SendEmailJobData,
 } from "./send-email-queue.js"
 export {
+  SES_ACCOUNT_PAUSED_ALERT_TYPE,
+  SES_ACCOUNT_PAUSED_DEDUPE_KEY,
+  claimQueuedMessage,
+  loadQueuedSend,
+  markMessageFailed,
+  markMessageSent,
+  releaseQueuedClaim,
+  openSesAccountPausedAlert,
+  runSendEmailExclusive,
+  skipQueuedMessageIfBlocked,
+  type LoadQueuedSendResult,
+  type QueuedSendContext,
+} from "./send-email-delivery.js"
+export {
   firstFailedSendCheck,
   insertSkippedSendCheckMessage,
   isTransactionalEmailType,
@@ -75,6 +89,7 @@ export {
   loadServerEnv,
   parseServerEnv,
   resetServerEnvCache,
+  sesSendRatePerSecond,
   type ServerEnv,
   type ServerEnvRole,
   type WebServerEnv,
