@@ -18,6 +18,10 @@
     "SMTP_HOST",
     "SMTP_PORT",
     "SES_REGION",
+    "SES_CONFIGURATION_SET",
+    "SES_FROM_EMAIL",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
     "SNS_TOPIC_ARN",
     "E2E"
   ],
