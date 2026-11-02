@@ -92,11 +92,20 @@ describe("formatDnsRecordsForCopy", () => {
 describe("dnsPurposeLabel", () => {
   it("labels MAIL FROM SPF separately from apex SPF", () => {
     expect(
-      dnsPurposeLabel({ purpose: "spf", name: "example.com" }, "example.com")
+      dnsPurposeLabel(
+        { purpose: "spf", name: "example.com", record_type: "TXT" },
+        "example.com"
+      )
     ).toBe("SPF")
     expect(
       dnsPurposeLabel(
-        { purpose: "spf", name: "bounce.example.com" },
+        { purpose: "spf", name: "bounce.example.com", record_type: "TXT" },
+        "example.com"
+      )
+    ).toBe("MAIL FROM SPF")
+    expect(
+      dnsPurposeLabel(
+        { purpose: "mx", name: "bounce.example.com", record_type: "MX" },
         "example.com"
       )
     ).toBe("MAIL FROM")

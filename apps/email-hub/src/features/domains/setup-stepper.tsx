@@ -11,20 +11,22 @@ const STATE_LABELS: Record<SetupStepView["state"], string> = {
 
 export function SetupStepper({ steps }: { steps: readonly SetupStepView[] }) {
   return (
-    <ol className="space-y-4" data-testid="domains-setup-steps">
+    <ol className="divide-y divide-border" data-testid="domains-setup-steps">
       {steps.map((step, index) => (
         <li
           key={step.key}
-          className="flex gap-3"
+          className="flex gap-3 py-3 first:pt-0 last:pb-0"
           data-state={step.state}
           data-testid={`domains-setup-step-${step.key}`}
         >
           <span
             className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-full border text-caption font-medium tabular-nums",
+              "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold tabular-nums",
               step.state === "done" && "border-ok bg-ok text-surface",
-              step.state === "in_progress" && "border-info text-info",
-              step.state === "pending" && "border-border-strong text-fg-muted"
+              step.state === "in_progress" &&
+                "border-warn bg-surface text-warn",
+              step.state === "pending" &&
+                "border-border bg-surface text-fg-muted"
             )}
           >
             {step.state === "done" ? (
@@ -33,12 +35,14 @@ export function SetupStepper({ steps }: { steps: readonly SetupStepView[] }) {
               index + 1
             )}
           </span>
-          <div className="min-w-0 space-y-0.5">
-            <p className="text-body font-medium text-fg">
+          <div className="min-w-0 space-y-1">
+            <p className="text-[13px] leading-none font-medium tracking-tight text-fg">
               {step.title}
               <span className="sr-only"> ({STATE_LABELS[step.state]})</span>
             </p>
-            <p className="text-caption text-fg-muted">{step.description}</p>
+            <p className="text-[12px] leading-4 text-fg-muted">
+              {step.description}
+            </p>
           </div>
         </li>
       ))}

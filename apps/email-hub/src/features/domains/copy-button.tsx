@@ -4,7 +4,11 @@ import { Check, Copy } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { Button } from "@workspace/ui/components/button"
+import {
+  domainsIconControl,
+  domainsOutlineControl,
+} from "@/features/domains/domains-ui"
+import { cn } from "@workspace/ui/lib/utils"
 
 type CopyButtonProps = {
   value: string
@@ -12,6 +16,7 @@ type CopyButtonProps = {
   testId?: string
   variant?: "icon" | "text"
   children?: React.ReactNode
+  className?: string
 }
 
 export function CopyButton({
@@ -20,6 +25,7 @@ export function CopyButton({
   testId,
   variant = "icon",
   children,
+  className,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | null>(null)
@@ -51,26 +57,24 @@ export function CopyButton({
 
   if (variant === "text") {
     return (
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="sm"
+        className={cn(domainsOutlineControl(), className)}
         onClick={() => {
           void copy()
         }}
         data-testid={testId}
       >
-        <Icon strokeWidth={1.75} aria-hidden />
+        <Icon className="size-3.5" strokeWidth={2} aria-hidden />
         {copied ? "Copied" : children}
-      </Button>
+      </button>
     )
   }
 
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      size="icon-xs"
+      className={cn(domainsIconControl(), className)}
       aria-label={copied ? `${label} copied` : `Copy ${label}`}
       title={`Copy ${label}`}
       onClick={() => {
@@ -78,7 +82,7 @@ export function CopyButton({
       }}
       data-testid={testId}
     >
-      <Icon strokeWidth={1.75} aria-hidden />
-    </Button>
+      <Icon className="size-3.5" strokeWidth={2} aria-hidden />
+    </button>
   )
 }

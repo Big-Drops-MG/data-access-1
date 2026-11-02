@@ -17,7 +17,7 @@ import {
 import { useDomainsList } from "@/features/domains/use-domains-list"
 import { isApiError } from "@/lib/api-client"
 import { useDataTableUrlState } from "@/lib/data-table/use-data-table-url-state"
-import { Button } from "@workspace/ui/components/button"
+import { domainsPrimaryControl } from "@/features/domains/domains-ui"
 
 const DOMAIN_FILTER_KEYS = ["status"] as const
 
@@ -67,14 +67,14 @@ export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
         description="Sending domains in Amazon SES and their DNS records in Cloudflare. Checked every 6 hours."
         actions={
           canCreateDomain ? (
-            <Button
-              nativeButton={false}
-              className="h-auto gap-1.5 rounded-full border border-fg bg-fg py-2 pr-4 pl-3.5 text-[13px] leading-none font-medium tracking-tight text-bg shadow-sm transition-[color,background-color,box-shadow] duration-150 hover:bg-fg/90 hover:text-bg"
-              render={<Link href="/domains/new" data-testid="domains-add" />}
+            <Link
+              href="/domains/new"
+              className={domainsPrimaryControl()}
+              data-testid="domains-add"
             >
               <Plus className="size-3.5" strokeWidth={2} aria-hidden />
               Add domain
-            </Button>
+            </Link>
           ) : undefined
         }
       />

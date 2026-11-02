@@ -99,3 +99,25 @@ export function disableDomain(id: string): Promise<unknown> {
     body: JSON.stringify({ status: "inactive" }),
   })
 }
+
+export type DomainSenderItem = {
+  id: string
+  from_name: string
+  from_email: string
+  status: "active" | "inactive" | "pending_verification"
+}
+
+export type DomainSendersResponse = {
+  data: DomainSenderItem[]
+  next_cursor: string | null
+}
+
+export function fetchDomainSenders(
+  domainId: string
+): Promise<DomainSendersResponse> {
+  const search = new URLSearchParams({
+    domain_id: domainId,
+    limit: "50",
+  })
+  return apiJson<DomainSendersResponse>(`/api/senders?${search.toString()}`)
+}

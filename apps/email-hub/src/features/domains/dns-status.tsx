@@ -20,9 +20,14 @@ export function DnsRecordStatusBadge({
 }) {
   switch (status) {
     case "pass":
-      return <StatusBadge variant="ok">Found</StatusBadge>
+      return <StatusBadge variant="ok">Pass</StatusBadge>
     case "fail":
-      return <StatusBadge variant="err">Missing</StatusBadge>
+      return (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <StatusBadge variant="err">Fail</StatusBadge>
+          <span className="text-caption text-fg-muted">Not found in DNS</span>
+        </span>
+      )
     case "pending_propagation":
       return <StatusBadge variant="info">Propagating</StatusBadge>
     case "pending":

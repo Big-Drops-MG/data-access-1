@@ -1,5 +1,7 @@
-import { dnsCheckGroup, type DnsCheckGroup } from "@/lib/domains/dns-rollup"
+import { formatEtDateTime } from "@workspace/shared"
+
 import type { DnsRecordItem, DomainSetupStepItem } from "@/features/domains/api"
+import { dnsCheckGroup, type DnsCheckGroup } from "@/lib/domains/dns-rollup"
 
 export type DnsProgress = {
   total: number
@@ -63,10 +65,10 @@ export function buildSetupStepViews(input: {
   dnsRecords: readonly DnsRecordItem[]
 }): SetupStepView[] {
   const progress = summarizeDnsProgress(input.dnsRecords)
-  const identityDone =
-    input.setupSteps.some(
-      (step) => step.step === "ses_identity" && step.status === "done"
-    ) || progress.total > 0
+  const identityStep = input.setupSteps.find(
+    (step) => step.step === "ses_identity"
+  )
+  const identityDone = identityStep?.status === "done" || progress.total > 0
   const allFound = progress.total > 0 && progress.found === progress.total
 
   const identityState: SetupStepState = identityDone ? "done" : "in_progress"
@@ -77,32 +79,37 @@ export function buildSetupStepViews(input: {
       : "pending"
   const verifiedState: SetupStepState = allFound ? "done" : "pending"
 
+  let identityDescription = "SES is creating the identity and DKIM keys."
+  if (identityDone) {
+    const completedAt = identityStep?.completed_at
+    identityDescription = completedAt
+      ? formatEtDateTime(new Date(completedAt))
+      : "Identity ready in SES."
+  }
+
   return [
     {
       key: "ses_identity",
-      title: "Identity created in SES",
-      description: "SES generated the DKIM keys for this domain.",
+      title: "SES identity created",
+      description: identityDescription,
       state: identityState,
     },
     {
       key: "dns_records",
-      title:
-        progress.total > 0
-          ? `You add ${progress.total} DNS records`
-          : "You add the DNS records",
+      title: "DNS records added in Cloudflare",
       description:
         recordsState === "pending"
-          ? "Add the records below at your DNS provider."
+          ? "Add the records below in Cloudflare."
           : dnsProgressLabel(progress),
       state: recordsState,
     },
     {
       key: "verification",
-      title: "Records verified",
+      title: "Verification passed",
       description:
         verifiedState === "done"
           ? "Every record resolves. The domain can send."
-          : "Checked every 6 hours, or run Check now.",
+          : "Domain becomes active when every record passes",
       state: verifiedState,
     },
   ]
@@ -131,8 +138,28 @@ const GROUP_LABELS: Record<DnsCheckGroup, string> = {
 }
 
 export function dnsPurposeLabel(
-  record: Pick<DnsRecordItem, "purpose" | "name">,
-  domainName: string
+  record: Pick<DnsRecordItem, "purpose" | "name" | "record_type">,
+  domainName: string,
+  records: readonly Pick<
+    DnsRecordItem,
+    "purpose" | "name" | "record_type"
+  >[] = []
 ): string {
-  return GROUP_LABELS[dnsCheckGroup(domainName, record)]
+  const group = dnsCheckGroup(domainName, record)
+  if (group === "dkim") {
+    const dkimRecords = records.filter(
+      (row) => dnsCheckGroup(domainName, row) === "dkim"
+    )
+    const index = dkimRecords.findIndex(
+      (row) =>
+        row.name === record.name && row.record_type === record.record_type
+    )
+    return index >= 0 ? `DKIM ${index + 1}` : "DKIM"
+  }
+  if (group === "mail_from") {
+    return record.record_type.toUpperCase() === "MX"
+      ? "MAIL FROM"
+      : "MAIL FROM SPF"
+  }
+  return GROUP_LABELS[group]
 }

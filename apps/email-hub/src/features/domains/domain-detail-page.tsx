@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import Link from "next/link"
+import { RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/app/confirm-dialog"
@@ -18,33 +18,41 @@ import {
 } from "@/features/domains/api"
 import { CopyButton } from "@/features/domains/copy-button"
 import { DnsRecordStatusBadge } from "@/features/domains/dns-status"
+import { DomainSendersCard } from "@/features/domains/domain-senders-card"
 import { domainStatusToBadge } from "@/features/domains/domain-status"
 import {
   buildSetupStepViews,
   dnsPurposeLabel,
-  dnsProgressLabel,
-  formatDnsRecordsForCopy,
   shortDomainId,
-  summarizeDnsProgress,
 } from "@/features/domains/domain-setup-summary"
+import {
+  getMockDomainDetail,
+  USE_MOCK_DOMAINS,
+} from "@/features/domains/mock-domains"
 import { SetupStepper } from "@/features/domains/setup-stepper"
 import { isApiError, isConflictError } from "@/lib/api-client"
 import { detailQueryOptions } from "@/lib/query-options"
 import { detailQueryKey, listQueryKey } from "@/lib/query-keys"
-import { Button, buttonVariants } from "@workspace/ui/components/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@workspace/ui/components/table"
+import { cn } from "@workspace/ui/lib/utils"
 
 type DomainDetailPageProps = {
   domainId: string
   /** Admin-only actions (check now, disable). */
   canManage?: boolean
+}
+
+const detailOutlineBtn =
+  "inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3.5 text-sm font-medium text-fg transition-colors outline-none hover:bg-surface-2 focus-visible:shadow-[0_0_0_3px_var(--ring)] disabled:pointer-events-none disabled:opacity-50"
+
+const detailDangerBtn =
+  "inline-flex h-9 w-full items-center justify-center rounded-lg bg-err px-3.5 text-sm font-medium text-surface transition-colors outline-none hover:bg-err/90 focus-visible:shadow-[0_0_0_3px_var(--ring)] disabled:pointer-events-none disabled:opacity-50"
+
+function DnsTypeBadge({ type }: { type: string }) {
+  return (
+    <span className="inline-flex rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-fg-muted uppercase">
+      {type}
+    </span>
+  )
 }
 
 export function DomainDetailPage({
@@ -54,11 +62,20 @@ export function DomainDetailPage({
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
   const detail = useQuery(
-    detailQueryOptions("domains", domainId, () => fetchDomainDetail(domainId))
+    detailQueryOptions("domains", domainId, () =>
+      USE_MOCK_DOMAINS
+        ? getMockDomainDetail(domainId)
+        : fetchDomainDetail(domainId)
+    )
   )
 
   const check = useMutation({
-    mutationFn: () => checkDomainDns(domainId),
+    mutationFn: async () => {
+      if (USE_MOCK_DOMAINS) {
+        return getMockDomainDetail(domainId)
+      }
+      return checkDomainDns(domainId)
+    },
     meta: { skipConflictDialog: true },
     onSuccess: async (updated) => {
       queryClient.setQueryData(detailQueryKey("domains", domainId), updated)
@@ -73,7 +90,12 @@ export function DomainDetailPage({
   })
 
   const disable = useMutation({
-    mutationFn: () => disableDomain(domainId),
+    mutationFn: async () => {
+      if (USE_MOCK_DOMAINS) {
+        return getMockDomainDetail(domainId)
+      }
+      return disableDomain(domainId)
+    },
     meta: { skipConflictDialog: true },
     onSuccess: async () => {
       await Promise.all([
@@ -98,7 +120,7 @@ export function DomainDetailPage({
   if (detail.isPending) {
     return (
       <div
-        className="h-40 animate-pulse rounded-md bg-surface-2"
+        className="h-40 animate-pulse rounded-lg bg-surface-2"
         data-testid="domains-detail-loading"
         aria-hidden
       />
@@ -131,7 +153,6 @@ export function DomainDetailPage({
     setupSteps: domain.setup_steps,
     dnsRecords: domain.dns_records,
   })
-  const progress = summarizeDnsProgress(domain.dns_records)
 
   return (
     <div className="space-y-6" data-testid="domains-detail">
@@ -153,7 +174,7 @@ export function DomainDetailPage({
             {" · added "}
             <EtDateTime
               value={domain.created_at}
-              className="text-body text-fg-muted"
+              className="text-sm text-fg-muted"
             />
           </>
         }
@@ -162,185 +183,177 @@ export function DomainDetailPage({
           { label: domain.name },
         ]}
         actions={
-          <>
-            <p className="text-body text-fg-muted">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-fg-muted">
               Last checked{" "}
               <EtDateTime
                 value={domain.last_checked_at}
                 fallback="never"
-                className="text-body text-fg-muted"
+                className="text-sm text-fg-muted"
               />
             </p>
             {canManage ? (
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="lg"
                 disabled={check.isPending || actionsDisabled}
                 title={mutationDisabled.title}
                 onClick={() => check.mutate()}
                 data-testid="domains-check-now"
+                className={detailOutlineBtn}
               >
+                <RefreshCw
+                  className={cn("size-4", check.isPending && "animate-spin")}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
                 {check.isPending ? "Checking…" : "Check now"}
-              </Button>
+              </button>
             ) : null}
-          </>
+          </div>
         }
       />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,4fr)_minmax(14rem,1fr)]">
         <section
-          className="rounded-md border border-border bg-surface"
+          className="overflow-hidden rounded-lg border border-border bg-surface"
           aria-labelledby="domains-dns-heading"
           data-testid="domains-dns-records"
         >
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-            <div className="space-y-0.5">
-              <h2
-                id="domains-dns-heading"
-                className="text-body font-semibold text-fg"
-              >
-                DNS records
-              </h2>
-              <p className="text-caption text-fg-muted">
-                {dnsProgressLabel(progress)}
-              </p>
-            </div>
-            {domain.dns_records.length > 0 ? (
-              <CopyButton
-                variant="text"
-                label="all DNS records"
-                value={formatDnsRecordsForCopy(domain.dns_records)}
-                testId="domains-copy-all"
-              >
-                Copy all records
-              </CopyButton>
-            ) : null}
+          <header className="space-y-1 border-b border-border px-5 py-4">
+            <h2
+              id="domains-dns-heading"
+              className="text-base font-semibold text-fg"
+            >
+              DNS records
+            </h2>
+            <p className="text-sm text-fg-muted">
+              Add these in Cloudflare. DNS can take up to 72 hours.
+            </p>
           </header>
 
           {domain.dns_records.length === 0 ? (
-            <p className="px-5 py-8 text-center text-body text-fg-muted">
+            <p className="px-5 py-10 text-center text-sm text-fg-muted">
               No DNS records for this domain.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">Purpose</TableHead>
-                  <TableHead scope="col">Type</TableHead>
-                  <TableHead scope="col">Name</TableHead>
-                  <TableHead scope="col">Value</TableHead>
-                  <TableHead scope="col">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {domain.dns_records.map((record) => (
-                  <TableRow
-                    key={record.id}
-                    data-testid={`domains-dns-row-${record.id}`}
-                  >
-                    <TableCell className="font-medium">
-                      {dnsPurposeLabel(record, domain.name)}
-                    </TableCell>
-                    <TableCell className="font-mono text-caption">
-                      {record.record_type}
-                    </TableCell>
-                    <TableCell className="max-w-64 align-top whitespace-normal">
-                      <span className="flex items-start gap-1">
-                        <code className="font-mono text-caption break-all">
-                          {record.name}
-                        </code>
-                        <CopyButton
-                          label={`${dnsPurposeLabel(record, domain.name)} name`}
-                          value={record.name}
-                          testId={`domains-copy-name-${record.id}`}
-                        />
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-72 align-top whitespace-normal">
-                      <span className="flex items-start gap-1">
-                        <code className="font-mono text-caption break-all">
-                          {record.expected_value}
-                        </code>
-                        <CopyButton
-                          label={`${dnsPurposeLabel(record, domain.name)} value`}
-                          value={record.expected_value}
-                          testId={`domains-copy-value-${record.id}`}
-                        />
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <DnsRecordStatusBadge status={record.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[48rem] table-fixed border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-border bg-surface-2">
+                    <th className="w-[8.5rem] px-4 py-2.5 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                      Purpose
+                    </th>
+                    <th className="w-[5.5rem] px-3 py-2.5 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                      Type
+                    </th>
+                    <th className="w-[32%] px-3 py-2.5 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                      Name
+                    </th>
+                    <th className="w-[34%] px-3 py-2.5 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                      Value
+                    </th>
+                    <th className="w-[8.5rem] px-4 py-2.5 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {domain.dns_records.map((record) => {
+                    const purpose = dnsPurposeLabel(
+                      record,
+                      domain.name,
+                      domain.dns_records
+                    )
+                    return (
+                      <tr
+                        key={record.id}
+                        className="border-b border-border last:border-b-0"
+                        data-testid={`domains-dns-row-${record.id}`}
+                      >
+                        <td className="px-4 py-3 align-middle text-sm font-medium text-fg">
+                          {purpose}
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <DnsTypeBadge type={record.record_type} />
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <div className="flex min-w-0 items-center gap-1">
+                            <code
+                              className="min-w-0 flex-1 truncate font-mono text-xs text-fg"
+                              title={record.name}
+                            >
+                              {record.name}
+                            </code>
+                            <CopyButton
+                              label={`${purpose} name`}
+                              value={record.name}
+                              testId={`domains-copy-name-${record.id}`}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <div className="flex min-w-0 items-center gap-1">
+                            <code
+                              className="min-w-0 flex-1 truncate font-mono text-xs text-fg"
+                              title={record.expected_value}
+                            >
+                              {record.expected_value}
+                            </code>
+                            <CopyButton
+                              label={`${purpose} value`}
+                              value={record.expected_value}
+                              testId={`domains-copy-value-${record.id}`}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          <DnsRecordStatusBadge status={record.status} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
-        <div className="space-y-6">
+        <aside className="space-y-4">
           <section
-            className="space-y-4 rounded-md border border-border bg-surface p-5"
+            className="space-y-4 rounded-lg border border-border bg-surface p-5"
             aria-labelledby="domains-steps-heading"
           >
             <h2
               id="domains-steps-heading"
-              className="text-body font-semibold text-fg"
+              className="text-base font-semibold text-fg"
             >
               What happens next
             </h2>
             <SetupStepper steps={steps} />
           </section>
 
-          <section
-            className="space-y-2 rounded-md border border-border bg-surface p-5"
-            aria-labelledby="domains-senders-heading"
-            data-testid="domains-senders"
-          >
-            <h2
-              id="domains-senders-heading"
-              className="text-body font-semibold text-fg"
-            >
-              Senders
-            </h2>
-            {domain.sender_count === 0 ? (
-              <p className="text-body text-fg-muted">
-                No senders use this domain yet.
-              </p>
-            ) : (
-              <p className="text-body text-fg-muted">
-                <span className="font-medium text-fg tabular-nums">
-                  {domain.sender_count}
-                </span>{" "}
-                {domain.sender_count === 1 ? "sender uses" : "senders use"} this
-                domain.
-              </p>
-            )}
-            <Link
-              href="/senders"
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              View senders
-            </Link>
-          </section>
+          <DomainSendersCard
+            domainId={domain.id}
+            senderCount={domain.sender_count}
+            domainActive={domain.status === "verified"}
+          />
 
           {canManage ? (
             <section
-              className="space-y-3 rounded-md border border-err/30 bg-surface p-5"
+              className="space-y-3 rounded-lg border border-border bg-surface p-5"
               aria-labelledby="domains-disable-heading"
               data-testid="domains-disable"
             >
               <h2
                 id="domains-disable-heading"
-                className="text-body font-semibold text-fg"
+                className="text-base font-semibold text-fg"
               >
                 Disable domain
               </h2>
-              <p className="text-body text-fg-muted">
+              <p className="text-sm leading-5 text-fg-muted">
                 {isDisabled
                   ? "This domain is disabled and cannot be used for new senders."
-                  : "Disabled domains stop sending. Senders and routes must be deactivated first."}
+                  : "Senders on this domain stop working. Blocked while scheduled sends use it."}
               </p>
               {isDisabled ? null : (
                 <ConfirmDialog
@@ -351,21 +364,21 @@ export function DomainDetailPage({
                   destructive
                   onConfirm={() => disable.mutate()}
                   trigger={
-                    <Button
+                    <button
                       type="button"
-                      variant="destructive"
                       disabled={disable.isPending || actionsDisabled}
                       title={mutationDisabled.title}
                       data-testid="domains-disable-trigger"
+                      className={detailDangerBtn}
                     >
                       Disable domain
-                    </Button>
+                    </button>
                   }
                 />
               )}
             </section>
           ) : null}
-        </div>
+        </aside>
       </div>
     </div>
   )

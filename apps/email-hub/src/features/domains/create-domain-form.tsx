@@ -3,25 +3,40 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { toast } from "sonner"
-import { type z } from "zod"
+import { z } from "zod"
 
 import { FormField } from "@/components/app/form-field"
 import { useMutationDisabledProps } from "@/components/app/online-status"
 import { createDomain, type CreateDomainInput } from "@/features/domains/api"
-import {
-  createDomainBodySchema,
-  mailFromSubdomainSchema,
-} from "@/lib/domains/schemas"
+import { fqdnSchema } from "@/lib/domains/schemas"
 import { applyServerErrors, useAppForm } from "@/lib/form"
 import { listQueryKey } from "@/lib/query-keys"
-import { Button, buttonVariants } from "@workspace/ui/components/button"
+import {
+  domainsOutlineControl,
+  domainsPrimaryControl,
+} from "@/features/domains/domains-ui"
 import { cn } from "@workspace/ui/lib/utils"
 
-export const DEFAULT_MAIL_FROM_SUBDOMAIN = "bounce"
+const formCardClass =
+  "space-y-5 rounded-xl border border-border bg-surface p-6 shadow-sm"
 
-const createDomainFormSchema = createDomainBodySchema.extend({
-  mail_from_subdomain: mailFromSubdomainSchema,
-})
+/** Empty MAIL FROM is omitted; SES uses its own default label (not bounce). */
+const createDomainFormSchema = z
+  .object({
+    name: fqdnSchema,
+    mail_from_subdomain: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(63)
+      .refine(
+        (value) =>
+          value.length === 0 ||
+          /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value),
+        "Use a single label of letters, numbers, or hyphens"
+      ),
+  })
+  .strict()
 
 type CreateDomainFormValues = z.output<typeof createDomainFormSchema>
 
@@ -42,7 +57,7 @@ export function CreateDomainForm({
   const mutationDisabled = useMutationDisabledProps()
   const defaults: CreateDomainFormValues = {
     name: "",
-    mail_from_subdomain: DEFAULT_MAIL_FROM_SUBDOMAIN,
+    mail_from_subdomain: "",
   }
   const form = useAppForm(createDomainFormSchema, {
     defaultValues: defaults,
@@ -70,14 +85,13 @@ export function CreateDomainForm({
     .watch("mail_from_subdomain")
     .trim()
     .toLowerCase()
-  const mailFromHint = `Becomes ${watchedSubdomain || "{mail_from}"}.${watchedName || "{domain}"}. Needed for SPF alignment.`
+  const mailFromHint = watchedSubdomain
+    ? `Sets ${watchedSubdomain}.${watchedName || "{domain}"} for bounce handling.`
+    : `Optional. Leave blank for the default, or enter a label like mail.`
 
   return (
     <form
-      className={cn(
-        "space-y-5 rounded-md border border-border bg-surface p-6",
-        className
-      )}
+      className={cn(formCardClass, className)}
       data-testid="domains-create-form"
       noValidate
       onSubmit={form.handleSubmit((values) => {
@@ -87,7 +101,9 @@ export function CreateDomainForm({
         create.mutate(
           {
             name: values.name,
-            mail_from_subdomain: values.mail_from_subdomain,
+            ...(values.mail_from_subdomain
+              ? { mail_from_subdomain: values.mail_from_subdomain }
+              : {}),
           },
           {
             onError: (error) => {
@@ -114,7 +130,7 @@ export function CreateDomainForm({
         name="name"
         label="Domain (FQDN)"
         required
-        description="Use a subdomain you only send from, not the root domain."
+        description="Sending identity for From addresses (e.g. no-reply@e.quotifii.com). Prefer a subdomain you only send from."
         error={form.formState.errors.name?.message}
         testIdPrefix="domains"
       >
@@ -124,7 +140,7 @@ export function CreateDomainForm({
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          placeholder="mail.example.com"
+          placeholder="e.quotifii.com"
           aria-invalid={Boolean(form.formState.errors.name)}
           data-testid="domains-create-name"
           disabled={create.isPending || mutationDisabled.disabled}
@@ -136,7 +152,6 @@ export function CreateDomainForm({
         id="domains-create-mail-from"
         name="mail_from_subdomain"
         label="MAIL FROM subdomain"
-        required
         description={mailFromHint}
         error={form.formState.errors.mail_from_subdomain?.message}
         testIdPrefix="domains"
@@ -154,23 +169,23 @@ export function CreateDomainForm({
         />
       </FormField>
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-5">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-5">
         <Link
           href="/domains"
-          className={buttonVariants({ variant: "outline", size: "lg" })}
+          className={domainsOutlineControl()}
           data-testid="domains-create-cancel"
         >
           Cancel
         </Link>
-        <Button
+        <button
           type="submit"
-          size="lg"
           disabled={submitDisabled}
           title={mutationDisabled.title}
           data-testid="domains-create-submit"
+          className={domainsPrimaryControl()}
         >
           {create.isPending ? "Creating…" : "Create in SES"}
-        </Button>
+        </button>
       </div>
     </form>
   )
