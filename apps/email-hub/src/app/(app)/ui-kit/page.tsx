@@ -37,7 +37,7 @@ export default function UiKitDemoPage() {
     <div className="space-y-10">
       <PageHeader
         title="App building blocks"
-        description="Demo for StatusBadge, EmptyState, PageHeader, ConfirmDialog, ConflictDialog, EtDateTime, and ET pickers (T-008 / T-019 / T-050 / SD#12.4–12.9)."
+        description="Demo for StatusBadge, EmptyState, PageHeader, ConfirmDialog (typed phrase), ConflictDialog, EtDateTime, ET pickers, and form kit patterns (T-008 / T-019 / T-050 / T-061 / SD#12.4–12.9)."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "UI kit" },

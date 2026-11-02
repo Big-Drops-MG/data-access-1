@@ -51,3 +51,13 @@ export type DomainDetailResponse = DomainListItem & {
 export function fetchDomainDetail(id: string): Promise<DomainDetailResponse> {
   return apiJson<DomainDetailResponse>(`/api/domains/${id}`)
 }
+
+export type CreateDomainResponse = DomainDetailResponse
+
+export function createDomain(name: string): Promise<CreateDomainResponse> {
+  return apiJson<CreateDomainResponse>("/api/domains", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  })
+}

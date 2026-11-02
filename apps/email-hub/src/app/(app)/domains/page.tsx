@@ -2,12 +2,17 @@
 import { Suspense } from "react"
 
 import { DomainsPage } from "@/features/domains/domains-page"
+import { getSession } from "@/lib/auth"
+import { hasAtLeastRole } from "@/lib/permissions"
 
 export const metadata: Metadata = {
   title: "Domains",
 }
 
-export default function Page() {
+export default async function Page() {
+  const session = await getSession()
+  const canCreateDomain = hasAtLeastRole(session, "admin")
+
   return (
     <Suspense
       fallback={
@@ -18,7 +23,7 @@ export default function Page() {
         />
       }
     >
-      <DomainsPage />
+      <DomainsPage canCreateDomain={canCreateDomain} />
     </Suspense>
   )
 }
