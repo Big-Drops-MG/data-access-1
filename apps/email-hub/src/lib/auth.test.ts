@@ -48,7 +48,35 @@ describe("getSession", () => {
       id: "11111111-1111-1111-1111-111111111111",
       email: "admin@example.com",
       name: "Admin",
+      image: null,
       role: "admin",
+      jobTitle: null,
+      twoFactorEnabled: true,
+    })
+  })
+
+  it("maps Google image and onboarding job title onto the session", async () => {
+    getSessionApi.mockResolvedValue({
+      session: { createdAt: new Date() },
+      user: {
+        id: "11111111-1111-1111-1111-111111111111",
+        email: "admin@example.com",
+        name: "Admin",
+        image: "https://lh3.googleusercontent.com/a/photo",
+        role: "admin",
+        jobTitle: "Web Developer",
+        status: "active",
+        twoFactorEnabled: true,
+      },
+    })
+    const { getSession } = await import("./auth.js")
+    await expect(getSession()).resolves.toEqual({
+      id: "11111111-1111-1111-1111-111111111111",
+      email: "admin@example.com",
+      name: "Admin",
+      image: "https://lh3.googleusercontent.com/a/photo",
+      role: "admin",
+      jobTitle: "Web Developer",
       twoFactorEnabled: true,
     })
   })

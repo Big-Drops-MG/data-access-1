@@ -3,12 +3,13 @@ import { redirect } from "next/navigation"
 
 import { LoginView } from "@/components/auth/login-view"
 import { getSession, signOut } from "@/lib/auth"
+import { postAuthPath } from "@/lib/auth/post-auth-path"
 import { userHasTwoFactorEnrolled } from "@/lib/auth/two-factor-enrollment"
 import { resolveLoginError } from "@/lib/login/login-error"
 import { safeNextPath } from "@/lib/login/safe-next-path"
 
 export const metadata: Metadata = {
-  title: "Sign in · EmailHub",
+  title: "Sign in",
 }
 
 type LoginPageProps = {
@@ -38,7 +39,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   if (session?.twoFactorEnabled) {
-    redirect(callbackURL)
+    redirect(postAuthPath(session, callbackURL))
   }
   if (session && !session.twoFactorEnabled) {
     // Stale session flag but already enrolled → force SSO → TOTP verify (no QR).

@@ -171,6 +171,7 @@ const scratchSchema = [
      email_verified boolean NOT NULL DEFAULT false,
      image text,
      role user_role NOT NULL,
+     job_title text,
      status user_status NOT NULL,
      two_factor_enabled boolean NOT NULL DEFAULT false,
      created_at timestamptz NOT NULL DEFAULT now(),

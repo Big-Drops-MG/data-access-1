@@ -8,7 +8,9 @@ import type {
   TemplateVersion,
 } from "@workspace/db"
 
-import type { AppError } from "./errors.js"
+import { AppError } from "./errors.js"
+import type * as SendChecks from "./send-checks.js"
+import { insertSkippedSendCheckMessage, runSendChecks } from "./send-checks.js"
 import {
   assertMergeDataHasRequiredTags,
   findOrCreateRecipient,
@@ -20,6 +22,15 @@ import {
   type EmailHubDb,
   type EmailHubTx,
 } from "./trigger-email.js"
+
+vi.mock("./send-checks.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof SendChecks
+  return {
+    ...actual,
+    runSendChecks: vi.fn(async () => null),
+    insertSkippedSendCheckMessage: vi.fn(),
+  }
+})
 
 const recipientRow = {
   id: "01900000-0000-7000-8000-000000000001",
@@ -280,6 +291,30 @@ describe("requiredMergeTagNames / assertMergeDataHasRequiredTags", () => {
       details: [{ path: "merge_data.quote_url", message: "Required" }],
     } satisfies Partial<AppError>)
   })
+
+  it("rejects empty or whitespace-only string values", () => {
+    expect(() =>
+      assertMergeDataHasRequiredTags(
+        { first_name: "", quote_url: "https://x" },
+        { first_name: "string", quote_url: "string" }
+      )
+    ).toThrow(AppError)
+    expect(() =>
+      assertMergeDataHasRequiredTags(
+        { first_name: "   ", quote_url: "https://x" },
+        { first_name: "string", quote_url: "string" }
+      )
+    ).toThrow(AppError)
+  })
+
+  it("allows numeric zero and boolean false as present values", () => {
+    expect(() =>
+      assertMergeDataHasRequiredTags(
+        { count: 0, opted_in: false },
+        { count: "number", opted_in: "boolean" }
+      )
+    ).not.toThrow()
+  })
 })
 
 describe("resolveEmailRoute", () => {
@@ -330,7 +365,58 @@ describe("noRouteAlertDedupeKey", () => {
 describe("triggerEmail", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(runSendChecks).mockResolvedValue(null)
   })
+
+  function happyPathTx(
+    created: Message = messageRow,
+    options: { withOfferLookup?: boolean } = {}
+  ) {
+    const withOfferLookup = options.withOfferLookup === true
+    const execute = vi.fn(async () => undefined)
+    const insertMessage = createChain([created])
+    insertMessage.values = vi.fn(() => insertMessage)
+    let selectCalls = 0
+    const tx = {
+      execute,
+      select: vi.fn(() => {
+        selectCalls += 1
+        if (selectCalls === 1) {
+          return createChain([recipientRow])
+        }
+        if (selectCalls === 2) {
+          return createChain([])
+        }
+        if (withOfferLookup) {
+          if (selectCalls === 3) {
+            return createChain([])
+          }
+          if (selectCalls === 4) {
+            return createChain([routeRow])
+          }
+          if (selectCalls === 5) {
+            return createChain([templateRow])
+          }
+          if (selectCalls === 6) {
+            return createChain([versionRow])
+          }
+          return createChain([senderRow])
+        }
+        if (selectCalls === 3) {
+          return createChain([routeRow])
+        }
+        if (selectCalls === 4) {
+          return createChain([templateRow])
+        }
+        if (selectCalls === 5) {
+          return createChain([versionRow])
+        }
+        return createChain([senderRow])
+      }),
+      insert: vi.fn(() => insertMessage),
+    } as unknown as EmailHubTx
+    return { tx, execute, insertMessage }
+  }
 
   it("rejects an empty idempotency key before touching the database", async () => {
     const db = {
@@ -348,8 +434,10 @@ describe("triggerEmail", () => {
           idempotencyKey: "   ",
           emailType: "thank_you",
         },
-        async () => {
-          throw new Error("should not create")
+        {
+          enqueueSendEmail: async () => {
+            throw new Error("should not enqueue")
+          },
         }
       )
     ).rejects.toMatchObject({
@@ -361,11 +449,17 @@ describe("triggerEmail", () => {
 
   it("returns an existing message for a used idempotency key", async () => {
     const selectRecipient = createChain([recipientRow])
-    const selectMessage = createChain([messageRow])
     const execute = vi.fn(async () => undefined)
+    let selectCalls = 0
     const tx = {
       execute,
-      select: vi.fn(() => selectMessage),
+      select: vi.fn(() => {
+        selectCalls += 1
+        if (selectCalls === 1) {
+          return createChain([recipientRow])
+        }
+        return createChain([messageRow])
+      }),
     } as unknown as EmailHubTx
 
     const db = {
@@ -376,8 +470,8 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => {
-      throw new Error("should not create")
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("should not enqueue")
     })
 
     const result = await triggerEmail(
@@ -387,7 +481,7 @@ describe("triggerEmail", () => {
         idempotencyKey: "key-1",
         emailType: "thank_you",
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
     expect(result).toEqual({
@@ -395,14 +489,12 @@ describe("triggerEmail", () => {
       recipient: recipientRow,
       created: false,
     })
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
   it("skips with no_route and opens an alert when no route exists", async () => {
     const selectRecipient = createChain([recipientRow])
-    const selectMessage = createChain([])
-    const selectNoRoute = createChain([])
     const skipped = {
       ...messageRow,
       id: "01900000-0000-7000-8000-000000000088",
@@ -425,9 +517,12 @@ describe("triggerEmail", () => {
       select: vi.fn(() => {
         selectCalls += 1
         if (selectCalls === 1) {
-          return selectMessage
+          return createChain([recipientRow])
         }
-        return selectNoRoute
+        if (selectCalls === 2) {
+          return createChain([])
+        }
+        return createChain([])
       }),
       insert: vi
         .fn()
@@ -443,8 +538,8 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => {
-      throw new Error("should not create")
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("should not enqueue")
     })
 
     const result = await triggerEmail(
@@ -455,12 +550,12 @@ describe("triggerEmail", () => {
         emailType: "thank_you",
         offerId: "01900000-0000-7000-8000-000000000020",
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
     expect(result.message).toBe(skipped)
     expect(result.created).toBe(true)
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
     expect(insertAlert.values).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "no_route",
@@ -478,9 +573,112 @@ describe("triggerEmail", () => {
     )
   })
 
-  it("falls back to the default route and validates merge tags", async () => {
+  it("inserts a queued message then enqueues after commit", async () => {
+    const selectRecipient = createChain([recipientRow])
+    const created = {
+      ...messageRow,
+      id: "01900000-0000-7000-8000-000000000099",
+      offerId: "01900000-0000-7000-8000-000000000020",
+      idempotencyKey: "key-new",
+    } as Message
+    const { tx, insertMessage } = happyPathTx(created, {
+      withOfferLookup: true,
+    })
+
+    const db = {
+      select: vi.fn(() => selectRecipient),
+      insert: vi.fn(),
+      transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
+        fn(tx)
+      ),
+    } as unknown as EmailHubDb
+
+    const enqueueSendEmail = vi.fn(async () => undefined)
+
+    const result = await triggerEmail(
+      db,
+      {
+        email: "jane@example.com",
+        idempotencyKey: " key-new ",
+        emailType: "thank_you",
+        offerId: "01900000-0000-7000-8000-000000000020",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
+        externalUserId: "ext-9",
+      },
+      { enqueueSendEmail }
+    )
+
+    expect(result.created).toBe(true)
+    expect(result.message).toBe(created)
+    expect(runSendChecks).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        recipient: recipientRow,
+        emailType: "thank_you",
+        categoryId: templateRow.categoryId,
+      })
+    )
+    expect(insertMessage.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: recipientRow.id,
+        offerId: "01900000-0000-7000-8000-000000000020",
+        emailType: "thank_you",
+        templateVersionId: versionRow.id,
+        senderId: senderRow.id,
+        idempotencyKey: "key-new",
+        status: "queued",
+      })
+    )
+    expect(enqueueSendEmail).toHaveBeenCalledWith(created.id)
+  })
+
+  it("leaves the message queued when enqueue fails", async () => {
+    const selectRecipient = createChain([recipientRow])
+    const { tx } = happyPathTx(messageRow)
+    const db = {
+      select: vi.fn(() => selectRecipient),
+      insert: vi.fn(),
+      transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
+        fn(tx)
+      ),
+    } as unknown as EmailHubDb
+
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("redis down")
+    })
+
+    const result = await triggerEmail(
+      db,
+      {
+        email: "jane@example.com",
+        idempotencyKey: "key-enqueue-fail",
+        emailType: "thank_you",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
+      },
+      { enqueueSendEmail }
+    )
+
+    expect(result.created).toBe(true)
+    expect(result.message.status).toBe("queued")
+    expect(enqueueSendEmail).toHaveBeenCalledWith(messageRow.id)
+  })
+
+  it("inserts a skipped message when a send check fails", async () => {
     const selectRecipient = createChain([recipientRow])
     const execute = vi.fn(async () => undefined)
+    const skipped = {
+      ...messageRow,
+      status: "skipped",
+      skipReason: "suppressed",
+    } as Message
+    vi.mocked(runSendChecks).mockResolvedValueOnce("suppressed")
+    vi.mocked(insertSkippedSendCheckMessage).mockResolvedValueOnce(skipped)
 
     let selectCalls = 0
     const tx = {
@@ -488,7 +686,7 @@ describe("triggerEmail", () => {
       select: vi.fn(() => {
         selectCalls += 1
         if (selectCalls === 1) {
-          return createChain([])
+          return createChain([recipientRow])
         }
         if (selectCalls === 2) {
           return createChain([])
@@ -514,49 +712,37 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const created = {
-      ...messageRow,
-      id: "01900000-0000-7000-8000-000000000099",
-    }
-    const createMessage = vi.fn(async () => created)
-
+    const enqueueSendEmail = vi.fn(async () => {
+      throw new Error("should not enqueue")
+    })
     const result = await triggerEmail(
       db,
       {
         email: "jane@example.com",
-        idempotencyKey: " key-new ",
+        idempotencyKey: "key-suppressed",
         emailType: "thank_you",
-        offerId: "01900000-0000-7000-8000-000000000020",
         mergeData: {
           first_name: "Jane",
           quote_url: "https://example.com/q",
         },
-        externalUserId: "ext-9",
       },
-      createMessage
+      { enqueueSendEmail }
     )
 
+    expect(result.message).toBe(skipped)
     expect(result.created).toBe(true)
-    expect(result.message).toBe(created)
-    expect(createMessage).toHaveBeenCalledWith({
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
+    expect(insertSkippedSendCheckMessage).toHaveBeenCalledWith(
       tx,
-      recipient: recipientRow,
-      idempotencyKey: "key-new",
-      email: recipientRow.email,
-      externalUserId: "ext-9",
-      emailType: "thank_you",
-      offerId: "01900000-0000-7000-8000-000000000020",
-      mergeData: {
-        first_name: "Jane",
-        quote_url: "https://example.com/q",
-      },
-      route: routeRow,
-      templateVersion: versionRow,
-      sender: senderRow,
-    })
+      expect.objectContaining({
+        skipReason: "suppressed",
+        templateVersionId: versionRow.id,
+        senderId: senderRow.id,
+      })
+    )
   })
 
-  it("rejects missing merge tags with 422 before createMessage", async () => {
+  it("rejects missing merge tags with 422 before insert", async () => {
     const selectRecipient = createChain([recipientRow])
     const execute = vi.fn(async () => undefined)
 
@@ -566,15 +752,18 @@ describe("triggerEmail", () => {
       select: vi.fn(() => {
         selectCalls += 1
         if (selectCalls === 1) {
-          return createChain([])
+          return createChain([recipientRow])
         }
         if (selectCalls === 2) {
-          return createChain([routeRow])
+          return createChain([])
         }
         if (selectCalls === 3) {
-          return createChain([templateRow])
+          return createChain([routeRow])
         }
         if (selectCalls === 4) {
+          return createChain([templateRow])
+        }
+        if (selectCalls === 5) {
           return createChain([versionRow])
         }
         return createChain([senderRow])
@@ -589,7 +778,7 @@ describe("triggerEmail", () => {
       ),
     } as unknown as EmailHubDb
 
-    const createMessage = vi.fn(async () => messageRow)
+    const enqueueSendEmail = vi.fn(async () => undefined)
 
     await expect(
       triggerEmail(
@@ -600,13 +789,14 @@ describe("triggerEmail", () => {
           emailType: "thank_you",
           mergeData: { first_name: "Jane" },
         },
-        createMessage
+        { enqueueSendEmail }
       )
     ).rejects.toMatchObject({
       code: "validation_failed",
       status: 422,
       details: [{ path: "merge_data.quote_url", message: "Required" }],
     })
-    expect(createMessage).not.toHaveBeenCalled()
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
+    expect(runSendChecks).not.toHaveBeenCalled()
   })
 })

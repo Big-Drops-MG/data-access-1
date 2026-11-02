@@ -3,13 +3,14 @@ import { redirect } from "next/navigation"
 
 import { TwoFactorVerifyView } from "@/components/auth/two-factor-verify-view"
 import { getSession, signOut } from "@/lib/auth"
+import { postAuthPath } from "@/lib/auth/post-auth-path"
 import { getTwoFactorChallengeState } from "@/lib/auth/two-factor-challenge"
 import { userHasTwoFactorEnrolled } from "@/lib/auth/two-factor-enrollment"
 import { buildLoginPath } from "@/lib/login/login-path"
 import { safeNextPath } from "@/lib/login/safe-next-path"
 
 export const metadata: Metadata = {
-  title: "Verify · EmailHub",
+  title: "Verify",
 }
 
 type PageProps = {
@@ -29,7 +30,7 @@ export default async function TwoFactorVerifyPage({ searchParams }: PageProps) {
   const nextPath = safeNextPath(firstParam(params.next))
   const session = await getSession()
   if (session?.twoFactorEnabled) {
-    redirect(nextPath)
+    redirect(postAuthPath(session, nextPath))
   }
   if (session && !session.twoFactorEnabled) {
     if (await userHasTwoFactorEnrolled(session.id)) {

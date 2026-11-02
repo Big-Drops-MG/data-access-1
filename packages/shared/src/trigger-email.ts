@@ -20,6 +20,7 @@ import { and, eq, isNull, sql } from "drizzle-orm"
 import { hashEmail, normaliseEmail } from "./email.js"
 import { AppError } from "./errors.js"
 import { emailSchema } from "./schemas.js"
+import { insertSkippedSendCheckMessage, runSendChecks } from "./send-checks.js"
 
 export type EmailHubDb = Database
 export type EmailHubTx = DatabaseTransaction
@@ -41,20 +42,16 @@ export type ResolvedRouteAssets = {
   route: EmailRoute
   templateVersion: TemplateVersion
   sender: Sender
+  categoryId: string
 }
 
-export type TriggerEmailCreateContext = {
-  tx: EmailHubTx
-  recipient: Recipient
-  idempotencyKey: string
-  email: string
-  externalUserId: string | null
-  emailType: TriggerEmailType
-  offerId: string | null
-  mergeData: MergeData
-  route: EmailRoute
-  templateVersion: TemplateVersion
-  sender: Sender
+/** Dependencies for Stage A commit + enqueue (T-045). */
+export type TriggerEmailDeps = {
+  /**
+   * Enqueue `send-email` after the message row is committed.
+   * Failures must not change the message; leave `queued` for the watchdog.
+   */
+  enqueueSendEmail: (messageId: string) => Promise<void>
 }
 
 export type TriggerEmailResult = {
@@ -207,7 +204,13 @@ export function assertMergeDataHasRequiredTags(
 ): void {
   const data = mergeData ?? {}
   const details = requiredMergeTagNames(mergeTags)
-    .filter((tag) => data[tag] === undefined || data[tag] === null)
+    .filter((tag) => {
+      const value = data[tag]
+      if (value === undefined || value === null) {
+        return true
+      }
+      return typeof value === "string" && value.trim() === ""
+    })
     .map((tag) => ({
       path: `merge_data.${tag}`,
       message: "Required",
@@ -249,7 +252,12 @@ export async function loadRouteSendAssets(
     throw new AppError("internal")
   }
 
-  return { route, templateVersion: version, sender: from }
+  return {
+    route,
+    templateVersion: version,
+    sender: from,
+    categoryId: tpl.categoryId,
+  }
 }
 
 export function noRouteAlertDedupeKey(
@@ -318,13 +326,48 @@ async function insertNoRouteSkippedMessage(
 }
 
 /**
- * Stage A steps 2–6 (SD#7): recipient, lock, idempotency, route resolve,
- * merge tag check. `createMessage` runs later Stage A steps (T-036+ / T-045).
+ * Insert a queued message inside the Stage A transaction (SD#7 step 9 / T-045).
+ */
+export async function insertQueuedMessage(
+  tx: EmailHubTx,
+  input: {
+    recipientId: string
+    offerId: string | null
+    emailType: TriggerEmailType
+    templateVersionId: string
+    senderId: string
+    idempotencyKey: string
+  }
+): Promise<Message> {
+  const [created] = await tx
+    .insert(message)
+    .values({
+      recipientId: input.recipientId,
+      offerId: input.offerId,
+      emailType: input.emailType,
+      templateVersionId: input.templateVersionId,
+      senderId: input.senderId,
+      idempotencyKey: input.idempotencyKey,
+      status: "queued",
+      queuedAt: new Date(),
+    })
+    .returning()
+  if (!created) {
+    throw new AppError("internal")
+  }
+  return created
+}
+
+/**
+ * Stage A steps 2–9 (SD#7): recipient, lock, idempotency, route resolve,
+ * merge tags, send checks, insert queued message, commit, then enqueue
+ * `send-email` with `jobId = message_id` (T-045). Enqueue failures leave
+ * the row `queued` for the queue-watchdog (SD#15.5).
  */
 export async function triggerEmail(
   db: EmailHubDb,
   input: TriggerEmailInput,
-  createMessage: (ctx: TriggerEmailCreateContext) => Promise<Message>
+  deps: TriggerEmailDeps
 ): Promise<TriggerEmailResult> {
   const idempotencyKey = input.idempotencyKey.trim()
   if (!idempotencyKey) {
@@ -342,10 +385,16 @@ export async function triggerEmail(
     input.email,
     externalUserId
   )
-  const email = foundRecipient.email
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await lockRecipientTx(tx, foundRecipient.id)
+
+    const [lockedRecipient] = await tx
+      .select()
+      .from(recipient)
+      .where(eq(recipient.id, foundRecipient.id))
+      .limit(1)
+    const activeRecipient = lockedRecipient ?? foundRecipient
 
     const existing = await tx
       .select()
@@ -356,7 +405,7 @@ export async function triggerEmail(
     if (existing[0]) {
       return {
         message: existing[0],
-        recipient: foundRecipient,
+        recipient: activeRecipient,
         created: false,
       }
     }
@@ -365,14 +414,14 @@ export async function triggerEmail(
     if (!route) {
       await openNoRouteAlert(tx, emailType, offerId)
       const skipped = await insertNoRouteSkippedMessage(tx, {
-        recipientId: foundRecipient.id,
+        recipientId: activeRecipient.id,
         emailType,
         offerId,
         idempotencyKey,
       })
       return {
         message: skipped,
-        recipient: foundRecipient,
+        recipient: activeRecipient,
         created: true,
       }
     }
@@ -380,24 +429,52 @@ export async function triggerEmail(
     const assets = await loadRouteSendAssets(tx, route)
     assertMergeDataHasRequiredTags(mergeData, assets.templateVersion.mergeTags)
 
-    const created = await createMessage({
-      tx,
-      recipient: foundRecipient,
-      idempotencyKey,
-      email,
-      externalUserId,
+    const skipReason = await runSendChecks(tx, {
+      recipient: activeRecipient,
       emailType,
       offerId,
-      mergeData,
-      route: assets.route,
-      templateVersion: assets.templateVersion,
-      sender: assets.sender,
+      categoryId: assets.categoryId,
+    })
+    if (skipReason) {
+      const skipped = await insertSkippedSendCheckMessage(tx, {
+        recipientId: activeRecipient.id,
+        emailType,
+        offerId,
+        idempotencyKey,
+        templateVersionId: assets.templateVersion.id,
+        senderId: assets.sender.id,
+        skipReason,
+      })
+      return {
+        message: skipped,
+        recipient: activeRecipient,
+        created: true,
+      }
+    }
+
+    const created = await insertQueuedMessage(tx, {
+      recipientId: activeRecipient.id,
+      offerId,
+      emailType,
+      templateVersionId: assets.templateVersion.id,
+      senderId: assets.sender.id,
+      idempotencyKey,
     })
 
     return {
       message: created,
-      recipient: foundRecipient,
+      recipient: activeRecipient,
       created: true,
     }
   })
+
+  if (result.created && result.message.status === "queued") {
+    try {
+      await deps.enqueueSendEmail(result.message.id)
+    } catch {
+      // Message stays queued; queue-watchdog re-enqueues (SD#15.5).
+    }
+  }
+
+  return result
 }

@@ -3,12 +3,13 @@ import { redirect } from "next/navigation"
 
 import { TwoFactorSetupView } from "@/components/auth/two-factor-setup-view"
 import { getSession, signOut } from "@/lib/auth"
+import { postAuthPath } from "@/lib/auth/post-auth-path"
 import { userHasTwoFactorEnrolled } from "@/lib/auth/two-factor-enrollment"
 import { buildLoginPath } from "@/lib/login/login-path"
 import { safeNextPath } from "@/lib/login/safe-next-path"
 
 export const metadata: Metadata = {
-  title: "Set up 2FA · EmailHub",
+  title: "Set up 2FA",
 }
 
 type PageProps = {
@@ -32,7 +33,7 @@ export default async function TwoFactorSetupPage({ searchParams }: PageProps) {
     redirect(buildLoginPath({ next: nextPath }))
   }
   if (session.twoFactorEnabled) {
-    redirect(nextPath)
+    redirect(postAuthPath(session, nextPath))
   }
   // Enrolled users must never see QR/keys — re-auth into TOTP verify only.
   if (await userHasTwoFactorEnrolled(session.id)) {
@@ -40,5 +41,10 @@ export default async function TwoFactorSetupPage({ searchParams }: PageProps) {
     redirect(buildLoginPath({ next: nextPath }))
   }
 
-  return <TwoFactorSetupView email={session.email} nextPath={nextPath} />
+  return (
+    <TwoFactorSetupView
+      email={session.email}
+      nextPath={postAuthPath(session, nextPath)}
+    />
+  )
 }

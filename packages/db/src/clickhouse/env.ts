@@ -45,6 +45,8 @@ export function resolveClickHouseUrl(): string {
   return url
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"])
+
 export function assertClickHouseUrl(connectionString: string): void {
   let url: URL
   try {
@@ -56,4 +58,52 @@ export function assertClickHouseUrl(connectionString: string): void {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("CLICKHOUSE_URL must use the http or https protocol.")
   }
+
+  if (url.protocol === "http:" && !isTrustedClickHouseHttpHost(url)) {
+    throw new Error(
+      "CLICKHOUSE_URL for a non-local host must use https (plain http is only allowed for loopback, Docker DNS, or private IPs)."
+    )
+  }
+}
+
+function isTrustedClickHouseHttpHost(url: URL): boolean {
+  const host = decodeURIComponent(url.hostname)
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase()
+  if (LOOPBACK_HOSTS.has(host)) {
+    return true
+  }
+  if (!host.includes(".") && !host.includes(":")) {
+    return true
+  }
+  return isPrivateIpv4(host)
+}
+
+function isPrivateIpv4(host: string): boolean {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+  if (!match) {
+    return false
+  }
+  const octets = match.slice(1, 5).map((part) => Number(part))
+  const a = octets[0]
+  const b = octets[1]
+  if (
+    a === undefined ||
+    b === undefined ||
+    octets[2] === undefined ||
+    octets[3] === undefined ||
+    octets.some((octet) => octet > 255)
+  ) {
+    return false
+  }
+  if (a === 10) {
+    return true
+  }
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true
+  }
+  if (a === 192 && b === 168) {
+    return true
+  }
+  return false
 }

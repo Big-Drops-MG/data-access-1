@@ -76,12 +76,27 @@ const baseEnvSchema = z
       }
     }
 
-    if (env.MAIL_TRANSPORT === "ses" && !env.SES_REGION) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["SES_REGION"],
-        message: "is required when MAIL_TRANSPORT=ses",
-      })
+    if (env.MAIL_TRANSPORT === "ses") {
+      if (!env.SES_REGION) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SES_REGION"],
+          message: "is required when MAIL_TRANSPORT=ses",
+        })
+      }
+      if (!env.SES_MAX_SEND_RATE) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SES_MAX_SEND_RATE"],
+          message: "is required when MAIL_TRANSPORT=ses",
+        })
+      } else if (!isSesSendRate(env.SES_MAX_SEND_RATE)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SES_MAX_SEND_RATE"],
+          message: "must be a positive integer when MAIL_TRANSPORT=ses",
+        })
+      }
     }
 
     const isProdDeploy =
@@ -118,6 +133,30 @@ const webEnvSchema = baseEnvSchema.and(
 
 export type ServerEnv = z.infer<typeof baseEnvSchema>
 export type WebServerEnv = z.infer<typeof webEnvSchema>
+
+function isSesSendRate(value: string | undefined): value is string {
+  if (value === undefined || !/^[1-9]\d*$/.test(value)) {
+    return false
+  }
+  const rate = Number(value)
+  return Number.isSafeInteger(rate) && rate >= 1
+}
+
+/** Sends per second for the SES limiter. Undefined when mail is SMTP. */
+export function sesSendRatePerSecond(env: {
+  MAIL_TRANSPORT: "smtp" | "ses"
+  SES_MAX_SEND_RATE?: string
+}): number | undefined {
+  if (env.MAIL_TRANSPORT !== "ses") {
+    return undefined
+  }
+  if (!isSesSendRate(env.SES_MAX_SEND_RATE)) {
+    throw new Error(
+      "SES_MAX_SEND_RATE must be a positive integer when MAIL_TRANSPORT=ses"
+    )
+  }
+  return Number(env.SES_MAX_SEND_RATE)
+}
 
 export class EnvValidationError extends Error {
   readonly issues: string[]
