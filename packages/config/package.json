@@ -32,7 +32,7 @@
     "eslint-plugin-turbo": "^2.11.9",
     "globals": "^17.13.0",
     "prettier-plugin-tailwindcss": "^0.8.1",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.1"
   },
   "peerDependencies": {
     "prettier": "^3.0.0"
