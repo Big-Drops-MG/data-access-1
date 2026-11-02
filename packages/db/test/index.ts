@@ -2,6 +2,8 @@ export {
   createCategory,
   createDomain,
   createMessage,
+  findMessage,
+  findOpenAlerts,
   createRecipient,
   createSender,
   createTemplate,
