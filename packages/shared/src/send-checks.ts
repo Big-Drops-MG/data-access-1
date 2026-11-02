@@ -127,16 +127,17 @@ export async function gatherSendCheckFacts(
   const emailHash = input.recipient.emailHash
   const transactional = isTransactionalEmailType(input.emailType)
 
-  const [hardOrComplaintSuppressed, engagementSuppressed, categoryOptedOut] =
-    await Promise.all([
-      hasActiveSuppression(tx, emailHash, HARD_OR_COMPLAINT_SOURCES),
-      transactional
-        ? Promise.resolve(false)
-        : hasEngagementSuppression(tx, emailHash, input.offerId),
-      transactional
-        ? Promise.resolve(false)
-        : hasCategoryOptOut(tx, input.recipient.id, input.categoryId),
-    ])
+  const hardOrComplaintSuppressed = await hasActiveSuppression(
+    tx,
+    emailHash,
+    HARD_OR_COMPLAINT_SOURCES
+  )
+  const engagementSuppressed = transactional
+    ? false
+    : await hasEngagementSuppression(tx, emailHash, input.offerId)
+  const categoryOptedOut = transactional
+    ? false
+    : await hasCategoryOptOut(tx, input.recipient.id, input.categoryId)
 
   let collisionHit = false
   if (input.emailType === "feedback_request") {

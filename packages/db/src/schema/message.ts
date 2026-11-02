@@ -21,6 +21,7 @@ import { templateVersion } from "./template.js"
 
 export const messageStatus = pgEnum("message_status", [
   "queued",
+  "sending",
   "sent",
   "delivered",
   "bounced",

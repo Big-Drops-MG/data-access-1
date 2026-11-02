@@ -71,6 +71,13 @@
       "when": 1792600000000,
       "tag": "0009_api_client_hmac_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792700000000,
+      "tag": "0010_message_sending_status",
+      "breakpoints": true
     }
   ]
 }

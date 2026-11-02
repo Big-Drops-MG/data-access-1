@@ -67,6 +67,29 @@ describe("minRoleForStaffApi", () => {
     ).toBeNull()
   })
 
+  it("maps senders staff routes (viewer read, operator write)", () => {
+    expect(minRoleForStaffApi("GET", "/api/senders")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/senders")).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "GET",
+        "/api/senders/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("viewer")
+    expect(
+      minRoleForStaffApi(
+        "PATCH",
+        "/api/senders/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "DELETE",
+        "/api/senders/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()

@@ -16,6 +16,10 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "PATCH /api/templates/*": "operator",
   "POST /api/templates/*/versions": "operator",
   "POST /api/templates/*/publish": "operator",
+  "GET /api/senders": "viewer",
+  "POST /api/senders": "operator",
+  "GET /api/senders/*": "viewer",
+  "PATCH /api/senders/*": "operator",
 }
 
 function normalizePath(pathname: string): string {
