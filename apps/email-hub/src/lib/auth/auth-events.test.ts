@@ -68,6 +68,9 @@ function capture(logger: AppLogger): string[] {
   const stream = (
     logger as unknown as Record<symbol, { write: (chunk: string) => void }>
   )[streamSymbol(logger)]
+  if (!stream) {
+    throw new Error("Logger has no stream")
+  }
   const original = stream.write.bind(stream)
   stream.write = (chunk: string) => {
     lines.push(typeof chunk === "string" ? chunk : String(chunk))

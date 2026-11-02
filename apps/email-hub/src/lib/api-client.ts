@@ -2,7 +2,7 @@ import {
   isErrorCode,
   type AppErrorDetail,
   type ErrorCode,
-} from "@workspace/shared"
+} from "@workspace/shared/client"
 
 import { redirectToLogin } from "@/lib/auth-redirect"
 

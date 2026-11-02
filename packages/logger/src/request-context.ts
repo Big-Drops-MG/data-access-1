@@ -1,5 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks"
-
 import { createLogger, type AppLogger } from "./logger.js"
 import { WEB_SERVICE } from "./types.js"
 
@@ -8,7 +6,22 @@ export type RequestContext = {
   logger: AppLogger
 }
 
-const storage = new AsyncLocalStorage<RequestContext>()
+type RequestStore = {
+  getStore: () => RequestContext | undefined
+  run: <T>(context: RequestContext, fn: () => T) => T
+}
+
+let storage: RequestStore | undefined
+
+function getStorage(): RequestStore {
+  if (!storage) {
+    const hooks = process.getBuiltinModule("node:async_hooks") as {
+      AsyncLocalStorage: new () => RequestStore
+    }
+    storage = new hooks.AsyncLocalStorage()
+  }
+  return storage
+}
 
 let processLogger: AppLogger | undefined
 
@@ -30,20 +43,23 @@ export function runWithRequestContext<T>(
   baseLogger?: AppLogger
 ): T {
   const parent =
-    baseLogger ?? storage.getStore()?.logger ?? processLogger ?? rootLogger()
+    baseLogger ??
+    getStorage().getStore()?.logger ??
+    processLogger ??
+    rootLogger()
   const logger = parent.child({ request_id: requestId })
-  return storage.run({ requestId, logger }, fn)
+  return getStorage().run({ requestId, logger }, fn)
 }
 
 export function getRequestContext(): RequestContext | undefined {
-  return storage.getStore()
+  return getStorage().getStore()
 }
 
 export function getRequestId(): string | undefined {
-  return storage.getStore()?.requestId
+  return getStorage().getStore()?.requestId
 }
 
 /** Active request or job logger, otherwise the process fallback logger. */
 export function getContextLogger(): AppLogger {
-  return storage.getStore()?.logger ?? rootLogger()
+  return getStorage().getStore()?.logger ?? rootLogger()
 }

@@ -1,12 +1,14 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  transpilePackages: [
-    "@workspace/ui",
-    "@workspace/shared",
+  transpilePackages: ["@workspace/ui", "@workspace/shared"],
+  serverExternalPackages: [
+    "@workspace/db",
     "@workspace/logger",
+    "ioredis",
+    "pg",
+    "pino",
   ],
-  serverExternalPackages: ["@workspace/db", "ioredis", "pg", "pino"],
   output: "standalone",
   images: {
     remotePatterns: [
