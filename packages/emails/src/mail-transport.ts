@@ -3,6 +3,7 @@ import {
   SendEmailCommand,
   type SendEmailCommandOutput,
 } from "@aws-sdk/client-sesv2"
+import { getContextLogger, maskEmail } from "@workspace/logger"
 import nodemailer from "nodemailer"
 import type { SendMailOptions } from "nodemailer"
 
@@ -103,31 +104,33 @@ export function createSesTransport(options: {
 
   return {
     send: (message) =>
-      providerResult("SES", async () => {
-        const replyTo = prepareMessage(message)
-        const headers = unsubscribeHeaders(message.unsubscribeUrl)
-        const output = await client.send(
-          new SendEmailCommand({
-            FromEmailAddress: message.from,
-            Destination: { ToAddresses: [message.to] },
-            ...(replyTo ? { ReplyToAddresses: [replyTo] } : {}),
-            ...(configurationSet
-              ? { ConfigurationSetName: configurationSet }
-              : {}),
-            Content: {
-              Simple: {
-                Subject: { Data: message.subject, Charset: "UTF-8" },
-                Body: {
-                  Html: { Data: message.html, Charset: "UTF-8" },
-                  Text: { Data: message.text, Charset: "UTF-8" },
+      loggedSend("ses", message, () =>
+        providerResult("SES", async () => {
+          const replyTo = prepareMessage(message)
+          const headers = unsubscribeHeaders(message.unsubscribeUrl)
+          const output = await client.send(
+            new SendEmailCommand({
+              FromEmailAddress: message.from,
+              Destination: { ToAddresses: [message.to] },
+              ...(replyTo ? { ReplyToAddresses: [replyTo] } : {}),
+              ...(configurationSet
+                ? { ConfigurationSetName: configurationSet }
+                : {}),
+              Content: {
+                Simple: {
+                  Subject: { Data: message.subject, Charset: "UTF-8" },
+                  Body: {
+                    Html: { Data: message.html, Charset: "UTF-8" },
+                    Text: { Data: message.text, Charset: "UTF-8" },
+                  },
+                  ...(headers.length > 0 ? { Headers: headers } : {}),
                 },
-                ...(headers.length > 0 ? { Headers: headers } : {}),
               },
-            },
-          })
-        )
-        return output.MessageId ?? ""
-      }),
+            })
+          )
+          return output.MessageId ?? ""
+        })
+      ),
   }
 }
 
@@ -146,20 +149,59 @@ export function createSmtpTransport(options: {
 
   return {
     send: (message) =>
-      providerResult("SMTP", async () => {
-        const replyTo = prepareMessage(message)
-        const headers = smtpUnsubscribeHeaders(message.unsubscribeUrl)
-        const info = await sender.sendMail({
-          from: message.from,
-          to: message.to,
-          ...(replyTo ? { replyTo } : {}),
-          subject: message.subject,
-          html: message.html,
-          text: message.text,
-          ...(headers ? { headers } : {}),
+      loggedSend("smtp", message, () =>
+        providerResult("SMTP", async () => {
+          const replyTo = prepareMessage(message)
+          const headers = smtpUnsubscribeHeaders(message.unsubscribeUrl)
+          const info = await sender.sendMail({
+            from: message.from,
+            to: message.to,
+            ...(replyTo ? { replyTo } : {}),
+            subject: message.subject,
+            html: message.html,
+            text: message.text,
+            ...(headers ? { headers } : {}),
+          })
+          return info.messageId
         })
-        return info.messageId
-      }),
+      ),
+  }
+}
+
+async function loggedSend(
+  transport: "ses" | "smtp",
+  message: RenderedMessage,
+  send: () => Promise<SendResult>
+): Promise<SendResult> {
+  const logger = getContextLogger()
+  const recipient = maskEmail(message.to)
+  logger.info(
+    { event: "mail.transport.called", transport, recipient },
+    "Mail transport called"
+  )
+  try {
+    const result = await send()
+    logger.info(
+      {
+        event: "mail.transport.accepted",
+        transport,
+        recipient,
+        provider_message_id: result.providerMessageId,
+      },
+      "Mail transport accepted"
+    )
+    return result
+  } catch (error) {
+    logger.error(
+      {
+        event: "mail.transport.rejected",
+        transport,
+        recipient,
+        err: error,
+      },
+      "Mail transport rejected"
+    )
+    throw error
   }
 }
 

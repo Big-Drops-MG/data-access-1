@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import {
+  WEB_SERVICE,
+  createLogger,
+  setFallbackLogger,
+  type AppLogger,
+} from "@workspace/logger"
+
 import { logAuthEvent, setAuthEventSink } from "./auth-events"
 
 describe("logAuthEvent", () => {
   afterEach(() => {
     setAuthEventSink(undefined)
+    setFallbackLogger(createLogger({ service: WEB_SERVICE }))
     vi.restoreAllMocks()
   })
 
@@ -28,12 +36,19 @@ describe("logAuthEvent", () => {
     })
   })
 
-  it("writes a structured console.warn line via the default sink", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+  it("writes a structured line via the default sink", async () => {
+    const logger = createLogger({ service: WEB_SERVICE })
+    setFallbackLogger(logger)
+    const lines = capture(logger)
     setAuthEventSink(undefined)
     logAuthEvent("auth.2fa_enrolled", { user_id: "u1" })
-    expect(warn).toHaveBeenCalledOnce()
-    const payload = JSON.parse(String(warn.mock.calls[0]?.[0])) as {
+    await new Promise<void>((resolveFlush) => {
+      logger.flush(() => {
+        resolveFlush()
+      })
+    })
+
+    const payload = JSON.parse(lines.at(-1) ?? "") as {
       level: string
       event: string
       user_id: string
@@ -43,7 +58,34 @@ describe("logAuthEvent", () => {
       level: "info",
       event: "auth.2fa_enrolled",
       user_id: "u1",
-      service: "web",
+      service: WEB_SERVICE,
     })
   })
 })
+
+function capture(logger: AppLogger): string[] {
+  const lines: string[] = []
+  const stream = (
+    logger as unknown as Record<symbol, { write: (chunk: string) => void }>
+  )[streamSymbol(logger)]
+  const original = stream.write.bind(stream)
+  stream.write = (chunk: string) => {
+    lines.push(typeof chunk === "string" ? chunk : String(chunk))
+    return original(chunk)
+  }
+  return lines
+}
+
+function streamSymbol(logger: AppLogger): symbol {
+  let current: object | null = logger
+  while (current) {
+    const found = Object.getOwnPropertySymbols(current).find(
+      (symbol) => symbol.description === "pino.stream"
+    )
+    if (found) {
+      return found
+    }
+    current = Object.getPrototypeOf(current) as object | null
+  }
+  throw new Error("Logger has no stream")
+}

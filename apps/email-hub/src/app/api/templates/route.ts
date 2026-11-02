@@ -1,3 +1,4 @@
+import { getContextLogger } from "@workspace/logger"
 import { AppError } from "@workspace/shared"
 
 import { jsonAppError, toErrorResponse } from "@/lib/api-response"
@@ -7,10 +8,11 @@ import {
 } from "@/lib/templates/schemas"
 import { createTemplate, listTemplates } from "@/lib/templates/service"
 import { requireTemplatesStaffAccess } from "@/lib/templates/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 /** GET /api/templates — list (Viewer+). */
-export async function GET(request: Request) {
+async function handleGet(request: Request): Promise<Response> {
   try {
     await requireTemplatesStaffAccess(request, "GET")
     const url = new URL(request.url)
@@ -37,7 +39,7 @@ export async function GET(request: Request) {
 }
 
 /** POST /api/templates — create draft (Operator+). */
-export async function POST(request: Request) {
+async function handlePost(request: Request): Promise<Response> {
   try {
     const session = await requireTemplatesStaffAccess(request, "POST")
     const body = parseOrThrow(
@@ -57,6 +59,15 @@ export async function POST(request: Request) {
       }
     )
 
+    getContextLogger().info(
+      {
+        event: "template.created",
+        template_id: created.id,
+        user_id: session.id,
+      },
+      "Template created"
+    )
+
     return Response.json(created, { status: 201 })
   } catch (error) {
     if (error instanceof AppError) {
@@ -65,3 +76,6 @@ export async function POST(request: Request) {
     return toErrorResponse(error)
   }
 }
+
+export const GET = withApiRequest(handleGet)
+export const POST = withApiRequest(handlePost)
