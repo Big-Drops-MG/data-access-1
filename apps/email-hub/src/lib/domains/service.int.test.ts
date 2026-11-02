@@ -8,7 +8,12 @@ import { getDb } from "@workspace/db/client"
 import { createUser } from "@workspace/db/test"
 import { SesIdentityError } from "@workspace/emails"
 
-import { createDomain, getDomain, updateDomainStatus } from "./service.js"
+import {
+  checkDomainDns,
+  createDomain,
+  getDomain,
+  updateDomainStatus,
+} from "./service.js"
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
 
@@ -21,7 +26,7 @@ describe.skipIf(!databaseUrl)("domains service (int)", () => {
 
     await expect(
       createDomain(
-        name,
+        { name },
         { userId: user.id },
         {
           db,
@@ -45,7 +50,7 @@ describe.skipIf(!databaseUrl)("domains service (int)", () => {
 
     const tokens = [`a${suffix}`, `b${suffix}`, `c${suffix}`]
     const created = await createDomain(
-      name,
+      { name },
       { userId: user.id, requestId: `t049-${suffix}` },
       {
         db,
@@ -131,5 +136,83 @@ describe.skipIf(!databaseUrl)("domains service (int)", () => {
       db
     )
     expect(patched.status).toBe("verifying")
+  })
+
+  it("check marks records and verifies the domain when DNS matches", async () => {
+    const db = getDb()
+    const suffix = randomUUID().slice(0, 8)
+    const name = `chk-${suffix}.example.com`
+    const user = await createUser(db)
+
+    const created = await createDomain(
+      { name, mailFromSubdomain: "bounce" },
+      { userId: user.id },
+      {
+        db,
+        sesRegion: "us-east-1",
+        provision: async ({ domainName, region, mailFromSubdomain }) => {
+          const mailFromDomain = `${mailFromSubdomain}.${domainName}`
+          return {
+            emailIdentity: domainName,
+            identityArn: `arn:aws:ses:${region}:identity/${domainName}`,
+            mailFromDomain,
+            dkimTokens: ["k1"],
+            dnsRecords: [
+              {
+                purpose: "dkim" as const,
+                name: `k1._domainkey.${domainName}`,
+                recordType: "CNAME",
+                expectedValue: "k1.dkim.amazonses.com",
+              },
+              {
+                purpose: "mx" as const,
+                name: mailFromDomain,
+                recordType: "MX",
+                expectedValue: `10 feedback-smtp.${region}.amazonses.com`,
+              },
+            ],
+          }
+        },
+      }
+    )
+    expect(created.mail_from_domain).toBe(`bounce.${name}`)
+
+    const partial = await checkDomainDns(
+      created.id,
+      { userId: user.id },
+      {
+        db,
+        lookup: async ({ recordType }) =>
+          recordType === "CNAME"
+            ? { kind: "found", values: ["k1.dkim.amazonses.com"] }
+            : { kind: "not_found" },
+      }
+    )
+    expect(partial.status).toBe("verifying")
+    expect(partial.last_checked_at).not.toBeNull()
+    expect(partial.dns_summary).toMatchObject({
+      dkim: "pass",
+      mail_from: "pending",
+    })
+
+    const verified = await checkDomainDns(
+      created.id,
+      { userId: user.id },
+      {
+        db,
+        lookup: async ({ recordType }) =>
+          recordType === "CNAME"
+            ? { kind: "found", values: ["k1.dkim.amazonses.com"] }
+            : {
+                kind: "found",
+                values: [`10 feedback-smtp.us-east-1.amazonses.com`],
+              },
+      }
+    )
+    expect(verified.status).toBe("verified")
+    expect(verified.verified_at).not.toBeNull()
+    expect(
+      verified.setup_steps.find((step) => step.step === "verification")?.status
+    ).toBe("done")
   })
 })

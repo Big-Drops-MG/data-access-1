@@ -19,6 +19,7 @@ export type {
   SmtpSender,
 } from "./mail-transport.js"
 export {
+  DEFAULT_MAIL_FROM_SUBDOMAIN,
   SesIdentityError,
   buildDnsRecordsFromSes,
   mailFromDomainFor,

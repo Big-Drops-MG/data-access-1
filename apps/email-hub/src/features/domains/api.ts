@@ -1,17 +1,36 @@
 import { apiJson } from "@/lib/api-client"
+import type {
+  DnsRecordJson,
+  DomainSetupStepJson,
+  DomainSummaryJson,
+} from "@/lib/domains/serialize"
 
-export type DomainListItem = {
-  id: string
-  name: string
-  status: string
-  created_at?: string
-  updated_at?: string
-  verified_at?: string | null
+export type DnsRecordItem = DnsRecordJson
+export type DomainSetupStepItem = DomainSetupStepJson
+export type DomainListItem = DomainSummaryJson
+
+export type DomainStatusCounts = {
+  all: number
+  pending: number
+  verifying: number
+  verified: number
+  failed: number
+  inactive: number
 }
 
 export type DomainsListResponse = {
   data: DomainListItem[]
   next_cursor: string | null
+  status_counts: DomainStatusCounts
+}
+
+export const EMPTY_DOMAIN_STATUS_COUNTS: DomainStatusCounts = {
+  all: 0,
+  pending: 0,
+  verifying: 0,
+  verified: 0,
+  failed: 0,
+  inactive: 0,
 }
 
 export type DomainsListParams = {
@@ -42,10 +61,8 @@ export function fetchDomainsList(
 }
 
 export type DomainDetailResponse = DomainListItem & {
-  ses_identity_arn: string | null
-  created_by: string | null
-  dns_records: unknown[]
-  setup_steps: unknown[]
+  dns_records: DnsRecordItem[]
+  setup_steps: DomainSetupStepItem[]
 }
 
 export function fetchDomainDetail(id: string): Promise<DomainDetailResponse> {
@@ -54,10 +71,31 @@ export function fetchDomainDetail(id: string): Promise<DomainDetailResponse> {
 
 export type CreateDomainResponse = DomainDetailResponse
 
-export function createDomain(name: string): Promise<CreateDomainResponse> {
+export type CreateDomainInput = {
+  name: string
+  mail_from_subdomain?: string
+}
+
+export function createDomain(
+  input: CreateDomainInput
+): Promise<CreateDomainResponse> {
   return apiJson<CreateDomainResponse>("/api/domains", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(input),
+  })
+}
+
+export function checkDomainDns(id: string): Promise<DomainDetailResponse> {
+  return apiJson<DomainDetailResponse>(`/api/domains/${id}/check`, {
+    method: "POST",
+  })
+}
+
+export function disableDomain(id: string): Promise<unknown> {
+  return apiJson<unknown>(`/api/domains/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "inactive" }),
   })
 }

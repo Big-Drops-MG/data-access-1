@@ -1,5 +1,11 @@
 import type { DnsRecord, Domain, DomainSetupStep } from "@workspace/db"
 
+import {
+  mailFromDomainFromRecords,
+  summarizeDnsRecords,
+  type DnsSummary,
+} from "./dns-rollup"
+
 function isoUtc(value: Date): string {
   return value.toISOString()
 }
@@ -13,6 +19,14 @@ export type DomainJson = {
   created_at: string
   updated_at: string
   verified_at: string | null
+}
+
+export type DomainSummaryJson = DomainJson & {
+  ses_region: string | null
+  mail_from_domain: string | null
+  sender_count: number
+  last_checked_at: string | null
+  dns_summary: DnsSummary
 }
 
 export type DnsRecordJson = {
@@ -50,6 +64,38 @@ export function serializeDomain(row: Domain): DomainJson {
     created_at: isoUtc(row.createdAt),
     updated_at: isoUtc(row.updatedAt),
     verified_at: row.verifiedAt ? isoUtc(row.verifiedAt) : null,
+  }
+}
+
+/** `arn:aws:ses:{region}:identity/{domain}` as stored at create time. */
+export function sesRegionFromArn(arn: string | null): string | null {
+  const region = arn?.split(":")[3]?.trim()
+  return region ? region : null
+}
+
+export function serializeDomainSummary(
+  row: Domain,
+  input: {
+    dnsRows: readonly DnsRecord[]
+    senderCount: number
+    fallbackRegion: string | null
+  }
+): DomainSummaryJson {
+  const lastChecked = input.dnsRows.reduce<Date | null>(
+    (latest, record) =>
+      record.lastCheckedAt && (!latest || record.lastCheckedAt > latest)
+        ? record.lastCheckedAt
+        : latest,
+    null
+  )
+
+  return {
+    ...serializeDomain(row),
+    ses_region: sesRegionFromArn(row.sesIdentityArn) ?? input.fallbackRegion,
+    mail_from_domain: mailFromDomainFromRecords(input.dnsRows),
+    sender_count: input.senderCount,
+    last_checked_at: lastChecked ? isoUtc(lastChecked) : null,
+    dns_summary: summarizeDnsRecords(row.name, input.dnsRows),
   }
 }
 

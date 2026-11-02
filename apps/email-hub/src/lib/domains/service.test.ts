@@ -27,7 +27,7 @@ describe("createDomain", () => {
 
     await expect(
       createDomain(
-        "example.com",
+        { name: "example.com" },
         { userId: "019a0000-0000-7000-8000-000000000001" },
         {
           db: { transaction } as never,
@@ -115,8 +115,23 @@ describe("createDomain", () => {
       })),
     }
 
+    const provision = vi.fn(async () => ({
+      emailIdentity: "example.com",
+      identityArn: domainRow.sesIdentityArn,
+      mailFromDomain: "bounce.example.com",
+      dkimTokens: ["t1", "t2", "t3"],
+      dnsRecords: [
+        {
+          purpose: "dkim" as const,
+          name: "t1._domainkey.example.com",
+          recordType: "CNAME",
+          expectedValue: "t1.dkim.amazonses.com",
+        },
+      ],
+    }))
+
     const result = await createDomain(
-      "example.com",
+      { name: "example.com", mailFromSubdomain: "bounce" },
       { userId: domainRow.createdBy, requestId: "req-1" },
       {
         db: {
@@ -124,27 +139,29 @@ describe("createDomain", () => {
             fn(tx),
         } as never,
         sesRegion: "us-east-1",
-        provision: async () => ({
-          emailIdentity: "example.com",
-          identityArn: domainRow.sesIdentityArn,
-          mailFromDomain: "mail.example.com",
-          dkimTokens: ["t1", "t2", "t3"],
-          dnsRecords: [
-            {
-              purpose: "dkim",
-              name: "t1._domainkey.example.com",
-              recordType: "CNAME",
-              expectedValue: "t1.dkim.amazonses.com",
-            },
-          ],
-        }),
+        provision,
       }
     )
 
+    expect(provision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domainName: "example.com",
+        mailFromSubdomain: "bounce",
+      })
+    )
     expect(result).toMatchObject({
       name: "example.com",
       status: "pending",
       ses_identity_arn: domainRow.sesIdentityArn,
+      ses_region: "us-east-1",
+      sender_count: 0,
+      last_checked_at: null,
+      dns_summary: {
+        spf: "pending",
+        dkim: "pending",
+        dmarc: "pending",
+        mail_from: "pending",
+      },
     })
     expect(result.dns_records).toHaveLength(1)
     expect(result.setup_steps).toHaveLength(3)

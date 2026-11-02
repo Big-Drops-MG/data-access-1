@@ -32,6 +32,15 @@ describe("minRoleForStaffApi", () => {
     ).toBe("admin")
   })
 
+  it("restricts manual DNS check to admin", () => {
+    expect(
+      minRoleForStaffApi(
+        "POST",
+        "/api/domains/019a0000-0000-7000-8000-000000000001/check"
+      )
+    ).toBe("admin")
+  })
+
   it("maps templates staff routes (viewer read, operator write)", () => {
     expect(minRoleForStaffApi("GET", "/api/templates")).toBe("viewer")
     expect(minRoleForStaffApi("POST", "/api/templates")).toBe("operator")

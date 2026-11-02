@@ -41,6 +41,7 @@ export type ProvisionedSesIdentity = {
 export type ProvisionSesIdentityInput = {
   domainName: string
   region: string
+  mailFromSubdomain?: string
   client?: SesIdentityClient
 }
 
@@ -52,8 +53,13 @@ export class SesIdentityError extends Error {
 }
 
 /** Default custom MAIL FROM subdomain (SD#9.1 / SD#11.2). */
-export function mailFromDomainFor(domainName: string): string {
-  return `mail.${domainName}`
+export const DEFAULT_MAIL_FROM_SUBDOMAIN = "mail"
+
+export function mailFromDomainFor(
+  domainName: string,
+  subdomain: string = DEFAULT_MAIL_FROM_SUBDOMAIN
+): string {
+  return `${subdomain}.${domainName}`
 }
 
 /**
@@ -139,7 +145,9 @@ export async function provisionSesDomainIdentity(
   }
 
   const client = input.client ?? defaultClient(region)
-  const mailFromDomain = mailFromDomainFor(domainName)
+  const mailFromSubdomain =
+    input.mailFromSubdomain?.trim().toLowerCase() || DEFAULT_MAIL_FROM_SUBDOMAIN
+  const mailFromDomain = mailFromDomainFor(domainName, mailFromSubdomain)
 
   let dkimTokens: string[]
   try {

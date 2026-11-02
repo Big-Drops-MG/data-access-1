@@ -11,6 +11,12 @@ describe("mailFromDomainFor", () => {
   it("prefixes mail.", () => {
     expect(mailFromDomainFor("e.quotifii.com")).toBe("mail.e.quotifii.com")
   })
+
+  it("accepts a custom subdomain", () => {
+    expect(mailFromDomainFor("e.quotifii.com", "bounce")).toBe(
+      "bounce.e.quotifii.com"
+    )
+  })
 })
 
 describe("buildDnsRecordsFromSes", () => {
@@ -94,6 +100,30 @@ describe("provisionSesDomainIdentity", () => {
     )
     expect(result.dkimTokens).toEqual(["t1", "t2", "t3"])
     expect(result.dnsRecords).toHaveLength(7)
+  })
+
+  it("uses a custom MAIL FROM subdomain", async () => {
+    const send = vi.fn(async (command: { constructor: { name: string } }) => {
+      if (command.constructor.name === "CreateEmailIdentityCommand") {
+        return { DkimAttributes: { Tokens: ["t1", "t2", "t3"] } }
+      }
+      return {}
+    })
+
+    const result = await provisionSesDomainIdentity({
+      domainName: "example.com",
+      region: "us-east-1",
+      mailFromSubdomain: "Bounce",
+      client: { send },
+    })
+
+    expect(result.mailFromDomain).toBe("bounce.example.com")
+    expect(result.dnsRecords).toContainEqual({
+      purpose: "mx",
+      name: "bounce.example.com",
+      recordType: "MX",
+      expectedValue: "10 feedback-smtp.us-east-1.amazonses.com",
+    })
   })
 
   it("throws SesIdentityError when CreateEmailIdentity fails", async () => {

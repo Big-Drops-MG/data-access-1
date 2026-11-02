@@ -33,12 +33,31 @@ describe("GET/POST /api/domains", () => {
 
   it("lists for a viewer", async () => {
     getSession.mockResolvedValue(session("viewer"))
-    listDomains.mockResolvedValue({ data: [], next_cursor: null })
+    listDomains.mockResolvedValue({
+      data: [],
+      next_cursor: null,
+      status_counts: {
+        all: 0,
+        pending: 0,
+        verifying: 0,
+        verified: 0,
+        failed: 0,
+        inactive: 0,
+      },
+    })
     const response = await GET(new Request("http://localhost/api/domains"))
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       data: [],
       next_cursor: null,
+      status_counts: {
+        all: 0,
+        pending: 0,
+        verifying: 0,
+        verified: 0,
+        failed: 0,
+        inactive: 0,
+      },
     })
   })
 
@@ -70,14 +89,36 @@ describe("GET/POST /api/domains", () => {
           "content-type": "application/json",
           "x-request-id": "req-1",
         },
-        body: JSON.stringify({ name: "E.Quotifii.COM" }),
+        body: JSON.stringify({
+          name: "E.Quotifii.COM",
+          mail_from_subdomain: "Bounce",
+        }),
       })
     )
     expect(response.status).toBe(201)
-    expect(createDomain).toHaveBeenCalledWith("e.quotifii.com", {
-      userId: session("admin").id,
-      requestId: "req-1",
-    })
+    expect(createDomain).toHaveBeenCalledWith(
+      { name: "e.quotifii.com", mailFromSubdomain: "bounce" },
+      {
+        userId: session("admin").id,
+        requestId: "req-1",
+      }
+    )
+  })
+
+  it("rejects an invalid MAIL FROM subdomain", async () => {
+    getSession.mockResolvedValue(session("admin"))
+    const response = await POST(
+      new Request("http://localhost/api/domains", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "e.quotifii.com",
+          mail_from_subdomain: "a.b",
+        }),
+      })
+    )
+    expect(response.status).toBe(422)
+    expect(createDomain).not.toHaveBeenCalled()
   })
 
   it("rejects machine auth headers", async () => {

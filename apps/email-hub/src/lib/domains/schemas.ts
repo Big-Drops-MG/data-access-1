@@ -18,6 +18,22 @@ export const fqdnSchema = z
       )
   )
 
+/** Single DNS label used for the custom MAIL FROM host (`{label}.{domain}`). */
+export const mailFromSubdomainSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(
+    z
+      .string()
+      .min(1, "MAIL FROM subdomain is required")
+      .max(63)
+      .regex(
+        /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
+        "Use a single label of letters, numbers, or hyphens"
+      )
+  )
+
 export const domainStatusSchema = z.enum([
   "pending",
   "verifying",
@@ -36,6 +52,7 @@ export const domainListQuerySchema = paginationSchema
 export const createDomainBodySchema = z
   .object({
     name: fqdnSchema,
+    mail_from_subdomain: mailFromSubdomainSchema.optional(),
   })
   .strict()
 

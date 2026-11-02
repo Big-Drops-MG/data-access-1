@@ -43,10 +43,16 @@ export async function POST(request: Request) {
       await parseJsonBody(request)
     )
 
-    const created = await createDomain(body.name, {
-      userId: session.id,
-      requestId: request.headers.get("x-request-id"),
-    })
+    const created = await createDomain(
+      {
+        name: body.name,
+        mailFromSubdomain: body.mail_from_subdomain,
+      },
+      {
+        userId: session.id,
+        requestId: request.headers.get("x-request-id"),
+      }
+    )
 
     return Response.json(created, { status: 201 })
   } catch (error) {
