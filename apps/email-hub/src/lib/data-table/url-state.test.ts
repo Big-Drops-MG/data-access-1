@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildDataTableSearchParams,
+  dataTableSearchString,
   parseDataTableUrlState,
 } from "@/lib/data-table/url-state"
 
@@ -48,5 +49,27 @@ describe("buildDataTableSearchParams", () => {
     expect(params.toString()).toBe(
       "limit=25&cursor=c1&sort=name&dir=desc&status=failed"
     )
+  })
+
+  it("skips reserved filter key names", () => {
+    expect(
+      parseDataTableUrlState(new URLSearchParams("limit=25&status=pending"), [
+        "limit",
+        "status",
+      ]).filters
+    ).toEqual({ status: "pending" })
+
+    const params = buildDataTableSearchParams({
+      limit: 50,
+      filters: { cursor: "nope", status: "failed" },
+    })
+    expect(params.toString()).toBe("status=failed")
+  })
+})
+
+describe("dataTableSearchString", () => {
+  it("prefixes a question mark when params exist", () => {
+    expect(dataTableSearchString({ limit: 100 })).toBe("?limit=100")
+    expect(dataTableSearchString({ limit: 50 })).toBe("")
   })
 })

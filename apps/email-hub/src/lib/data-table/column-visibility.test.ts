@@ -52,4 +52,13 @@ describe("column visibility storage", () => {
       writeColumnVisibility("domains", { name: false })
     ).not.toThrow()
   })
+
+  it("ignores non-object JSON payloads", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => "[]",
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    })
+    expect(readColumnVisibility("domains")).toEqual({})
+  })
 })
