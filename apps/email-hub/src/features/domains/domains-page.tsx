@@ -9,6 +9,7 @@ import { DataTable } from "@/components/app/data-table"
 import { EmptyState } from "@/components/app/empty-state"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
+import { CreateDomainForm } from "@/features/domains/create-domain-form"
 import { domainsColumns } from "@/features/domains/domains-columns"
 import { fetchDomainsList, type DomainListItem } from "@/features/domains/api"
 import { useDomainsList } from "@/features/domains/use-domains-list"
@@ -41,14 +42,20 @@ const DOMAIN_STATUS_FILTERS = [
 
 const DOMAIN_FILTER_KEYS = ["status"] as const
 
+type DomainsPageProps = {
+  /** Admin-only create (POST /api/domains). */
+  canCreateDomain?: boolean
+}
+
 /**
- * Domains list using shared DataTable (T-055 / SD#12.5).
+ * Domains list using shared DataTable (T-055) and form kit create (T-061).
  * Conflict probe retained for T-050 global 409 UX.
  */
-export function DomainsPage() {
+export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
   const router = useRouter()
   const [exporting, startExport] = useTransition()
   const [exportError, setExportError] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
   const tableState = useDataTableUrlState({ filterKeys: DOMAIN_FILTER_KEYS })
 
   const listParams = useMemo(
@@ -119,16 +126,37 @@ export function DomainsPage() {
         title="Domains"
         description="Sending domains for Email Hub."
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => conflictProbe.mutate()}
-            data-testid="domains-conflict-probe"
-          >
-            Simulate conflict
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canCreateDomain ? (
+              <Button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                data-testid="domains-add"
+              >
+                Add domain
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => conflictProbe.mutate()}
+              data-testid="domains-conflict-probe"
+            >
+              Simulate conflict
+            </Button>
+          </div>
         }
       />
+
+      {canCreateDomain && showCreate ? (
+        <CreateDomainForm
+          onCancel={() => setShowCreate(false)}
+          onSuccess={(id) => {
+            setShowCreate(false)
+            router.push(`/domains/${id}`)
+          }}
+        />
+      ) : null}
 
       {list.isError ? (
         <InlineErrorCard
@@ -203,6 +231,17 @@ export function DomainsPage() {
             icon={<Globe strokeWidth={1.75} />}
             title="No domains yet"
             description="When you add a sending domain, it will show up here."
+            action={
+              canCreateDomain ? (
+                <Button
+                  type="button"
+                  onClick={() => setShowCreate(true)}
+                  data-testid="domains-empty-add"
+                >
+                  Add domain
+                </Button>
+              ) : undefined
+            }
           />
         }
         rowActions={(row) => [
