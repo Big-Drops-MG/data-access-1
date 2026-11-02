@@ -1,9 +1,11 @@
-import { twoFactor, trustedDevice, user } from "@workspace/db"
+import { session, twoFactor, user, verification } from "@workspace/db"
 import { getDb } from "@workspace/db/client"
+import { writeAudit } from "@workspace/shared"
 import { APIError } from "better-auth/api"
-import { and, eq, isNull } from "drizzle-orm"
+import { and, eq, like, or } from "drizzle-orm"
 
 import { logAuthEvent } from "./auth-events"
+import { deleteTrustedDevicesForUser } from "./trusted-device"
 import {
   applyFailedVerification,
   applySuccessfulVerification,
@@ -89,7 +91,6 @@ export async function assertTwoFactorVerifyAllowed(
   }
 }
 
-/** Record a failed TOTP/backup verification and emit auth.* events. */
 export async function recordTwoFactorVerificationFailure(
   userId: string,
   now: Date = new Date()
@@ -102,7 +103,6 @@ export async function recordTwoFactorVerificationFailure(
   }
 }
 
-/** Clear lockout counters after a successful verification. */
 export async function recordTwoFactorVerificationSuccess(
   userId: string
 ): Promise<void> {
@@ -111,21 +111,38 @@ export async function recordTwoFactorVerificationSuccess(
   logAuthEvent("auth.login", { user_id: userId })
 }
 
-/**
- * Admin reset (SD#9.11): delete two_factor + trusted devices, clear
- * twoFactorEnabled. User must enrol again on next login.
- */
-export async function resetTwoFactorForAdmin(userId: string): Promise<void> {
+export async function resetTwoFactorForAdmin(
+  userId: string,
+  audit: { actorId: string; requestId?: string | null }
+): Promise<void> {
   const db = getDb()
-  await db.delete(twoFactor).where(eq(twoFactor.userId, userId))
-  await db
-    .update(trustedDevice)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(eq(trustedDevice.userId, userId), isNull(trustedDevice.revokedAt))
-    )
-  await db
-    .update(user)
-    .set({ twoFactorEnabled: false })
-    .where(eq(user.id, userId))
+  await db.transaction(async (tx) => {
+    await tx.delete(twoFactor).where(eq(twoFactor.userId, userId))
+    await tx
+      .delete(verification)
+      .where(
+        and(
+          eq(verification.value, userId),
+          or(
+            like(verification.identifier, "trust-device-%"),
+            like(verification.identifier, "2fa-%")
+          )
+        )
+      )
+    await tx.delete(session).where(eq(session.userId, userId))
+    await deleteTrustedDevicesForUser(userId, tx)
+    await tx
+      .update(user)
+      .set({ twoFactorEnabled: false })
+      .where(eq(user.id, userId))
+    await writeAudit(tx, {
+      actor: { type: "user", id: audit.actorId },
+      action: "user.two_factor_reset",
+      objectType: "user",
+      objectId: userId,
+      requestId: audit.requestId,
+      before: null,
+      after: { twoFactorEnabled: false },
+    })
+  })
 }

@@ -16,10 +16,7 @@ import {
 import { getDb, getPool } from "@workspace/db/client"
 import { count, eq } from "drizzle-orm"
 
-import {
-  triggerEmail,
-  type TriggerEmailCreateContext,
-} from "./trigger-email.js"
+import { triggerEmail } from "./trigger-email.js"
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
 
@@ -179,32 +176,8 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
     const idempotencyKey = `t026-parallel-${suffix}`
     const email = `Person+${suffix}@Example.COM`
 
-    const createMessage = async ({
-      tx,
-      recipient: row,
-      idempotencyKey: key,
-      emailType,
-      templateVersion: version,
-      sender: from,
-    }: TriggerEmailCreateContext) => {
-      // Hold the lock briefly so the sibling call waits on the advisory lock.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      const [created] = await tx
-        .insert(message)
-        .values({
-          recipientId: row.id,
-          emailType,
-          templateVersionId: version.id,
-          senderId: from.id,
-          idempotencyKey: key,
-          status: "queued",
-          queuedAt: new Date(),
-        })
-        .returning()
-      if (!created) {
-        throw new Error("insert message failed")
-      }
-      return created
+    const deps = {
+      enqueueSendEmail: async () => undefined,
     }
 
     const [first, second] = await Promise.all([
@@ -218,7 +191,7 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
           mergeData: { name: "Ada" },
           externalUserId: `ext-${suffix}`,
         },
-        createMessage
+        deps
       ),
       triggerEmail(
         db,
@@ -230,7 +203,7 @@ describe.skipIf(!databaseUrl)("triggerEmail (int)", () => {
           mergeData: { name: "Ada" },
           externalUserId: `ext-${suffix}`,
         },
-        createMessage
+        deps
       ),
     ])
 

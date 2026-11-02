@@ -17,6 +17,9 @@ export default async function RootPage() {
   if (!session.twoFactorEnabled) {
     redirect("/login/2fa-setup")
   }
+  if (!session.jobTitle) {
+    redirect("/onboarding")
+  }
 
   redirect("/dashboard")
 }

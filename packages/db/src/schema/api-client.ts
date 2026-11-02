@@ -24,8 +24,25 @@ export const apiClient = pgTable(
     id: uuidv7PrimaryKey(),
     name: text("name").notNull(),
     keyPrefix: text("key_prefix").notNull(),
+    /** SHA-256 hex of the current secret (never returned after create/rotate). */
     secretHash: text("secret_hash").notNull(),
+    /**
+     * AES-256-GCM ciphertext of the current HMAC secret (APP_ENCRYPTION_KEY).
+     * Required for signature verification; plaintext is shown once at create/rotate.
+     */
+    secretEncrypted: text("secret_encrypted"),
+    /** SHA-256 hex of the previous secret during rotation overlap. */
+    oldSecretHash: text("old_secret_hash"),
+    /** AES-256-GCM ciphertext of the previous secret during rotation overlap. */
+    oldSecretEncrypted: text("old_secret_encrypted"),
+    /** When the current secret replaced the previous one. */
+    rotatedAt: timestamp("rotated_at", { withTimezone: true, mode: "date" }),
     scopes: text("scopes")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** Empty = any IP. Non-empty → other IPs get 403. */
+    ipAllowlist: text("ip_allowlist")
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),

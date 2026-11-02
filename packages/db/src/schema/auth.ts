@@ -109,7 +109,7 @@ export const twoFactor = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     secret: text("secret").notNull(),
     backupCodes: text("backup_codes").notNull(),
-    verified: boolean("verified").notNull().default(true),
+    verified: boolean("verified").notNull().default(false),
     failedVerificationCount: integer("failed_verification_count")
       .notNull()
       .default(0),
