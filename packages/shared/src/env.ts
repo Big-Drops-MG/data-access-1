@@ -57,6 +57,7 @@ const baseEnvSchema = z
     SENTRY_DSN: optionalString,
     APP_ENCRYPTION_KEY: optionalString,
     UNSUBSCRIBE_TOKEN_SECRET: optionalString,
+    BETTER_AUTH_URL: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

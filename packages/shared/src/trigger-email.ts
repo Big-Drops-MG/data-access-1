@@ -337,6 +337,7 @@ export async function insertQueuedMessage(
     templateVersionId: string
     senderId: string
     idempotencyKey: string
+    mergeData: MergeData
   }
 ): Promise<Message> {
   const [created] = await tx
@@ -348,6 +349,7 @@ export async function insertQueuedMessage(
       templateVersionId: input.templateVersionId,
       senderId: input.senderId,
       idempotencyKey: input.idempotencyKey,
+      mergeData: input.mergeData,
       status: "queued",
       queuedAt: new Date(),
     })
@@ -459,6 +461,7 @@ export async function triggerEmail(
       templateVersionId: assets.templateVersion.id,
       senderId: assets.sender.id,
       idempotencyKey,
+      mergeData,
     })
 
     return {
