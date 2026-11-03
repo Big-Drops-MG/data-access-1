@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 
-import { withApiRequest } from "@/lib/with-api-request"
+import { handler } from "@/lib/handler"
 
-async function handleGet(): Promise<NextResponse> {
+async function handleGet(_request: Request): Promise<NextResponse> {
   return NextResponse.json({ ok: true })
 }
 
-export const GET = withApiRequest(handleGet)
+export const GET = handler(handleGet)

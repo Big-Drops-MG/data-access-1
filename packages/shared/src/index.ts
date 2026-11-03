@@ -76,6 +76,14 @@ export {
   type ErrorCode,
 } from "./errors.js"
 export {
+  PG_FOREIGN_KEY_VIOLATION,
+  PG_UNIQUE_VIOLATION,
+  appErrorFromPostgresConstraint,
+  getPostgresErrorCode,
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from "./postgres-errors.js"
+export {
   emailSchema,
   isoUtcTimestampSchema,
   paginationSchema,

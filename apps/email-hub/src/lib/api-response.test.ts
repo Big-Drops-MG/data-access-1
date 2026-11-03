@@ -13,9 +13,25 @@ describe("api-response helpers", () => {
     })
   })
 
-  it("maps unknown errors to internal", async () => {
-    const response = toErrorResponse(new Error("boom"))
+  it("maps unknown errors to internal without leaking stacks", async () => {
+    const response = toErrorResponse(new Error("boom stack secret"))
     expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body).toEqual({
+      error: { code: "internal", message: "Internal error", details: [] },
+    })
+    expect(JSON.stringify(body)).not.toContain("boom")
+    expect(JSON.stringify(body)).not.toContain("stack")
+  })
+
+  it("maps postgres unique violations to conflict", async () => {
+    const response = toErrorResponse(
+      Object.assign(new Error("dup"), { code: "23505" })
+    )
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "conflict" },
+    })
   })
 
   it("masks emails for viewer JSON responses", async () => {

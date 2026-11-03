@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server"
+import { ZodError } from "zod"
 
 import { getContextLogger, getRequestId } from "@workspace/logger"
-import { AppError, isAppError } from "@workspace/shared"
+import {
+  AppError,
+  appErrorFromPostgresConstraint,
+  isAppError,
+} from "@workspace/shared"
 
 import type { AppRole } from "@/lib/permissions"
+import { wasRequestErrorLogged } from "@/lib/request-error-log"
 import { serializeForRole } from "@/lib/serialize/for-role"
+import { zodIssuesToDetails } from "@/lib/zod-parse"
 
 function stampRequestId(response: NextResponse): NextResponse {
   const requestId = getRequestId()
@@ -22,14 +29,41 @@ export function jsonAppError(error: AppError): NextResponse {
   return stampRequestId(response)
 }
 
+/** Map thrown values to SD#15.6 AppError (never includes stack traces). */
+export function mapToAppError(error: unknown): AppError {
+  if (isAppError(error)) {
+    return error
+  }
+  if (error instanceof ZodError) {
+    return AppError.validationFailed(zodIssuesToDetails(error))
+  }
+  const postgres = appErrorFromPostgresConstraint(error)
+  if (postgres) {
+    return postgres
+  }
+  return AppError.internal()
+}
+
 export function toErrorResponse(error: unknown): NextResponse {
   if (isAppError(error)) {
     return jsonAppError(error)
   }
-  getContextLogger().error(
-    { event: "http.unhandled_error", err: error },
-    "Unhandled request error"
-  )
+
+  if (error instanceof ZodError) {
+    return jsonAppError(AppError.validationFailed(zodIssuesToDetails(error)))
+  }
+
+  const postgres = appErrorFromPostgresConstraint(error)
+  if (postgres) {
+    return jsonAppError(postgres)
+  }
+
+  if (!wasRequestErrorLogged(error)) {
+    getContextLogger().error(
+      { event: "http.unhandled_error", err: error },
+      "Unhandled request error"
+    )
+  }
   return jsonAppError(AppError.internal())
 }
 

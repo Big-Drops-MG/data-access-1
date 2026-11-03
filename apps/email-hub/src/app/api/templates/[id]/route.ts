@@ -1,13 +1,10 @@
-import { AppError } from "@workspace/shared"
-
-import { jsonAppError, toErrorResponse } from "@/lib/api-response"
 import {
   templateIdParamSchema,
   updateTemplateBodySchema,
 } from "@/lib/templates/schemas"
 import { getTemplate, updateTemplate } from "@/lib/templates/service"
 import { requireTemplatesStaffAccess } from "@/lib/templates/staff-access"
-import { withApiRequest } from "@/lib/with-api-request"
+import { handler } from "@/lib/handler"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 type RouteContext = {
@@ -24,17 +21,10 @@ async function handleGet(
   request: Request,
   context: RouteContext
 ): Promise<Response> {
-  try {
-    await requireTemplatesStaffAccess(request, "GET")
-    const id = await parseTemplateId(context)
-    const detail = await getTemplate(id)
-    return Response.json(detail)
-  } catch (error) {
-    if (error instanceof AppError) {
-      return jsonAppError(error)
-    }
-    return toErrorResponse(error)
-  }
+  await requireTemplatesStaffAccess(request, "GET")
+  const id = await parseTemplateId(context)
+  const detail = await getTemplate(id)
+  return Response.json(detail)
 }
 
 /** PATCH /api/templates/{id} — name / category / status (Operator+). */
@@ -42,35 +32,28 @@ async function handlePatch(
   request: Request,
   context: RouteContext
 ): Promise<Response> {
-  try {
-    const session = await requireTemplatesStaffAccess(request, "PATCH")
-    const id = await parseTemplateId(context)
-    const body = parseOrThrow(
-      updateTemplateBodySchema,
-      await parseJsonBody(request)
-    )
+  const session = await requireTemplatesStaffAccess(request, "PATCH")
+  const id = await parseTemplateId(context)
+  const body = parseOrThrow(
+    updateTemplateBodySchema,
+    await parseJsonBody(request)
+  )
 
-    const updated = await updateTemplate(
-      id,
-      {
-        name: body.name,
-        categoryId: body.category_id,
-        status: body.status,
-      },
-      {
-        userId: session.id,
-        requestId: request.headers.get("x-request-id"),
-      }
-    )
-
-    return Response.json(updated)
-  } catch (error) {
-    if (error instanceof AppError) {
-      return jsonAppError(error)
+  const updated = await updateTemplate(
+    id,
+    {
+      name: body.name,
+      categoryId: body.category_id,
+      status: body.status,
+    },
+    {
+      userId: session.id,
+      requestId: request.headers.get("x-request-id"),
     }
-    return toErrorResponse(error)
-  }
+  )
+
+  return Response.json(updated)
 }
 
-export const GET = withApiRequest(handleGet)
-export const PATCH = withApiRequest(handlePatch)
+export const GET = handler(handleGet)
+export const PATCH = handler(handlePatch)
