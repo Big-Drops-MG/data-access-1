@@ -1,4 +1,6 @@
-/** SD#15.2 key auth events (structured logs until T-058 Pino lands). */
+import { getContextLogger, getRequestId, maskEmail } from "@workspace/logger"
+
+/** SD#15.2 key auth events. Field list beyond user_id and request_id is unverified. */
 
 export type AuthEventName =
   | "auth.login"
@@ -22,16 +24,13 @@ export type AuthEventSink = (
 ) => void
 
 const defaultSink: AuthEventSink = (level, event, fields) => {
-  // Until T-058 Pino: structured line on stderr (no-console allows warn/error only).
-  console.warn(
-    JSON.stringify({
-      level,
-      time: new Date().toISOString(),
-      service: "web",
-      event,
-      ...fields,
-    })
-  )
+  const logger = getContextLogger()
+  const payload = { event, ...fields }
+  if (level === "info") {
+    logger.info(payload, event)
+    return
+  }
+  logger.warn(payload, event)
 }
 
 let sink: AuthEventSink = defaultSink
@@ -51,5 +50,13 @@ export function logAuthEvent(
     event === "auth.2fa_reset"
       ? "info"
       : "warn"
-  sink(level, event, fields)
+  const requestId = fields.request_id ?? getRequestId()
+  const payload: AuthEventFields = { ...fields }
+  if (requestId !== undefined && payload.request_id === undefined) {
+    payload.request_id = requestId
+  }
+  if (typeof payload.email === "string") {
+    payload.email = maskEmail(payload.email)
+  }
+  sink(level, event, payload)
 }

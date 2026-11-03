@@ -7,6 +7,7 @@ import {
 } from "@/lib/domains/schemas"
 import { getDomain, updateDomainStatus } from "@/lib/domains/service"
 import { requireDomainsStaffAccess } from "@/lib/domains/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 type RouteContext = {
@@ -14,7 +15,10 @@ type RouteContext = {
 }
 
 /** GET /api/domains/{id} — detail with DNS + setup steps (Viewer+). */
-export async function GET(request: Request, context: RouteContext) {
+async function handleGet(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     await requireDomainsStaffAccess(request, "GET")
     const { id: rawId } = await context.params
@@ -30,7 +34,10 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 /** PATCH /api/domains/{id} — status change (Admin). */
-export async function PATCH(request: Request, context: RouteContext) {
+async function handlePatch(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     const session = await requireDomainsStaffAccess(request, "PATCH")
     const { id: rawId } = await context.params
@@ -53,3 +60,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     return toErrorResponse(error)
   }
 }
+
+export const GET = withApiRequest(handleGet)
+export const PATCH = withApiRequest(handlePatch)

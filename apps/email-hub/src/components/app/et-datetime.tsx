@@ -1,4 +1,4 @@
-import { formatEtDateTime } from "@workspace/shared"
+import { formatEtDateTime } from "@workspace/shared/client"
 import { cn } from "@workspace/ui/lib/utils"
 
 type EtDateTimeProps = {

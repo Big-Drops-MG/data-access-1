@@ -34,6 +34,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@workspace/logger": "workspace:*",
     "@aws-sdk/client-sesv2": "^3.1158.0",
     "nodemailer": "^10.2.1"
   }

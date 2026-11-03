@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import { ET_TIME_ZONE, getEtAbbreviation } from "@workspace/shared"
+import { ET_TIME_ZONE, getEtAbbreviation } from "@workspace/shared/client"
 import { cn } from "@workspace/ui/lib/utils"
 
 const clockFormatter = new Intl.DateTimeFormat("en-US", {

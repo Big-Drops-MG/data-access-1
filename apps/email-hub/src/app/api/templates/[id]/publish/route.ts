@@ -7,6 +7,7 @@ import {
 } from "@/lib/templates/schemas"
 import { publishTemplateVersion } from "@/lib/templates/service"
 import { requireTemplatesStaffAccess } from "@/lib/templates/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 type RouteContext = {
@@ -16,7 +17,10 @@ type RouteContext = {
 /**
  * POST /api/templates/{id}/publish — set current_version_id in one transaction.
  */
-export async function POST(request: Request, context: RouteContext) {
+async function handlePost(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     const session = await requireTemplatesStaffAccess(request, "POST")
     const { id } = await context.params
@@ -43,3 +47,5 @@ export async function POST(request: Request, context: RouteContext) {
     return toErrorResponse(error)
   }
 }
+
+export const POST = withApiRequest(handlePost)

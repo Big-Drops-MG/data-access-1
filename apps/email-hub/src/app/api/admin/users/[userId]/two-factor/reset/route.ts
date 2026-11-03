@@ -6,6 +6,7 @@ import { assertStaffApiCaller } from "@/lib/auth/require-machine"
 import { requireRole } from "@/lib/auth/require-role"
 import { resetTwoFactorForAdmin } from "@/lib/auth/two-factor-lockout"
 import { minRoleForStaffApi } from "@/lib/permission-map"
+import { withApiRequest } from "@/lib/with-api-request"
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -15,7 +16,10 @@ type RouteContext = {
 }
 
 /** Admin-only 2FA reset (SD#9.11 / T-030 / T-040). */
-export async function POST(request: Request, context: RouteContext) {
+async function handlePost(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     assertStaffApiCaller(request)
 
@@ -47,3 +51,5 @@ export async function POST(request: Request, context: RouteContext) {
     return toErrorResponse(error)
   }
 }
+
+export const POST = withApiRequest(handlePost)
