@@ -1,8 +1,9 @@
-import { and, desc, eq, lt } from "drizzle-orm"
+import { and, count, desc, eq, inArray, lt } from "drizzle-orm"
 
 import {
   domain,
   emailRoute,
+  offer,
   sender,
   type Domain,
   type Sender,
@@ -109,13 +110,68 @@ function composeFromEmail(localPart: string, domainName: string): string {
 async function listActiveRoutesForSender(
   db: Db,
   senderId: string
-): Promise<{ id: string }[]> {
-  return db
-    .select({ id: emailRoute.id })
+): Promise<{ id: string; emailType: string; label: string }[]> {
+  const rows = await db
+    .select({
+      id: emailRoute.id,
+      emailType: emailRoute.emailType,
+      offerName: offer.name,
+    })
     .from(emailRoute)
+    .leftJoin(offer, eq(emailRoute.offerId, offer.id))
     .where(
       and(eq(emailRoute.senderId, senderId), eq(emailRoute.status, "active"))
     )
+
+  return rows.map((row) => ({
+    id: row.id,
+    emailType: row.emailType,
+    label: row.offerName?.trim() || "Default",
+  }))
+}
+
+function routeConflictDetails(
+  routes: { id: string; emailType: string; label: string }[]
+): { path: string; message: string }[] {
+  return routes.flatMap((route) => [
+    { path: "email_route", message: route.id },
+    {
+      path: `email_route/${route.id}/email_type`,
+      message: route.emailType,
+    },
+    {
+      path: `email_route/${route.id}/name`,
+      message: route.label,
+    },
+  ])
+}
+
+async function activeRouteCountsBySender(
+  db: Db,
+  senderIds: string[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  if (senderIds.length === 0) {
+    return counts
+  }
+  const rows = await db
+    .select({
+      senderId: emailRoute.senderId,
+      total: count(),
+    })
+    .from(emailRoute)
+    .where(
+      and(
+        inArray(emailRoute.senderId, senderIds),
+        eq(emailRoute.status, "active")
+      )
+    )
+    .groupBy(emailRoute.senderId)
+
+  for (const row of rows) {
+    counts.set(row.senderId, Number(row.total))
+  }
+  return counts
 }
 
 export async function listSenders(
@@ -149,9 +205,17 @@ export async function listSenders(
 
   const page = rows.slice(0, input.limit)
   const next = rows.length > input.limit ? (page.at(-1)?.id ?? null) : null
+  const routeCounts = await activeRouteCountsBySender(
+    db,
+    page.map((row) => row.id)
+  )
 
   return {
-    data: page.map(serializeSender),
+    data: page.map((row) =>
+      serializeSender(row, {
+        activeRouteCount: routeCounts.get(row.id) ?? 0,
+      })
+    ),
     next_cursor: next,
   }
 }
@@ -161,7 +225,10 @@ export async function getSender(
   db: Database = getDb()
 ): Promise<SenderJson> {
   const row = await requireSender(db, id)
-  return serializeSender(row)
+  const routeCounts = await activeRouteCountsBySender(db, [row.id])
+  return serializeSender(row, {
+    activeRouteCount: routeCounts.get(row.id) ?? 0,
+  })
 }
 
 export async function createSender(
@@ -231,12 +298,7 @@ export async function updateSender(
     if (input.status === "inactive" && before.status !== "inactive") {
       const routes = await listActiveRoutesForSender(tx, id)
       if (routes.length > 0) {
-        throw AppError.conflict(
-          routes.map((route) => ({
-            path: "email_route",
-            message: route.id,
-          }))
-        )
+        throw AppError.conflict(routeConflictDetails(routes))
       }
     }
 
