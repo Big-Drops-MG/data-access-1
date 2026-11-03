@@ -362,10 +362,10 @@ export async function updateEmailRoute(
   actor: EmailRouteActor,
   db: Database = getDb()
 ): Promise<EmailRouteJson> {
-  let conflictKey: {
-    emailType: EmailRoute["emailType"]
+  const conflictKey: {
+    emailType: EmailRoute["emailType"] | null
     offerId: string | null
-  } | null = null
+  } = { emailType: null, offerId: null }
   let updated: EmailRouteJson
   let event: "email_route.updated" | "email_route.archived"
 
@@ -383,10 +383,8 @@ export async function updateEmailRoute(
         senderId: input.senderId ?? before.senderId,
         status: input.status ?? before.status,
       }
-      conflictKey = {
-        emailType: next.emailType,
-        offerId: next.offerId,
-      }
+      conflictKey.emailType = next.emailType
+      conflictKey.offerId = next.offerId
 
       if (before.status === "inactive" && next.status === "active") {
         throw AppError.conflict([
@@ -446,7 +444,7 @@ export async function updateEmailRoute(
     if (error instanceof AppError) {
       throw error
     }
-    if (isUniqueViolation(error) && conflictKey) {
+    if (isUniqueViolation(error) && conflictKey.emailType !== null) {
       throw await activeRouteConflict(
         db,
         conflictKey.emailType,
