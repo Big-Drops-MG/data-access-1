@@ -2,6 +2,7 @@ import { desc, sql } from "drizzle-orm"
 import {
   check,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -61,6 +62,10 @@ export const message = pgTable(
       onDelete: "restrict",
     }),
     idempotencyKey: text("idempotency_key").notNull(),
+    mergeData: jsonb("merge_data")
+      .$type<Record<string, string | number | boolean>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     status: messageStatus("status").notNull(),
     skipReason: messageSkipReason("skip_reason"),
     failureReason: text("failure_reason"),

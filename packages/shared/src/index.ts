@@ -29,6 +29,12 @@ export {
 } from "./trigger-email.js"
 export { buildMergeTagsRecord, extractMergeTagNames } from "./merge-tags.js"
 export {
+  buildUnsubscribeUrl,
+  signUnsubscribeToken,
+  UnsubscribeTokenError,
+  verifyUnsubscribeToken,
+} from "./unsubscribe-token.js"
+export {
   BULLMQ_PREFIX,
   SEND_EMAIL_JOB_NAME,
   SEND_EMAIL_JOB_OPTIONS,

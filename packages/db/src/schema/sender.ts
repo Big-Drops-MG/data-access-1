@@ -29,6 +29,7 @@ export const sender = pgTable(
     fromName: text("from_name").notNull(),
     fromEmail: citext("from_email").notNull(),
     replyTo: citext("reply_to"),
+    postalAddress: text("postal_address"),
     status: senderStatus("status").notNull().default("pending_verification"),
     version: integer("version").notNull().default(1),
     createdBy: uuid("created_by").references(() => user.id, {

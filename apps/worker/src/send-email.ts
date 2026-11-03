@@ -1,6 +1,12 @@
 import { MailTransportError, type MailTransport } from "@workspace/emails"
 import {
+  TemplateRenderError,
+  renderEmailTemplate,
+} from "@workspace/emails/render"
+import {
+  buildUnsubscribeUrl,
   sesSendRatePerSecond,
+  UnsubscribeTokenError,
   uuidSchema,
   type LoadQueuedSendResult,
   type QueuedSendContext,
@@ -46,6 +52,10 @@ export type SendEmailJobDeps = {
   transport: MailTransport
   pauseQueue: () => Promise<void>
   openAccountPausedAlert: () => Promise<void>
+  compliance?: {
+    origin?: string
+    secret?: string
+  }
 }
 
 type DescribedFailure = {
@@ -74,27 +84,41 @@ export function sendEmailWorkerOptions(env: {
   }
 }
 
-export function renderQueuedEmail(context: QueuedSendContext): {
+export async function renderQueuedEmail(
+  context: QueuedSendContext,
+  compliance?: { origin?: string; secret?: string }
+): Promise<{
   from: string
   to: string
   replyTo?: string
   subject: string
   html: string
   text: string
-} {
+  unsubscribeUrl?: string
+}> {
   const replyTo = context.replyTo?.trim() ?? ""
-  const text = htmlToText(context.bodySource)
+  const rendered = await renderEmailTemplate({
+    source: context.bodySource,
+    subject: context.subject,
+    mergeData: context.mergeData ?? {},
+    unsubscribeUrl: unsubscribeUrlFor(context, compliance),
+    postalAddress: context.postalAddress ?? "",
+  })
   return {
     from: formatFromAddress(context.fromName, context.fromEmail),
     to: context.recipient.email,
     ...(replyTo === "" ? {} : { replyTo }),
-    subject: context.subject,
-    html: context.bodySource,
-    text: text === "" ? context.bodySource.trim() : text,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+    unsubscribeUrl: rendered.unsubscribeUrl,
   }
 }
 
 export function classifySendFailure(error: unknown): SendFailureKind {
+  if (hasTemplateRenderError(error)) {
+    return "rejected"
+  }
   const described = describeSendFailure(error)
   if (PAUSED_NAMES.has(described.name)) {
     return "account_paused"
@@ -162,7 +186,9 @@ export async function processSendEmailJob(
 
   let acceptedId: string | undefined
   try {
-    const result = await deps.transport.send(renderQueuedEmail(loaded.context))
+    const result = await deps.transport.send(
+      await renderQueuedEmail(loaded.context, deps.compliance)
+    )
     acceptedId = result.providerMessageId.trim()
     if (acceptedId === "") {
       throw new MailTransportError("send did not return a message id")
@@ -255,6 +281,45 @@ function readStatusCode(value: object): number | undefined {
     : undefined
 }
 
+function unsubscribeUrlFor(
+  context: QueuedSendContext,
+  compliance?: { origin?: string; secret?: string }
+): string {
+  const provided = context.unsubscribeUrl?.trim() ?? ""
+  if (provided !== "") {
+    return provided
+  }
+  try {
+    return buildUnsubscribeUrl({
+      origin: compliance?.origin,
+      secret: compliance?.secret,
+      messageId: context.messageId,
+    })
+  } catch (error) {
+    if (error instanceof UnsubscribeTokenError) {
+      throw new TemplateRenderError("compliance", error.message)
+    }
+    throw error
+  }
+}
+
+function hasTemplateRenderError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+  while (
+    typeof current === "object" &&
+    current !== null &&
+    !seen.has(current)
+  ) {
+    seen.add(current)
+    if (current instanceof TemplateRenderError) {
+      return true
+    }
+    current = "cause" in current ? current.cause : undefined
+  }
+  return false
+}
+
 function formatFromAddress(name: string, email: string): string {
   const address = email.trim()
   const display = name.trim()
@@ -263,20 +328,4 @@ function formatFromAddress(name: string, email: string): string {
   }
   const escaped = display.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
   return `"${escaped}" <${address}>`
-}
-
-function htmlToText(source: string): string {
-  return source
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim()
 }

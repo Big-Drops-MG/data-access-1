@@ -1,5 +1,6 @@
 import type { Recipient } from "@workspace/db"
 import { MailTransportError, createSmtpTransport } from "@workspace/emails"
+import { TemplateRenderError } from "@workspace/emails/render"
 import type { SendCheckSkipReason } from "@workspace/shared"
 import { UnrecoverableError } from "bullmq"
 import { describe, expect, it, vi } from "vitest"
@@ -44,6 +45,9 @@ function queuedContext(): QueuedSendContext {
     fromName: "Big Drops",
     fromEmail: "news@example.com",
     replyTo: "reply@example.com",
+    mergeData: {},
+    unsubscribeUrl: "https://example.com/unsubscribe/ada",
+    postalAddress: "1 Market Street, San Francisco, CA 94105",
   }
 }
 
@@ -112,32 +116,36 @@ describe("send-email worker options", () => {
   })
 })
 
-describe("renderQueuedEmail", () => {
-  it("builds the sender, subject, and plain text from the pinned template", () => {
-    expect(renderQueuedEmail(queuedContext())).toEqual({
-      from: '"Big Drops" <news@example.com>',
-      to: "ada@example.com",
-      replyTo: "reply@example.com",
-      subject: "Hello",
-      html: "<p>Hi Ada</p>",
-      text: "Hi Ada",
-    })
+describe("renderQueuedEmail", { timeout: 20_000 }, () => {
+  it("builds the sender, subject, and plain text from the pinned template", async () => {
+    const rendered = await renderQueuedEmail(queuedContext())
+    expect(rendered.from).toBe('"Big Drops" <news@example.com>')
+    expect(rendered.to).toBe("ada@example.com")
+    expect(rendered.replyTo).toBe("reply@example.com")
+    expect(rendered.subject).toBe("Hello")
+    expect(rendered.html).toContain("Hi Ada")
+    expect(rendered.text).toContain("Hi Ada")
+    expect(rendered.unsubscribeUrl).toBe("https://example.com/unsubscribe/ada")
+    expect(rendered.html).toContain("1 Market Street, San Francisco, CA 94105")
+    expect(rendered.text).toContain("1 Market Street, San Francisco, CA 94105")
   })
 
-  it("leaves merge tags unchanged and does not add an unsubscribe URL", () => {
-    const rendered = renderQueuedEmail({
+  it("merges recipient data and keeps the unsubscribe URL for the transport", async () => {
+    const rendered = await renderQueuedEmail({
       ...queuedContext(),
       bodySource: "<p>Hello {{first_name}}</p>",
       subject: "Hi {{first_name}}",
+      mergeData: { first_name: "Ada" },
     })
-    expect(rendered.subject).toBe("Hi {{first_name}}")
-    expect(rendered.html).toBe("<p>Hello {{first_name}}</p>")
-    expect(rendered.text).toBe("Hello {{first_name}}")
-    expect(rendered).not.toHaveProperty("unsubscribeUrl")
+    expect(rendered.subject).toBe("Hi Ada")
+    expect(rendered.html).toContain("Hello Ada")
+    expect(rendered.text).toContain("Hello Ada")
+    expect(rendered.html).not.toContain("{{first_name}}")
+    expect(rendered.unsubscribeUrl).toBe("https://example.com/unsubscribe/ada")
   })
 
-  it("quotes a display name and omits a blank reply-to", () => {
-    const rendered = renderQueuedEmail({
+  it("quotes a display name and omits a blank reply-to", async () => {
+    const rendered = await renderQueuedEmail({
       ...queuedContext(),
       fromName: 'Acme "Mail"',
       replyTo: "  ",
@@ -145,7 +153,34 @@ describe("renderQueuedEmail", () => {
     })
     expect(rendered.from).toBe('"Acme \\"Mail\\"" <news@example.com>')
     expect(rendered.replyTo).toBeUndefined()
-    expect(rendered.text).toBe("Plain body")
+    expect(rendered.text).toContain("Plain body")
+  })
+
+  it("builds a signed unsubscribe URL from the app origin and secret", async () => {
+    const rendered = await renderQueuedEmail(
+      {
+        ...queuedContext(),
+        unsubscribeUrl: undefined,
+      },
+      {
+        origin: "http://127.0.0.1:3000",
+        secret: "test-unsubscribe-secret",
+      }
+    )
+    expect(rendered.unsubscribeUrl).toMatch(
+      /^http:\/\/127\.0\.0\.1:3000\/unsubscribe\/v1\.0192f6c0-7a3e-7c1e-9d2b-3f6a5b8c1d44\./
+    )
+    expect(rendered.html).toContain(rendered.unsubscribeUrl)
+  })
+
+  it("does not render when compliance data is missing", async () => {
+    await expect(
+      renderQueuedEmail({
+        ...queuedContext(),
+        unsubscribeUrl: undefined,
+        postalAddress: undefined,
+      })
+    ).rejects.toMatchObject({ code: "compliance" })
   })
 })
 
@@ -160,6 +195,14 @@ describe("classifySendFailure", () => {
       )
     ).toBe("retry")
     expect(classifySendFailure(new Error("socket hang up"))).toBe("retry")
+  })
+
+  it("rejects a render timeout instead of retrying it", () => {
+    expect(
+      classifySendFailure(
+        new TemplateRenderError("timeout", "Rendering exceeded 5000ms")
+      )
+    ).toBe("rejected")
   })
 
   it("rejects MessageRejected and local transport errors", () => {
@@ -195,8 +238,9 @@ describe("processSendEmailJob", () => {
       expect.objectContaining({
         to: "ada@example.com",
         subject: "Hello",
-        html: "<p>Hi Ada</p>",
-        text: "Hi Ada",
+        html: expect.stringContaining("Hi Ada") as string,
+        text: expect.stringContaining("Hi Ada") as string,
+        unsubscribeUrl: "https://example.com/unsubscribe/ada",
       })
     )
     expect(jobDeps.markSent).toHaveBeenCalledWith(
@@ -243,6 +287,31 @@ describe("processSendEmailJob", () => {
       load: vi.fn(async () => ({
         state: "queued" as const,
         context: { ...queuedContext(), bodySource: "   " },
+      })),
+      transport: createSmtpTransport({
+        host: "127.0.0.1",
+        port: 1025,
+        sender: { sendMail },
+      }),
+    })
+
+    await expect(
+      processSendEmailJob({ message_id: MESSAGE_ID }, jobDeps)
+    ).rejects.toBeInstanceOf(UnrecoverableError)
+    expect(sendMail).not.toHaveBeenCalled()
+    expect(jobDeps.markFailed).toHaveBeenCalled()
+  })
+
+  it("does not send when template rendering fails", async () => {
+    const sendMail = vi.fn()
+    const jobDeps = deps({
+      load: vi.fn(async () => ({
+        state: "queued" as const,
+        context: {
+          ...queuedContext(),
+          bodySource:
+            'import fs from "node:fs"\nexport default function T(){ return null }',
+        },
       })),
       transport: createSmtpTransport({
         host: "127.0.0.1",

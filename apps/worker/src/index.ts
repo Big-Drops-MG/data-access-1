@@ -170,6 +170,10 @@ async function main(): Promise<void> {
               claim: (messageId) => claimQueuedMessage(db, messageId),
               releaseClaim: (messageId) => releaseQueuedClaim(db, messageId),
               transport,
+              compliance: {
+                origin: env.BETTER_AUTH_URL,
+                secret: env.UNSUBSCRIBE_TOKEN_SECRET,
+              },
               pauseQueue: () => sendEmailQueue.pause(),
               openAccountPausedAlert: () => openSesAccountPausedAlert(tx),
             })
