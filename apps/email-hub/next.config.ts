@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "@workspace/db",
     "@workspace/logger",
+    "bullmq",
     "ioredis",
     "pg",
     "pino",
