@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import localFont from "next/font/local"
+import { headers } from "next/headers"
 
 import "@workspace/ui/globals.css"
 import { AppProviders } from "@/components/app/app-providers"
@@ -28,11 +29,13 @@ const jetbrainsMono = localFont({
   display: "swap",
 })
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const requestId = (await headers()).get("x-request-id")
+
   return (
     <html
       lang="en"
@@ -43,6 +46,9 @@ export default function RootLayout({
         jetbrainsMono.variable
       )}
     >
+      <head>
+        {requestId ? <meta name="x-request-id" content={requestId} /> : null}
+      </head>
       <body>
         <ThemeProvider>
           <AppProviders>{children}</AppProviders>
