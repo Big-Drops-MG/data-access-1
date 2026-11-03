@@ -77,6 +77,8 @@ function query(result: unknown) {
     "returning",
     "update",
     "set",
+    "leftJoin",
+    "groupBy",
   ]) {
     q[method] = vi.fn(self)
   }
@@ -99,17 +101,30 @@ describe("senders service", () => {
       senderRow({ id: "019a0000-0000-7000-8000-0000000000a2" }),
       senderRow({ id: "019a0000-0000-7000-8000-0000000000a1" }),
     ]
-    const db = { select: vi.fn(() => query(rows)) }
+    let selectCalls = 0
+    const db = {
+      select: vi.fn(() => {
+        selectCalls += 1
+        return selectCalls === 1 ? query(rows) : query([])
+      }),
+    }
     getDb.mockReturnValue(db)
 
     const result = await listSenders({ limit: 1 })
     expect(result.data).toHaveLength(1)
+    expect(result.data[0]?.active_route_count).toBe(0)
     expect(result.next_cursor).toBe("019a0000-0000-7000-8000-0000000000a2")
   })
 
   it("gets a sender by id", async () => {
+    let selectCalls = 0
     const db = {
-      select: vi.fn(() => query([senderRow()])),
+      select: vi.fn(() => {
+        selectCalls += 1
+        return selectCalls === 1
+          ? query([senderRow()])
+          : query([{ senderId, total: 2 }])
+      }),
     }
     getDb.mockReturnValue(db)
 
@@ -117,6 +132,7 @@ describe("senders service", () => {
       id: senderId,
       from_email: "noreply@mail.example.com",
       version: 1,
+      active_route_count: 2,
     })
   })
 
@@ -231,7 +247,13 @@ describe("senders service", () => {
         if (selectCalls === 1) {
           return query([before])
         }
-        return query([{ id: routeId }])
+        return query([
+          {
+            id: routeId,
+            emailType: "thank_you",
+            offerName: null,
+          },
+        ])
       }),
       update: vi.fn(),
     }
@@ -246,6 +268,14 @@ describe("senders service", () => {
       expect(error).toMatchObject({ code: "conflict", status: 409 })
       expect((error as { details: unknown }).details).toEqual([
         { path: "email_route", message: routeId },
+        {
+          path: `email_route/${routeId}/email_type`,
+          message: "thank_you",
+        },
+        {
+          path: `email_route/${routeId}/name`,
+          message: "Default",
+        },
       ])
       return true
     })

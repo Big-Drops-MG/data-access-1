@@ -12,13 +12,17 @@ export type SenderJson = {
   reply_to: string | null
   status: Sender["status"]
   version: number
+  active_route_count: number
   created_by: string | null
   created_at: string
   updated_at: string
   deactivated_at: string | null
 }
 
-export function serializeSender(row: Sender): SenderJson {
+export function serializeSender(
+  row: Sender,
+  extras: { activeRouteCount?: number } = {}
+): SenderJson {
   return {
     id: row.id,
     domain_id: row.domainId,
@@ -27,6 +31,7 @@ export function serializeSender(row: Sender): SenderJson {
     reply_to: row.replyTo,
     status: row.status,
     version: row.version,
+    active_route_count: extras.activeRouteCount ?? 0,
     created_by: row.createdBy,
     created_at: isoUtc(row.createdAt),
     updated_at: isoUtc(row.updatedAt),
