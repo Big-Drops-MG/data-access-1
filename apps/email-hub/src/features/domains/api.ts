@@ -1,17 +1,36 @@
 import { apiJson } from "@/lib/api-client"
+import type {
+  DnsRecordJson,
+  DomainSetupStepJson,
+  DomainSummaryJson,
+} from "@/lib/domains/serialize"
 
-export type DomainListItem = {
-  id: string
-  name: string
-  status: string
-  created_at?: string
-  updated_at?: string
-  verified_at?: string | null
+export type DnsRecordItem = DnsRecordJson
+export type DomainSetupStepItem = DomainSetupStepJson
+export type DomainListItem = DomainSummaryJson
+
+export type DomainStatusCounts = {
+  all: number
+  pending: number
+  verifying: number
+  verified: number
+  failed: number
+  inactive: number
 }
 
 export type DomainsListResponse = {
   data: DomainListItem[]
   next_cursor: string | null
+  status_counts: DomainStatusCounts
+}
+
+export const EMPTY_DOMAIN_STATUS_COUNTS: DomainStatusCounts = {
+  all: 0,
+  pending: 0,
+  verifying: 0,
+  verified: 0,
+  failed: 0,
+  inactive: 0,
 }
 
 export type DomainsListParams = {
@@ -42,22 +61,78 @@ export function fetchDomainsList(
 }
 
 export type DomainDetailResponse = DomainListItem & {
-  ses_identity_arn: string | null
-  created_by: string | null
-  dns_records: unknown[]
-  setup_steps: unknown[]
+  dns_records: DnsRecordItem[]
+  setup_steps: DomainSetupStepItem[]
 }
 
-export function fetchDomainDetail(id: string): Promise<DomainDetailResponse> {
-  return apiJson<DomainDetailResponse>(`/api/domains/${id}`)
+function domainApiPath(ref: string): string {
+  return `/api/domains/${encodeURIComponent(ref)}`
+}
+
+export function fetchDomainDetail(ref: string): Promise<DomainDetailResponse> {
+  return apiJson<DomainDetailResponse>(domainApiPath(ref))
 }
 
 export type CreateDomainResponse = DomainDetailResponse
 
-export function createDomain(name: string): Promise<CreateDomainResponse> {
+export type CreateDomainInput = {
+  name: string
+  mail_from_subdomain?: string
+}
+
+export function createDomain(
+  input: CreateDomainInput
+): Promise<CreateDomainResponse> {
   return apiJson<CreateDomainResponse>("/api/domains", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(input),
   })
+}
+
+export function checkDomainDns(ref: string): Promise<DomainDetailResponse> {
+  return apiJson<DomainDetailResponse>(`${domainApiPath(ref)}/check`, {
+    method: "POST",
+  })
+}
+
+export function disableDomain(ref: string): Promise<unknown> {
+  return apiJson<unknown>(domainApiPath(ref), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "inactive" }),
+  })
+}
+
+export type DeleteDomainResponse = {
+  ses_deleted: boolean
+  cloudflare_deleted: boolean
+}
+
+export function deleteDomain(ref: string): Promise<DeleteDomainResponse> {
+  return apiJson<DeleteDomainResponse>(domainApiPath(ref), {
+    method: "DELETE",
+  })
+}
+
+export type DomainSenderItem = {
+  id: string
+  from_name: string
+  from_email: string
+  status: "active" | "inactive" | "pending_verification"
+}
+
+export type DomainSendersResponse = {
+  data: DomainSenderItem[]
+  next_cursor: string | null
+}
+
+export function fetchDomainSenders(
+  domainId: string
+): Promise<DomainSendersResponse> {
+  const search = new URLSearchParams({
+    domain_id: domainId,
+    limit: "50",
+  })
+  return apiJson<DomainSendersResponse>(`/api/senders?${search.toString()}`)
 }

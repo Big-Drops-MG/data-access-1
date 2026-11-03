@@ -1,44 +1,23 @@
 "use client"
 
-import { useMutation } from "@tanstack/react-query"
-import { Globe } from "lucide-react"
+import { Plus } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useMemo, useState, useTransition } from "react"
+import { useMemo } from "react"
 
 import { DataTable } from "@/components/app/data-table"
-import { EmptyState } from "@/components/app/empty-state"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
-import { CreateDomainForm } from "@/features/domains/create-domain-form"
+import { EMPTY_DOMAIN_STATUS_COUNTS } from "@/features/domains/api"
 import { domainsColumns } from "@/features/domains/domains-columns"
-import { fetchDomainsList, type DomainListItem } from "@/features/domains/api"
+import {
+  DomainStatusChips,
+  type DomainStatusChipValue,
+} from "@/features/domains/domain-status-chips"
 import { useDomainsList } from "@/features/domains/use-domains-list"
-import { ApiError, isApiError } from "@/lib/api-client"
-import {
-  collectCursorPagesForExport,
-  downloadCsv,
-  rowsToCsv,
-  DataTableExportTooLargeError,
-} from "@/lib/data-table/csv"
+import { isApiError } from "@/lib/api-client"
 import { useDataTableUrlState } from "@/lib/data-table/use-data-table-url-state"
-import { listQueryKey } from "@/lib/query-keys"
-import { Button } from "@workspace/ui/components/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@workspace/ui/components/select"
-
-const DOMAIN_STATUS_FILTERS = [
-  { value: "all", label: "All statuses" },
-  { value: "pending", label: "Pending" },
-  { value: "verifying", label: "Verifying" },
-  { value: "verified", label: "Verified" },
-  { value: "failed", label: "Failed" },
-  { value: "inactive", label: "Inactive" },
-] as const
+import { domainsPrimaryControl } from "@/features/domains/domains-ui"
 
 const DOMAIN_FILTER_KEYS = ["status"] as const
 
@@ -47,116 +26,58 @@ type DomainsPageProps = {
   canCreateDomain?: boolean
 }
 
-/**
- * Domains list using shared DataTable (T-055) and form kit create (T-061).
- * Conflict probe retained for T-050 global 409 UX.
- */
+function parseStatusChip(value: string | undefined): DomainStatusChipValue {
+  switch (value) {
+    case "verified":
+    case "pending":
+    case "verifying":
+    case "failed":
+    case "inactive":
+      return value
+    default:
+      return "all"
+  }
+}
+
+/** Domains list using shared DataTable (T-055); create lives at /domains/new. */
 export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
   const router = useRouter()
-  const [exporting, startExport] = useTransition()
-  const [exportError, setExportError] = useState<string | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
   const tableState = useDataTableUrlState({ filterKeys: DOMAIN_FILTER_KEYS })
+  const selectedStatus = parseStatusChip(tableState.filters.status)
 
   const listParams = useMemo(
     () => ({
       limit: tableState.limit,
       cursor: tableState.cursor,
-      status: tableState.filters.status,
+      status: selectedStatus === "all" ? undefined : selectedStatus,
     }),
-    [tableState.cursor, tableState.filters.status, tableState.limit]
+    [selectedStatus, tableState.cursor, tableState.limit]
   )
 
   const list = useDomainsList(listParams)
 
-  const conflictProbe = useMutation({
-    mutationFn: async () => {
-      throw new ApiError("Conflict", 409, "conflict", "demo-req", [
-        { path: "version", message: "Stale version" },
-      ])
-    },
-    meta: {
-      conflictInvalidateKeys: [listQueryKey("domains")],
-    },
-  })
-
   const rows = list.data?.data ?? []
   const nextCursor = list.data?.next_cursor ?? null
-
-  function handleExport() {
-    setExportError(null)
-    startExport(() => {
-      void (async () => {
-        try {
-          const allRows = await collectCursorPagesForExport<DomainListItem>({
-            fetchPage: ({ cursor, limit }) =>
-              fetchDomainsList({
-                limit,
-                cursor,
-                status: tableState.filters.status,
-              }),
-          })
-          const csv = rowsToCsv(allRows, [
-            { id: "name", header: "Domain", value: (row) => row.name },
-            { id: "status", header: "Status", value: (row) => row.status },
-            {
-              id: "created_at",
-              header: "Created",
-              value: (row) => row.created_at ?? "",
-            },
-          ])
-          downloadCsv("domains.csv", csv)
-          setExportError(null)
-        } catch (error) {
-          const message =
-            error instanceof DataTableExportTooLargeError
-              ? error.message
-              : isApiError(error)
-                ? error.message
-                : "Could not export domains."
-          setExportError(message)
-        }
-      })()
-    })
-  }
+  const statusCounts = list.data?.status_counts ?? EMPTY_DOMAIN_STATUS_COUNTS
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Domains"
-        description="Sending domains for Email Hub."
+        description="Sending domains in Amazon SES. DNS records are written to Cloudflare on create and checked every 6 hours."
         actions={
-          <div className="flex flex-wrap gap-2">
-            {canCreateDomain ? (
-              <Button
-                type="button"
-                onClick={() => setShowCreate(true)}
-                data-testid="domains-add"
-              >
-                Add domain
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => conflictProbe.mutate()}
-              data-testid="domains-conflict-probe"
+          canCreateDomain ? (
+            <Link
+              href="/domains/new"
+              className={domainsPrimaryControl()}
+              data-testid="domains-add"
             >
-              Simulate conflict
-            </Button>
-          </div>
+              <Plus className="size-3.5" strokeWidth={2} aria-hidden />
+              Add domain
+            </Link>
+          ) : undefined
         }
       />
-
-      {canCreateDomain && showCreate ? (
-        <CreateDomainForm
-          onCancel={() => setShowCreate(false)}
-          onSuccess={(id) => {
-            setShowCreate(false)
-            router.push(`/domains/${id}`)
-          }}
-        />
-      ) : null}
 
       {list.isError ? (
         <InlineErrorCard
@@ -172,15 +93,6 @@ export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
         />
       ) : null}
 
-      {exportError ? (
-        <InlineErrorCard
-          message={exportError}
-          onRetry={() => {
-            handleExport()
-          }}
-        />
-      ) : null}
-
       <DataTable
         storageKey="domains"
         columns={domainsColumns}
@@ -192,67 +104,34 @@ export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
         onNextPage={tableState.goNext}
         onPreviousPage={tableState.goPrevious}
         canPreviousPage={tableState.canGoPrevious}
-        isLoading={list.isPending}
+        isLoading={list.isPending && !list.data}
+        showColumnToggle={false}
+        equalColumnWidths
+        animateRows
         onRowClick={(row) => {
-          router.push(`/domains/${row.id}`)
+          router.push(`/domains/${encodeURIComponent(row.name)}`)
         }}
-        onExportCsv={handleExport}
-        exporting={exporting}
         testIdPrefix="domains"
         toolbar={
-          <Select
-            value={tableState.filters.status ?? "all"}
-            onValueChange={(value) => {
-              if (value == null || value === "all") {
-                tableState.setFilter("status", undefined)
-                return
-              }
-              tableState.setFilter("status", value)
+          <DomainStatusChips
+            value={selectedStatus}
+            counts={statusCounts}
+            onChange={(value) => {
+              tableState.setFilter(
+                "status",
+                value === "all" ? undefined : value
+              )
             }}
-          >
-            <SelectTrigger
-              size="sm"
-              className="min-w-40"
-              data-testid="domains-filter-status"
-            >
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              {DOMAIN_STATUS_FILTERS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
-        emptyState={
-          <EmptyState
-            icon={<Globe strokeWidth={1.75} />}
-            title="No domains yet"
-            description="When you add a sending domain, it will show up here."
-            action={
-              canCreateDomain ? (
-                <Button
-                  type="button"
-                  onClick={() => setShowCreate(true)}
-                  data-testid="domains-empty-add"
-                >
-                  Add domain
-                </Button>
-              ) : undefined
-            }
           />
         }
-        rowActions={(row) => [
-          {
-            id: "open",
-            label: "Open",
-            onSelect: () => {
-              router.push(`/domains/${row.id}`)
-            },
-          },
-        ]}
+        emptyState={
+          <p
+            className="px-4 py-10 text-center text-body text-fg-muted"
+            data-testid="domains-empty"
+          >
+            No domains yet.
+          </p>
+        }
       />
     </div>
   )

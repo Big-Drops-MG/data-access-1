@@ -318,7 +318,12 @@ describe("request ids and context", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     )
     expect(resolveRequestId("bad id")).not.toBe("bad id")
-    expect(resolveRequestId(`a${"b".repeat(128)}`)).not.toContain("bbb")
+    const oversized = `a${"b".repeat(128)}`
+    const replacedOversized = resolveRequestId(oversized)
+    expect(replacedOversized).not.toBe(oversized)
+    expect(replacedOversized).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    )
     expect(resolveRequestId("../etc/passwd")).not.toBe("../etc/passwd")
   })
 

@@ -45,10 +45,16 @@ async function handlePost(request: Request): Promise<Response> {
       await parseJsonBody(request)
     )
 
-    const created = await createDomain(body.name, {
-      userId: session.id,
-      requestId: request.headers.get("x-request-id"),
-    })
+    const created = await createDomain(
+      {
+        name: body.name,
+        mailFromSubdomain: body.mail_from_subdomain,
+      },
+      {
+        userId: session.id,
+        requestId: request.headers.get("x-request-id"),
+      }
+    )
 
     getContextLogger().info(
       {

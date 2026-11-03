@@ -3,14 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const getSession = vi.hoisted(() => vi.fn())
 const getDomain = vi.hoisted(() => vi.fn())
 const updateDomainStatus = vi.hoisted(() => vi.fn())
+const deleteDomain = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/auth", () => ({ getSession }))
 vi.mock("@/lib/domains/service", () => ({
   getDomain,
   updateDomainStatus,
+  deleteDomain,
 }))
 
-import { GET, PATCH } from "./route"
+import { DELETE, GET, PATCH } from "./route"
 
 function session(role: "viewer" | "operator" | "admin") {
   return {
@@ -26,11 +28,12 @@ function session(role: "viewer" | "operator" | "admin") {
 
 const domainId = "019a0000-0000-7000-8000-0000000000aa"
 
-describe("GET/PATCH /api/domains/{id}", () => {
+describe("GET/PATCH/DELETE /api/domains/{id}", () => {
   beforeEach(() => {
     getSession.mockReset()
     getDomain.mockReset()
     updateDomainStatus.mockReset()
+    deleteDomain.mockReset()
   })
 
   it("returns detail for a viewer", async () => {
@@ -88,12 +91,66 @@ describe("GET/PATCH /api/domains/{id}", () => {
     })
   })
 
-  it("rejects invalid domain id", async () => {
+  it("rejects invalid domain ref", async () => {
     getSession.mockResolvedValue(session("viewer"))
     const response = await GET(
       new Request("http://localhost/api/domains/not-a-uuid"),
       { params: Promise.resolve({ id: "not-a-uuid" }) }
     )
     expect(response.status).toBe(422)
+  })
+
+  it("accepts an FQDN path param", async () => {
+    getSession.mockResolvedValue(session("viewer"))
+    getDomain.mockResolvedValue({
+      id: domainId,
+      name: "dev.quotifii.com",
+      status: "pending",
+      dns_records: [],
+      setup_steps: [],
+    })
+    const fqdn = "dev.quotifii.com"
+    const response = await GET(
+      new Request(`http://localhost/api/domains/${fqdn}`),
+      { params: Promise.resolve({ id: fqdn }) }
+    )
+    expect(response.status).toBe(200)
+    expect(getDomain).toHaveBeenCalledWith(fqdn)
+  })
+
+  it("rejects operator on delete (admin-only)", async () => {
+    getSession.mockResolvedValue(session("operator"))
+    const response = await DELETE(
+      new Request(`http://localhost/api/domains/${domainId}`, {
+        method: "DELETE",
+      }),
+      { params: Promise.resolve({ id: domainId }) }
+    )
+    expect(response.status).toBe(403)
+    expect(deleteDomain).not.toHaveBeenCalled()
+  })
+
+  it("deletes for an admin", async () => {
+    getSession.mockResolvedValue(session("admin"))
+    deleteDomain.mockResolvedValue({
+      ses_deleted: true,
+      cloudflare_deleted: true,
+    })
+    const response = await DELETE(
+      new Request(`http://localhost/api/domains/${domainId}`, {
+        method: "DELETE",
+        headers: { "x-request-id": "req-del" },
+      }),
+      { params: Promise.resolve({ id: domainId }) }
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      ses_deleted: true,
+      cloudflare_deleted: true,
+    })
+    expect(deleteDomain).toHaveBeenCalledWith(domainId, {
+      userId: session("admin").id,
+      requestId: "req-del",
+    })
   })
 })
