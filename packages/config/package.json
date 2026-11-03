@@ -21,7 +21,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^10",
     "@next/eslint-plugin-next": "^16.4.3",
     "@vitest/eslint-plugin": "^1.6.28",
