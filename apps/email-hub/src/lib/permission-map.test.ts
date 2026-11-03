@@ -105,6 +105,41 @@ describe("minRoleForStaffApi", () => {
     ).toBeNull()
   })
 
+  it("maps email route staff routes (viewer read, operator write)", () => {
+    expect(minRoleForStaffApi("GET", "/api/email-routes")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/email-routes")).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "GET",
+        "/api/email-routes/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("viewer")
+    expect(
+      minRoleForStaffApi(
+        "PATCH",
+        "/api/email-routes/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "DELETE",
+        "/api/email-routes/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBeNull()
+    expect(
+      minRoleForStaffApi(
+        "POST",
+        "/api/email-routes/019a0000-0000-7000-8000-000000000001/archive"
+      )
+    ).toBe("operator")
+    expect(
+      minRoleForStaffApi(
+        "GET",
+        "/api/email-routes/019a0000-0000-7000-8000-000000000001/archive"
+      )
+    ).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
