@@ -32,11 +32,39 @@ const e2eSchema = z.preprocess(
   z.enum(["1", "true"]).optional()
 )
 
+const LOG_LEVELS = [
+  "fatal",
+  "error",
+  "warn",
+  "info",
+  "debug",
+  "trace",
+  "silent",
+] as ["fatal", "error", "warn", "info", "debug", "trace", "silent"]
+
+const logLevelSchema = z.preprocess((value) => {
+  const next = emptyToUndefined(value)
+  if (typeof next !== "string") {
+    return "info"
+  }
+  const lowered = next.toLowerCase()
+  return (LOG_LEVELS as readonly string[]).includes(lowered) ? lowered : "info"
+}, z.enum(LOG_LEVELS))
+
+const logFormatSchema = z.preprocess(
+  (value) => {
+    return emptyToUndefined(value) === "pretty" ? "pretty" : "json"
+  },
+  z.enum(["json", "pretty"])
+)
+
 const baseEnvSchema = z
   .object({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
+    LOG_LEVEL: logLevelSchema,
+    LOG_FORMAT: logFormatSchema,
     /** Deploy target. `dev` may use SMTP/Mailpit; `prod` requires SES and no E2E. */
     EMAILHUB_ENV: z.preprocess(
       emptyToUndefined,
@@ -53,6 +81,10 @@ const baseEnvSchema = z
     SES_MAX_SEND_RATE: optionalString,
     AWS_ACCESS_KEY_ID: optionalString,
     AWS_SECRET_ACCESS_KEY: optionalString,
+    /** Cloudflare API token with Zone.DNS Edit for sending-domain zones. */
+    CLOUDFLARE_API_TOKEN: optionalString,
+    /** Optional zone id override; otherwise resolved from the domain name. */
+    CLOUDFLARE_ZONE_ID: optionalString,
     E2E: e2eSchema,
     SENTRY_DSN: optionalString,
     APP_ENCRYPTION_KEY: optionalString,

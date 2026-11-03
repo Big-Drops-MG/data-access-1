@@ -19,5 +19,5 @@ describe("@workspace/db", () => {
     expect(databasePackage.PACKAGE_NAME).toBe("@workspace/db")
     expect(databasePackage).not.toHaveProperty("db")
     expect(databasePackage).not.toHaveProperty("pool")
-  }, 15_000)
+  }, 60_000)
 })

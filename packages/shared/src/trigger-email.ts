@@ -15,6 +15,12 @@ import type {
   TemplateVersion,
 } from "@workspace/db"
 import type { Database, DatabaseTransaction } from "@workspace/db/client"
+import {
+  getContextLogger,
+  getRequestId,
+  isValidRequestId,
+  maskEmail,
+} from "@workspace/logger"
 import { and, eq, isNull, sql } from "drizzle-orm"
 
 import { hashEmail, normaliseEmail } from "./email.js"
@@ -36,6 +42,8 @@ export type TriggerEmailInput = {
   offerId?: string | null
   mergeData?: MergeData | null
   externalUserId?: string | null
+  /** Propagated onto the send-email job. Falls back to the active request context. */
+  requestId?: string | null
 }
 
 export type ResolvedRouteAssets = {
@@ -51,7 +59,7 @@ export type TriggerEmailDeps = {
    * Enqueue `send-email` after the message row is committed.
    * Failures must not change the message; leave `queued` for the watchdog.
    */
-  enqueueSendEmail: (messageId: string) => Promise<void>
+  enqueueSendEmail: (messageId: string, requestId?: string) => Promise<void>
 }
 
 export type TriggerEmailResult = {
@@ -472,9 +480,39 @@ export async function triggerEmail(
   })
 
   if (result.created && result.message.status === "queued") {
+    const explicitRequestId = input.requestId?.trim()
+    const requestId =
+      explicitRequestId && isValidRequestId(explicitRequestId)
+        ? explicitRequestId
+        : getRequestId()
+    const logger = requestId
+      ? getContextLogger().child({ request_id: requestId })
+      : getContextLogger()
+    const recipient = maskEmail(input.email)
     try {
-      await deps.enqueueSendEmail(result.message.id)
-    } catch {
+      if (requestId) {
+        await deps.enqueueSendEmail(result.message.id, requestId)
+      } else {
+        await deps.enqueueSendEmail(result.message.id)
+      }
+      logger.info(
+        {
+          event: "message.queued",
+          message_id: result.message.id,
+          recipient,
+        },
+        "Message queued"
+      )
+    } catch (error) {
+      logger.error(
+        {
+          event: "message.queue_failed",
+          message_id: result.message.id,
+          recipient,
+          err: error,
+        },
+        "Message queue failed"
+      )
       // Message stays queued; queue-watchdog re-enqueues (SD#15.5).
     }
   }

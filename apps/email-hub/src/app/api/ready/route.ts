@@ -2,11 +2,12 @@ import { AppError } from "@workspace/shared"
 import { NextResponse } from "next/server"
 
 import { checkReadiness } from "@/lib/readiness"
+import { withApiRequest } from "@/lib/with-api-request"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-export async function GET() {
+async function handleGet(): Promise<NextResponse> {
   const failing = await checkReadiness()
   if (failing.length === 0) {
     return NextResponse.json({ ok: true })
@@ -21,3 +22,5 @@ export async function GET() {
 
   return NextResponse.json(error.toJSON(), { status: error.status })
 }
+
+export const GET = withApiRequest(handleGet)

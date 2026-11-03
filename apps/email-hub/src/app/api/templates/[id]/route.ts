@@ -7,6 +7,7 @@ import {
 } from "@/lib/templates/schemas"
 import { getTemplate, updateTemplate } from "@/lib/templates/service"
 import { requireTemplatesStaffAccess } from "@/lib/templates/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 type RouteContext = {
@@ -19,7 +20,10 @@ async function parseTemplateId(context: RouteContext): Promise<string> {
 }
 
 /** GET /api/templates/{id} — detail + versions (Viewer+). */
-export async function GET(request: Request, context: RouteContext) {
+async function handleGet(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     await requireTemplatesStaffAccess(request, "GET")
     const id = await parseTemplateId(context)
@@ -34,7 +38,10 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 /** PATCH /api/templates/{id} — name / category / status (Operator+). */
-export async function PATCH(request: Request, context: RouteContext) {
+async function handlePatch(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     const session = await requireTemplatesStaffAccess(request, "PATCH")
     const id = await parseTemplateId(context)
@@ -64,3 +71,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     return toErrorResponse(error)
   }
 }
+
+export const GET = withApiRequest(handleGet)
+export const PATCH = withApiRequest(handlePatch)

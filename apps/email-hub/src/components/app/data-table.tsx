@@ -16,6 +16,7 @@ import {
   Download,
   MoreHorizontal,
 } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
 import {
   useEffect,
   useMemo,
@@ -95,6 +96,12 @@ export type DataTableProps<TData> = {
   toolbar?: ReactNode
   onExportCsv?: () => Promise<void> | void
   exporting?: boolean
+  /** Column visibility menu (default true). */
+  showColumnToggle?: boolean
+  /** Equal-width columns via table-fixed (balanced list layouts). */
+  equalColumnWidths?: boolean
+  /** Animate row enter/exit (status filter changes without layout jitter). */
+  animateRows?: boolean
   isLoading?: boolean
   emptyState?: ReactNode
   testIdPrefix?: string
@@ -127,6 +134,9 @@ export function DataTable<TData>({
   toolbar,
   onExportCsv,
   exporting = false,
+  showColumnToggle = true,
+  equalColumnWidths = false,
+  animateRows = false,
   isLoading = false,
   emptyState,
   testIdPrefix = "data-table",
@@ -184,7 +194,18 @@ export function DataTable<TData>({
   })
 
   const hasRows = data.length > 0
-  const showEmpty = !isLoading && !hasRows && emptyState
+  const showEmpty = !isLoading && !hasRows
+  const visibleColumnCount =
+    table.getVisibleLeafColumns().length + (rowActions ? 1 : 0)
+  const equalColStyle = equalColumnWidths
+    ? { width: `${100 / Math.max(visibleColumnCount, 1)}%` }
+    : undefined
+  const rowMotion = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] as const },
+  }
 
   function handleHeaderSort(columnId: string) {
     if (!onSortingChange || !sortableSet.has(columnId)) {
@@ -212,206 +233,263 @@ export function DataTable<TData>({
     onRowClick(row)
   }
 
+  const showToolbarActions = Boolean(onExportCsv) || showColumnToggle
+
   return (
     <div className={cn("space-y-3", className)} data-testid={testIdPrefix}>
-      <div className="flex flex-wrap items-center gap-2">
-        {toolbar}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {onExportCsv ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={exporting || isLoading}
-              onClick={() => {
-                void onExportCsv()
-              }}
-              data-testid={`${testIdPrefix}-export`}
-            >
-              <Download strokeWidth={1.75} />
-              Export CSV
-            </Button>
-          ) : null}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
+      {toolbar || showToolbarActions ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbar}
+          {showToolbarActions ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {onExportCsv ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  data-testid={`${testIdPrefix}-columns`}
-                />
-              }
-            >
-              <Columns3 strokeWidth={1.75} />
-              Columns
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {table
-                .getAllColumns()
-                .filter((column) => column.getCanHide())
-                .map((column) => (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(checked) => {
-                      column.toggleVisibility(Boolean(checked))
-                    }}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+                  disabled={exporting || isLoading}
+                  onClick={() => {
+                    void onExportCsv()
+                  }}
+                  data-testid={`${testIdPrefix}-export`}
+                >
+                  <Download strokeWidth={1.75} />
+                  Export CSV
+                </Button>
+              ) : null}
 
-      {showEmpty ? (
-        emptyState
-      ) : (
-        <div className="rounded-md border border-border bg-surface">
-          <Table className="w-full">
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                  {headerGroup.headers.map((header) => {
-                    const canSort = sortableSet.has(header.column.id)
-                    const sorted = header.column.getIsSorted()
-                    return (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder ? null : canSort ? (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 text-left font-medium outline-none focus-visible:shadow-[0_0_0_3px_var(--ring)]"
-                            onClick={() => handleHeaderSort(header.column.id)}
-                            data-testid={`${testIdPrefix}-sort-${header.column.id}`}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                            {sorted === "asc" ? (
-                              <ArrowUp className="size-3.5" aria-hidden />
-                            ) : sorted === "desc" ? (
-                              <ArrowDown className="size-3.5" aria-hidden />
-                            ) : (
-                              <ArrowUpDown
-                                className="size-3.5 text-fg-muted"
-                                aria-hidden
-                              />
-                            )}
-                          </button>
-                        ) : (
-                          flexRender(
+              {showColumnToggle ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid={`${testIdPrefix}-columns`}
+                      />
+                    }
+                  >
+                    <Columns3 strokeWidth={1.75} />
+                    Columns
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {table
+                      .getAllColumns()
+                      .filter((column) => column.getCanHide())
+                      .map((column) => (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(checked) => {
+                            column.toggleVisibility(Boolean(checked))
+                          }}
+                        >
+                          {column.id}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-md border border-border bg-surface">
+        <Table className={cn("w-full", equalColumnWidths && "table-fixed")}>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                {headerGroup.headers.map((header) => {
+                  const canSort = sortableSet.has(header.column.id)
+                  const sorted = header.column.getIsSorted()
+                  return (
+                    <TableHead
+                      key={header.id}
+                      style={equalColStyle}
+                      className={cn(
+                        "bg-surface-2 text-caption font-semibold tracking-wide text-fg-muted uppercase",
+                        equalColumnWidths && "whitespace-normal"
+                      )}
+                    >
+                      {header.isPlaceholder ? null : canSort ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 text-left font-medium outline-none focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+                          onClick={() => handleHeaderSort(header.column.id)}
+                          data-testid={`${testIdPrefix}-sort-${header.column.id}`}
+                        >
+                          {flexRender(
                             header.column.columnDef.header,
                             header.getContext()
-                          )
-                        )}
-                      </TableHead>
-                    )
-                  })}
-                  {rowActions ? (
-                    <TableHead className="w-12">
-                      <span className="sr-only">Actions</span>
+                          )}
+                          {sorted === "asc" ? (
+                            <ArrowUp className="size-3.5" aria-hidden />
+                          ) : sorted === "desc" ? (
+                            <ArrowDown className="size-3.5" aria-hidden />
+                          ) : (
+                            <ArrowUpDown
+                              className="size-3.5 text-fg-muted"
+                              aria-hidden
+                            />
+                          )}
+                        </button>
+                      ) : (
+                        flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )
+                      )}
                     </TableHead>
-                  ) : null}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: Math.min(pageSize, 8) }).map(
-                    (_, index) => (
-                      <TableRow key={`skeleton-${index}`} aria-hidden>
-                        {columns.map((_, cellIndex) => (
-                          <TableCell key={cellIndex}>
-                            <div className="h-4 animate-pulse rounded bg-surface-2" />
-                          </TableCell>
-                        ))}
-                        {rowActions ? (
-                          <TableCell>
-                            <div className="h-4 w-6 animate-pulse rounded bg-surface-2" />
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    )
                   )
-                : table.getRowModel().rows.map((row) => {
-                    const actions = rowActions?.(row.original) ?? []
+                })}
+                {rowActions ? (
+                  <TableHead className="w-12 bg-surface-2">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                ) : null}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: Math.min(pageSize, 8) }).map((_, index) => (
+                <TableRow key={`skeleton-${index}`} aria-hidden>
+                  {Array.from({ length: visibleColumnCount }).map(
+                    (_, cellIndex) => (
+                      <TableCell key={cellIndex} style={equalColStyle}>
+                        <div className="h-4 animate-pulse rounded bg-surface-2" />
+                      </TableCell>
+                    )
+                  )}
+                </TableRow>
+              ))
+            ) : showEmpty ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell
+                  colSpan={Math.max(visibleColumnCount, 1)}
+                  className="p-0"
+                >
+                  {emptyState ?? (
+                    <p
+                      className="px-4 py-10 text-center text-body text-fg-muted"
+                      data-testid={`${testIdPrefix}-empty`}
+                    >
+                      No rows
+                    </p>
+                  )}
+                </TableCell>
+              </TableRow>
+            ) : (
+              <AnimatePresence mode="popLayout" initial={false}>
+                {table.getRowModel().rows.map((row) => {
+                  const actions = rowActions?.(row.original) ?? []
+                  const cells = row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} style={equalColStyle}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))
+                  const actionCell = rowActions ? (
+                    <TableCell data-row-menu>
+                      {actions.length > 0 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Row actions"
+                                data-testid={`${testIdPrefix}-row-menu`}
+                              />
+                            }
+                          >
+                            <MoreHorizontal strokeWidth={1.75} />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {actions.map((action) => (
+                              <DropdownMenuItem
+                                key={action.id}
+                                variant={
+                                  action.destructive ? "destructive" : "default"
+                                }
+                                onClick={() => {
+                                  if (action.confirm) {
+                                    setPendingAction({
+                                      row: row.original,
+                                      action,
+                                    })
+                                    return
+                                  }
+                                  action.onSelect(row.original)
+                                }}
+                              >
+                                {action.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </TableCell>
+                  ) : null
+
+                  if (animateRows) {
                     return (
-                      <TableRow
+                      <motion.tr
                         key={row.id}
-                        className={cn(onRowClick && "cursor-pointer")}
-                        onClick={(event) => handleRowClick(row.original, event)}
+                        layout="position"
+                        initial={rowMotion.initial}
+                        animate={rowMotion.animate}
+                        exit={rowMotion.exit}
+                        transition={rowMotion.transition}
+                        className={cn(
+                          "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+                          onRowClick && "cursor-pointer"
+                        )}
+                        onClick={(event) => {
+                          handleRowClick(
+                            row.original,
+                            event as MouseEvent<HTMLTableRowElement>
+                          )
+                        }}
                         data-testid={`${testIdPrefix}-row`}
                       >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ))}
-                        {rowActions ? (
-                          <TableCell data-row-menu>
-                            {actions.length > 0 ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  render={
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      aria-label="Row actions"
-                                      data-testid={`${testIdPrefix}-row-menu`}
-                                    />
-                                  }
-                                >
-                                  <MoreHorizontal strokeWidth={1.75} />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {actions.map((action) => (
-                                    <DropdownMenuItem
-                                      key={action.id}
-                                      variant={
-                                        action.destructive
-                                          ? "destructive"
-                                          : "default"
-                                      }
-                                      onClick={() => {
-                                        if (action.confirm) {
-                                          setPendingAction({
-                                            row: row.original,
-                                            action,
-                                          })
-                                          return
-                                        }
-                                        action.onSelect(row.original)
-                                      }}
-                                    >
-                                      {action.label}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            ) : null}
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
+                        {cells}
+                        {actionCell}
+                      </motion.tr>
                     )
-                  })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                  }
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-fg-muted">
-          <label htmlFor={`${testIdPrefix}-page-size`} className="sr-only">
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className={cn(onRowClick && "cursor-pointer")}
+                      onClick={(event) => handleRowClick(row.original, event)}
+                      data-testid={`${testIdPrefix}-row`}
+                    >
+                      {cells}
+                      {actionCell}
+                    </TableRow>
+                  )
+                })}
+              </AnimatePresence>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pt-1">
+        <div className="flex items-center gap-2.5">
+          <label
+            htmlFor={`${testIdPrefix}-page-size`}
+            className="text-[13px] leading-none font-medium tracking-tight text-fg-muted"
+          >
             Rows per page
           </label>
           <Select
@@ -424,36 +502,42 @@ export function DataTable<TData>({
           >
             <SelectTrigger
               id={`${testIdPrefix}-page-size`}
-              size="sm"
               data-testid={`${testIdPrefix}-page-size`}
+              className="h-auto min-w-16 gap-1.5 rounded-full border-border bg-surface py-1.5 pr-2 pl-3.5 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 data-[size=default]:h-auto data-[size=sm]:h-auto [&_svg:not([class*='size-'])]:size-3.5"
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              align="start"
+              className="min-w-28 rounded-xl p-1 shadow-md"
+            >
               {DATA_TABLE_PAGE_SIZES.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size} / page
+                <SelectItem
+                  key={size}
+                  value={String(size)}
+                  className="rounded-lg py-2 pr-8 pl-3 text-[13px] font-medium tracking-tight"
+                >
+                  {size}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Button
             type="button"
             variant="outline"
-            size="sm"
             disabled={!canPreviousPage || isLoading}
             onClick={onPreviousPage}
             data-testid={`${testIdPrefix}-prev`}
+            className="h-auto rounded-full border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
           >
             Previous
           </Button>
           <Button
             type="button"
             variant="outline"
-            size="sm"
             disabled={!nextCursor || isLoading}
             onClick={() => {
               if (nextCursor) {
@@ -461,6 +545,7 @@ export function DataTable<TData>({
               }
             }}
             data-testid={`${testIdPrefix}-next`}
+            className="h-auto rounded-full border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
           >
             Next
           </Button>

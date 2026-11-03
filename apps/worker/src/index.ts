@@ -1,6 +1,15 @@
 import { getDb } from "@workspace/db/client"
 import { createMailTransport } from "@workspace/emails"
 import {
+  WORKER_SERVICE,
+  createLogger,
+  getContextLogger,
+  readJobCorrelation,
+  resolveRequestId,
+  runWithRequestContext,
+  setFallbackLogger,
+} from "@workspace/logger"
+import {
   claimQueuedMessage,
   loadQueuedSend,
   loadServerEnv,
@@ -13,11 +22,108 @@ import {
   skipQueuedMessageIfBlocked,
   type SendEmailJobData,
 } from "@workspace/shared"
-import { Queue, Worker } from "bullmq"
+import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
-import { BULLMQ_PREFIX, QUEUE_NAMES } from "./queues.js"
+import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
+
+const logger = createLogger({ service: WORKER_SERVICE })
+setFallbackLogger(logger)
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+async function correlationIdFor(job: Job): Promise<string> {
+  const existing = readJobCorrelation(job.data).requestId
+  if (existing) {
+    return existing
+  }
+
+  const requestId = resolveRequestId(undefined)
+  if (isPlainRecord(job.data)) {
+    try {
+      await job.updateData({ ...job.data, request_id: requestId })
+    } catch (error) {
+      logger.warn(
+        {
+          event: "job.request_id_persist_failed",
+          job_id: job.id,
+          err: error,
+        },
+        "Could not persist request_id"
+      )
+    }
+  }
+  return requestId
+}
+
+async function withJobLogs(
+  queueName: QueueName,
+  job: Job,
+  run: () => Promise<void>
+): Promise<void> {
+  const correlation = readJobCorrelation(job.data)
+  const requestId = await correlationIdFor(job)
+  const started = Date.now()
+  const attempt = job.attemptsMade + 1
+  const jobLogger = logger.child({
+    request_id: requestId,
+    ...(job.id ? { job_id: job.id } : {}),
+    ...(correlation.messageId ? { message_id: correlation.messageId } : {}),
+    ...(correlation.workspaceId
+      ? { workspace_id: correlation.workspaceId }
+      : {}),
+  })
+
+  await runWithRequestContext(
+    requestId,
+    async () => {
+      const scoped = getContextLogger()
+
+      if (job.attemptsMade > 0) {
+        scoped.warn(
+          { event: "job.retry", queue: queueName, attempt },
+          "Job retry"
+        )
+      }
+
+      scoped.info(
+        { event: "job.started", queue: queueName, attempt },
+        "Job started"
+      )
+
+      try {
+        await run()
+        scoped.info(
+          {
+            event: "job.completed",
+            queue: queueName,
+            duration_ms: Date.now() - started,
+          },
+          "Job completed"
+        )
+      } catch (error) {
+        scoped.error(
+          {
+            event: "job.failed",
+            queue: queueName,
+            duration_ms: Date.now() - started,
+            err: error,
+          },
+          "Job failed"
+        )
+        throw error
+      }
+    },
+    jobLogger
+  )
+}
+
+async function processJob(queueName: QueueName, job: Job): Promise<void> {
+  await withJobLogs(queueName, job, async () => undefined)
+}
 
 async function main(): Promise<void> {
   const env = loadServerEnv("worker")
@@ -41,7 +147,7 @@ async function main(): Promise<void> {
     (name) => name !== SEND_EMAIL_QUEUE_NAME
   ).map(
     (name) =>
-      new Worker(name, async () => undefined, {
+      new Worker(name, (job) => processJob(name, job), {
         connection,
         prefix: BULLMQ_PREFIX,
       })
@@ -50,28 +156,29 @@ async function main(): Promise<void> {
   workers.push(
     new Worker<SendEmailJobData>(
       SEND_EMAIL_QUEUE_NAME,
-      async (job) => {
-        await runSendEmailExclusive(db, job.data.message_id, async (tx) => {
-          await processSendEmailJob(job.data, {
-            load: (messageId) => loadQueuedSend(tx, messageId),
-            skipIfSendChecksFail: (context) =>
-              skipQueuedMessageIfBlocked(tx, context),
-            markSent: (messageId, sesMessageId, sentAt) =>
-              markMessageSent(tx, messageId, sesMessageId, sentAt),
-            markFailed: (messageId, failureReason) =>
-              markMessageFailed(tx, messageId, failureReason),
-            claim: (messageId) => claimQueuedMessage(db, messageId),
-            releaseClaim: (messageId) => releaseQueuedClaim(db, messageId),
-            transport,
-            compliance: {
-              origin: env.BETTER_AUTH_URL,
-              secret: env.UNSUBSCRIBE_TOKEN_SECRET,
-            },
-            pauseQueue: () => sendEmailQueue.pause(),
-            openAccountPausedAlert: () => openSesAccountPausedAlert(tx),
+      (job) =>
+        withJobLogs(SEND_EMAIL_QUEUE_NAME, job, async () => {
+          await runSendEmailExclusive(db, job.data.message_id, async (tx) => {
+            await processSendEmailJob(job.data, {
+              load: (messageId) => loadQueuedSend(tx, messageId),
+              skipIfSendChecksFail: (context) =>
+                skipQueuedMessageIfBlocked(tx, context),
+              markSent: (messageId, sesMessageId, sentAt) =>
+                markMessageSent(tx, messageId, sesMessageId, sentAt),
+              markFailed: (messageId, failureReason) =>
+                markMessageFailed(tx, messageId, failureReason),
+              claim: (messageId) => claimQueuedMessage(db, messageId),
+              releaseClaim: (messageId) => releaseQueuedClaim(db, messageId),
+              transport,
+              compliance: {
+                origin: env.BETTER_AUTH_URL,
+                secret: env.UNSUBSCRIBE_TOKEN_SECRET,
+              },
+              pauseQueue: () => sendEmailQueue.pause(),
+              openAccountPausedAlert: () => openSesAccountPausedAlert(tx),
+            })
           })
-        })
-      },
+        }),
       {
         connection,
         prefix: BULLMQ_PREFIX,
@@ -84,8 +191,15 @@ async function main(): Promise<void> {
   const limiterLabel = sendOptions.limiter
     ? `${String(sendOptions.limiter.max)}/s`
     : "off"
-  process.stdout.write(
-    `worker ready (prefix=${BULLMQ_PREFIX}, queues=${QUEUE_NAMES.join(",")}, send-email concurrency=${String(sendOptions.concurrency)}, limiter=${limiterLabel})${String.fromCharCode(10)}`
+  logger.info(
+    {
+      event: "worker.ready",
+      queues: QUEUE_NAMES,
+      prefix: BULLMQ_PREFIX,
+      send_email_concurrency: sendOptions.concurrency,
+      send_email_limiter: limiterLabel,
+    },
+    "Worker ready"
   )
 
   let shuttingDown = false
@@ -94,8 +208,9 @@ async function main(): Promise<void> {
       return
     }
     shuttingDown = true
-    process.stdout.write(
-      `worker shutting down (${signal})${String.fromCharCode(10)}`
+    logger.info(
+      { event: "worker.shutting_down", signal },
+      "Worker shutting down"
     )
     await Promise.all(workers.map((worker) => worker.close()))
     await sendEmailQueue.close()
@@ -113,8 +228,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const message =
-    error instanceof Error ? (error.stack ?? error.message) : String(error)
-  process.stderr.write(`${message}${String.fromCharCode(10)}`)
+  logger.fatal(
+    { event: "worker.boot_failed", err: error },
+    "Worker failed to start"
+  )
   process.exit(1)
 })

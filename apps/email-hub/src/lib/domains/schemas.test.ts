@@ -31,6 +31,27 @@ describe("domain schemas", () => {
     expect(createDomainBodySchema.safeParse({}).success).toBe(false)
   })
 
+  it("accepts an optional MAIL FROM subdomain label", () => {
+    expect(
+      createDomainBodySchema.parse({
+        name: "mail.example.com",
+        mail_from_subdomain: " Bounce ",
+      }).mail_from_subdomain
+    ).toBe("bounce")
+    expect(
+      createDomainBodySchema.safeParse({
+        name: "mail.example.com",
+        mail_from_subdomain: "a.b",
+      }).success
+    ).toBe(false)
+    expect(
+      createDomainBodySchema.safeParse({
+        name: "mail.example.com",
+        mail_from_subdomain: "-bad",
+      }).success
+    ).toBe(false)
+  })
+
   it("requires status for patch", () => {
     expect(
       updateDomainBodySchema.safeParse({ status: "inactive" }).success

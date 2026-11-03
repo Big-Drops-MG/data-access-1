@@ -11,7 +11,7 @@ export function domainStatusToBadge(
     case "verified":
       return "active"
     case "failed":
-      return "failed"
+      return "degraded"
     case "inactive":
       return "disabled"
     default:
