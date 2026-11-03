@@ -11,7 +11,7 @@ import type { Database, DatabaseTransaction } from "@workspace/db/client"
 import { and, eq, inArray, sql } from "drizzle-orm"
 
 import { runSendChecks, type SendCheckSkipReason } from "./send-checks.js"
-import type { TriggerEmailType } from "./trigger-email.js"
+import type { MergeData, TriggerEmailType } from "./trigger-email.js"
 
 export const SES_ACCOUNT_PAUSED_ALERT_TYPE = "ses_account_paused"
 export const SES_ACCOUNT_PAUSED_DEDUPE_KEY = "ses_account_paused"
@@ -32,6 +32,9 @@ export type QueuedSendContext = {
   fromName: string
   fromEmail: string
   replyTo: string | null
+  mergeData?: MergeData
+  unsubscribeUrl?: string
+  postalAddress?: string
 }
 
 export type LoadQueuedSendResult =
@@ -87,6 +90,7 @@ export async function loadQueuedSend(
       fromName: sender.fromName,
       fromEmail: sender.fromEmail,
       replyTo: sender.replyTo,
+      postalAddress: sender.postalAddress,
     })
     .from(sender)
     .where(eq(sender.id, senderId))
@@ -114,9 +118,36 @@ export async function loadQueuedSend(
     fromName: from.fromName,
     fromEmail: from.fromEmail,
     replyTo: from.replyTo,
+    mergeData: readMergeData(row.mergeData),
+    postalAddress: readPostalAddress(from.postalAddress),
   }
 
   return { state: "queued", context }
+}
+
+function readMergeData(value: unknown): MergeData {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {}
+  }
+  const data: MergeData = {}
+  for (const [key, entry] of Object.entries(value)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      continue
+    }
+    if (
+      typeof entry === "string" ||
+      typeof entry === "number" ||
+      typeof entry === "boolean"
+    ) {
+      data[key] = entry
+    }
+  }
+  return data
+}
+
+function readPostalAddress(value: string | null): string | undefined {
+  const trimmed = value?.trim() ?? ""
+  return trimmed === "" ? undefined : trimmed
 }
 
 export async function skipQueuedMessageIfBlocked(

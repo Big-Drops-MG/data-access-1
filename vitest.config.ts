@@ -7,6 +7,9 @@ import { defineConfig } from "vitest/config"
  */
 export default defineConfig({
   test: {
+    // The render worker's 5s deadline includes process startup. Running the
+    // emails and worker projects at the same time makes that startup exceed 5s.
+    maxWorkers: 1,
     projects: ["packages/*/vitest.config.ts", "apps/*/vitest.config.ts"],
     coverage: {
       provider: "v8",

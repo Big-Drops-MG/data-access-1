@@ -12,6 +12,7 @@ node_modules
 
 # testing
 coverage
+tmp/t054-evidence/
 
 # next.js
 .next/

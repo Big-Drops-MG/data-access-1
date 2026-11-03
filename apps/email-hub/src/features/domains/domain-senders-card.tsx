@@ -141,7 +141,7 @@ export function DomainSendersCard({
                   return (
                     <li key={sender.id}>
                       <Link
-                        href="/senders"
+                        href={`/senders/${encodeURIComponent(sender.id)}`}
                         className="group flex h-12 items-center gap-3 rounded-lg px-2 transition-colors hover:bg-surface-2"
                         data-testid={`domains-sender-${sender.id}`}
                       >

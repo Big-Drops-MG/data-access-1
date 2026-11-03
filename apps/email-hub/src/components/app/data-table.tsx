@@ -195,11 +195,17 @@ export function DataTable<TData>({
 
   const hasRows = data.length > 0
   const showEmpty = !isLoading && !hasRows
-  const visibleColumnCount =
-    table.getVisibleLeafColumns().length + (rowActions ? 1 : 0)
+  const dataColumnCount = table.getVisibleLeafColumns().length
+  const visibleColumnCount = dataColumnCount + (rowActions ? 1 : 0)
+  // Equal widths apply to data columns only; actions stay a fixed narrow rail.
   const equalColStyle = equalColumnWidths
-    ? { width: `${100 / Math.max(visibleColumnCount, 1)}%` }
+    ? {
+        width: rowActions
+          ? `calc((100% - 3.5rem) / ${Math.max(dataColumnCount, 1)})`
+          : `${100 / Math.max(dataColumnCount, 1)}%`,
+      }
     : undefined
+  const actionsColStyle = rowActions ? { width: "3.5rem" } : undefined
   const rowMotion = {
     initial: { opacity: 0 },
     animate: { opacity: 1 },
@@ -347,7 +353,10 @@ export function DataTable<TData>({
                   )
                 })}
                 {rowActions ? (
-                  <TableHead className="w-12 bg-surface-2">
+                  <TableHead
+                    style={actionsColStyle}
+                    className="w-14 bg-surface-2 px-2 text-right"
+                  >
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 ) : null}
@@ -358,13 +367,18 @@ export function DataTable<TData>({
             {isLoading ? (
               Array.from({ length: Math.min(pageSize, 8) }).map((_, index) => (
                 <TableRow key={`skeleton-${index}`} aria-hidden>
-                  {Array.from({ length: visibleColumnCount }).map(
+                  {Array.from({ length: dataColumnCount }).map(
                     (_, cellIndex) => (
                       <TableCell key={cellIndex} style={equalColStyle}>
                         <div className="h-4 animate-pulse rounded bg-surface-2" />
                       </TableCell>
                     )
                   )}
+                  {rowActions ? (
+                    <TableCell style={actionsColStyle} className="w-14 px-2">
+                      <div className="ml-auto size-8 animate-pulse rounded-md bg-surface-2" />
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))
             ) : showEmpty ? (
@@ -396,29 +410,49 @@ export function DataTable<TData>({
                     </TableCell>
                   ))
                   const actionCell = rowActions ? (
-                    <TableCell data-row-menu>
+                    <TableCell
+                      data-row-menu
+                      style={actionsColStyle}
+                      className="w-14 px-2 text-right"
+                    >
                       {actions.length > 0 ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={
                               <Button
                                 type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Row actions"
+                                variant="outline"
+                                size="icon"
+                                className="size-8 border-border bg-surface text-fg-muted shadow-sm hover:bg-surface-2 hover:text-fg"
+                                aria-label="Open row actions"
+                                title="Actions"
                                 data-testid={`${testIdPrefix}-row-menu`}
                               />
                             }
                           >
-                            <MoreHorizontal strokeWidth={1.75} />
+                            <MoreHorizontal
+                              className="size-4"
+                              strokeWidth={2}
+                              aria-hidden
+                            />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent
+                            align="end"
+                            side="bottom"
+                            sideOffset={8}
+                            className="w-44 border border-border bg-surface shadow-lg"
+                          >
                             {actions.map((action) => (
                               <DropdownMenuItem
                                 key={action.id}
                                 variant={
                                   action.destructive ? "destructive" : "default"
                                 }
+                                className={cn(
+                                  "cursor-pointer",
+                                  !action.destructive &&
+                                    "focus:bg-surface-2 focus:text-fg"
+                                )}
                                 onClick={() => {
                                   if (action.confirm) {
                                     setPendingAction({

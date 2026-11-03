@@ -1,14 +1,13 @@
 import { getContextLogger } from "@workspace/logger"
 import { AppError } from "@workspace/shared"
-import { NextResponse } from "next/server"
 
+import { handler } from "@/lib/handler"
 import { handleSesWebhook, SesWebhookError } from "@/lib/ses-webhook"
-import { withApiRequest } from "@/lib/with-api-request"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-async function handlePost(request: Request): Promise<NextResponse> {
+async function handlePost(request: Request): Promise<Response> {
   try {
     await handleSesWebhook({
       contentType: request.headers.get("content-type"),
@@ -18,7 +17,7 @@ async function handlePost(request: Request): Promise<NextResponse> {
       { event: "ses.webhook.processed" },
       "SES webhook processed"
     )
-    return NextResponse.json({ ok: true })
+    return Response.json({ ok: true })
   } catch (error) {
     if (error instanceof SesWebhookError) {
       getContextLogger().warn(
@@ -29,26 +28,24 @@ async function handlePost(request: Request): Promise<NextResponse> {
         },
         "SES webhook rejected"
       )
-      const appError =
-        error.kind === "unauthorized"
-          ? AppError.unauthorized([{ path: error.detail, message: "rejected" }])
-          : AppError.unavailable([
-              { path: error.detail, message: "unreachable" },
-            ])
-      return NextResponse.json(appError.toJSON(), { status: appError.status })
+      if (error.kind === "unauthorized") {
+        throw AppError.unauthorized([
+          { path: error.detail, message: "rejected" },
+        ])
+      }
+      throw AppError.unavailable([
+        { path: error.detail, message: "unreachable" },
+      ])
     }
 
     getContextLogger().error(
       { event: "ses.webhook.failed", err: error },
       "SES webhook failed"
     )
-    const unavailable = AppError.unavailable([
+    throw AppError.unavailable([
       { path: "ses-webhook", message: "unreachable" },
     ])
-    return NextResponse.json(unavailable.toJSON(), {
-      status: unavailable.status,
-    })
   }
 }
 
-export const POST = withApiRequest(handlePost)
+export const POST = handler(handlePost)

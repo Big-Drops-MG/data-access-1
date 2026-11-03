@@ -71,17 +71,15 @@ export function dnsValueMatches(
 /**
  * Compare DNS answers with what SES asked for.
  * A missing record is still propagating until the SES window has elapsed.
+ * Resolver failures also stamp a status so Check now always updates
+ * `last_checked_at` instead of silently leaving rows untouched.
  */
 export function evaluateDnsRecord(
   record: Pick<DnsRecord, "purpose" | "recordType" | "expectedValue">,
   lookup: DnsLookupResult,
   context: { domainCreatedAt: Date; now: Date }
 ): DnsEvaluation {
-  if (lookup.kind === "error") {
-    return { status: "unchanged", lastSeenValue: null }
-  }
-
-  if (lookup.kind === "not_found") {
+  if (lookup.kind === "error" || lookup.kind === "not_found") {
     const age = context.now.getTime() - context.domainCreatedAt.getTime()
     return {
       status: age < DNS_PROPAGATION_WINDOW_MS ? "pending_propagation" : "fail",
