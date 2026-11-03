@@ -123,6 +123,24 @@ describe("authenticateMachineRequest", () => {
     } satisfies Partial<AppError>)
   })
 
+  it("returns 401 when the API client is expired", async () => {
+    const now = new Date("2026-11-03T12:00:00.000Z")
+    const { request, body } = signedRequest({ timestamp: now.getTime() / 1000 })
+    await expect(
+      authenticateMachineRequest(request, body, {
+        requiredScope: "emails:send",
+        resolveClient: async () =>
+          activeClient({ expiresAt: new Date("2026-11-03T11:00:00.000Z") }),
+        consumeRateLimit: async () => "ok",
+        now: () => now,
+      })
+    ).rejects.toMatchObject({
+      code: "unauthorized",
+      status: 401,
+      details: [{ path: "x-key-id", message: "API client expired" }],
+    } satisfies Partial<AppError>)
+  })
+
   it("returns 429 when the key is rate limited", async () => {
     const { request, body } = signedRequest({})
     await expect(

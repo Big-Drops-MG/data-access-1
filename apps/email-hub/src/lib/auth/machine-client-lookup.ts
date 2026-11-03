@@ -25,6 +25,7 @@ export async function resolveMachineClientFromDb(
       secretEncrypted: apiClient.secretEncrypted,
       oldSecretEncrypted: apiClient.oldSecretEncrypted,
       rotatedAt: apiClient.rotatedAt,
+      expiresAt: apiClient.expiresAt,
     })
     .from(apiClient)
     .where(eq(apiClient.id, keyId))
@@ -65,6 +66,7 @@ export async function resolveMachineClientFromDb(
     secret,
     oldSecret,
     rotatedAt: row.rotatedAt,
+    expiresAt: row.expiresAt,
   }
 }
 

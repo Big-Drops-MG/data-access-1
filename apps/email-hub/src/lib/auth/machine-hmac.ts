@@ -29,6 +29,8 @@ export type MachineClientAuthRecord = {
   /** Previous secret during rotation overlap. */
   oldSecret: string | null
   rotatedAt: Date | null
+  /** Null or omitted means the key does not expire. */
+  expiresAt?: Date | null
 }
 
 export type MachineRateLimitResult = "ok" | "limited" | "unavailable"
@@ -177,6 +179,12 @@ export async function authenticateMachineRequest(
   if (!client || client.status !== "active") {
     throw AppError.unauthorized([
       { path: "x-key-id", message: "Unknown or disabled API client" },
+    ])
+  }
+
+  if (client.expiresAt && client.expiresAt.getTime() <= now.getTime()) {
+    throw AppError.unauthorized([
+      { path: "x-key-id", message: "API client expired" },
     ])
   }
 
