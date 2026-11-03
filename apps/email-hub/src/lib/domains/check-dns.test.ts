@@ -109,14 +109,21 @@ describe("evaluateDnsRecord", () => {
     ).toBe("fail")
   })
 
-  it("leaves the record unchanged on resolver errors", () => {
+  it("treats resolver errors like missing records so last_checked updates", () => {
     expect(
       evaluateDnsRecord(
         spf,
         { kind: "error", message: "timeout" },
         { domainCreatedAt: fresh, now }
       ).status
-    ).toBe("unchanged")
+    ).toBe("pending_propagation")
+    expect(
+      evaluateDnsRecord(
+        spf,
+        { kind: "error", message: "timeout" },
+        { domainCreatedAt: old, now }
+      ).status
+    ).toBe("fail")
   })
 })
 

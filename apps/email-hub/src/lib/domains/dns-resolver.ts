@@ -4,6 +4,13 @@ import type { DnsLookup, DnsLookupResult } from "./check-dns"
 
 const NOT_FOUND_CODES = new Set(["ENOTFOUND", "ENODATA"])
 
+/**
+ * Public recursive resolvers. System resolvers often refuse queries in Docker,
+ * WSL, or broken local DNS setups (ECONNREFUSED), which previously left every
+ * Check now as a silent no-op.
+ */
+export const PUBLIC_DNS_SERVERS = ["1.1.1.1", "1.0.0.1", "8.8.8.8"] as const
+
 function toResult(error: unknown): DnsLookupResult {
   const code =
     typeof error === "object" && error !== null && "code" in error
@@ -18,8 +25,11 @@ function toResult(error: unknown): DnsLookupResult {
   }
 }
 
-export function createDnsLookup(): DnsLookup {
-  const resolver = new Resolver({ timeout: 4000, tries: 2 })
+export function createDnsLookup(
+  servers: readonly string[] = PUBLIC_DNS_SERVERS
+): DnsLookup {
+  const resolver = new Resolver({ timeout: 5000, tries: 2 })
+  resolver.setServers([...servers])
 
   return async ({ name, recordType }) => {
     try {

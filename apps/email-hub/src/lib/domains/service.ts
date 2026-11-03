@@ -463,8 +463,8 @@ export async function createDomain(
 }
 
 /**
- * Resolve every expected DNS record, persist the outcome, and move the domain
- * status and verification step to match. Resolver errors leave a record as is.
+ * Resolve every expected DNS record (via public DNS), persist the outcome, and
+ * move the domain status and verification step to match.
  */
 export async function checkDomainDns(
   ref: string,
