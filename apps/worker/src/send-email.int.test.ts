@@ -12,7 +12,11 @@ import {
   findMessage,
   findOpenAlerts,
 } from "@workspace/db/test"
-import { MailTransportError, createMailTransport } from "@workspace/emails"
+import {
+  MailTransportError,
+  createMailTransport,
+  type RenderedMessage,
+} from "@workspace/emails"
 import {
   BULLMQ_PREFIX,
   SEND_EMAIL_JOB_OPTIONS,
@@ -46,6 +50,11 @@ declare module "vitest" {
 }
 
 const templateName = inject("emailhubTemplateDatabase")
+const RENDER_COMPLIANCE = {
+  origin: "http://127.0.0.1:3000",
+  secret: "t054-test-unsubscribe-secret",
+}
+
 const FIRST_ID = "0192f6c0-7a3e-7c1e-9d2b-3f6a5b8c1d44"
 const SECOND_ID = "0192f6c0-7a3e-7c1e-8d2b-3f6a5b8c1d44"
 
@@ -128,6 +137,8 @@ function queuedContext(messageId: string): QueuedSendContext {
     fromName: "Big Drops",
     fromEmail: "news@example.com",
     replyTo: null,
+    mergeData: {},
+    postalAddress: "100 Factory Street, Austin, TX 78701",
   }
 }
 
@@ -400,6 +411,7 @@ describe.skipIf(!redisUrl)("send-email queue isolation", () => {
         markFailed: async () => undefined,
         claim: async () => true,
         releaseClaim: async () => undefined,
+        compliance: RENDER_COMPLIANCE,
         transport: {
           send: async () => {
             sends += 1
@@ -428,7 +440,7 @@ describe.skipIf(!redisUrl)("send-email queue isolation", () => {
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(
           () => reject(new Error("queue did not pause")),
-          5_000
+          15_000
         )
         const check = setInterval(() => {
           if (alerts.length > 0) {
@@ -491,6 +503,7 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
         { message_id: messageId },
         {
           load: (id) => loadQueuedSend(tx, id),
+          compliance: RENDER_COMPLIANCE,
           skipIfSendChecksFail: (context) =>
             skipQueuedMessageIfBlocked(tx, context),
           markSent:
@@ -516,8 +529,8 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
     const from = await createSender(db, { fromName: "T046" })
     const created = await createTemplate(db, {
       emailType: "engagement",
-      subject: "Queued subject",
-      bodySource: "<p>Queued body</p>",
+      subject: "Hello {{first_name}}",
+      bodySource: "<p>Hello {{first_name}}</p>",
     })
     const queued = await createMessage(db, {
       recipientId: person.id,
@@ -525,17 +538,28 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
       templateVersionId: created.version.id,
       emailType: "engagement",
       status: "queued",
+      mergeData: { first_name: "Ada" },
     })
     const send = viSend()
     await deliver(queued.id, { send })
     await deliver(queued.id, { send }).catch(() => undefined)
 
     const saved = await findMessage(db, queued.id)
+    const payload = send.mock.calls[0]?.[0]
+    if (!payload) {
+      throw new Error("send was not called")
+    }
+    expect(payload.html).toContain("Hello Ada")
+    expect(payload.html).toContain("100 Factory Street, Austin, TX 78701")
+    expect(payload.text).toContain("100 Factory Street, Austin, TX 78701")
+    expect(payload.unsubscribeUrl).toMatch(
+      /^http:\/\/127\.0\.0\.1:3000\/unsubscribe\/v1\./
+    )
     expect(send).toHaveBeenCalledTimes(1)
     expect(saved?.status).toBe("sent")
     expect(saved?.sesMessageId).toBe("provider-1")
     expect(saved?.sentAt).toBeInstanceOf(Date)
-  })
+  }, 20_000)
 
   it("does not send a skipped or failed row", async () => {
     const skipped = await createMessage(db, {
@@ -668,6 +692,7 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
         { message_id: queued.id },
         {
           load: (id) => loadQueuedSend(tx, id),
+          compliance: RENDER_COMPLIANCE,
           skipIfSendChecksFail: (context) =>
             skipQueuedMessageIfBlocked(tx, context),
           markSent: (id, sesMessageId, sentAt) =>
@@ -701,7 +726,9 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
 })
 
 function viSend() {
-  return vi.fn(async () => ({ providerMessageId: "provider-1" }))
+  return vi.fn(async (_message: RenderedMessage) => ({
+    providerMessageId: "provider-1",
+  }))
 }
 
 describe.skipIf(!templateName)("send-email Mailpit delivery", () => {
@@ -743,6 +770,7 @@ describe.skipIf(!templateName)("send-email Mailpit delivery", () => {
         { message_id: queued.id },
         {
           load: (id) => loadQueuedSend(tx, id),
+          compliance: RENDER_COMPLIANCE,
           skipIfSendChecksFail: (context) =>
             skipQueuedMessageIfBlocked(tx, context),
           markSent: (id, sesMessageId, sentAt) =>

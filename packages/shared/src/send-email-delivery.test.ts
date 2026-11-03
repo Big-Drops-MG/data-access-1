@@ -47,6 +47,7 @@ const queuedMessage = {
   recipientId: recipient.id,
   offerId: null,
   emailType: "engagement",
+  mergeData: { first_name: "Ada" },
 } as Message
 
 type Step = { value?: unknown; error?: unknown }
@@ -162,6 +163,7 @@ describe("loadQueuedSend", () => {
             fromName: "Hub",
             fromEmail: "news@example.com",
             replyTo: "reply@example.com",
+            postalAddress: "  100 Factory Street, Austin, TX 78701  ",
           },
         ],
       },
@@ -174,6 +176,8 @@ describe("loadQueuedSend", () => {
           subject: "Hello",
           fromEmail: "news@example.com",
           replyTo: "reply@example.com",
+          mergeData: { first_name: "Ada" },
+          postalAddress: "100 Factory Street, Austin, TX 78701",
         },
       }
     )

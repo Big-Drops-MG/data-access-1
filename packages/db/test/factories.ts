@@ -41,6 +41,7 @@ export type CreateSenderInput = {
   domainId?: string
   fromName?: string
   fromEmail?: string
+  postalAddress?: string | null
   status?: Sender["status"]
   createdBy?: string | null
 }
@@ -78,6 +79,7 @@ export type CreateMessageInput = {
   skipReason?: Message["skipReason"]
   idempotencyKey?: string
   offerId?: string | null
+  mergeData?: Message["mergeData"]
 }
 
 export async function createUser(
@@ -133,6 +135,10 @@ export async function createSender(
       fromEmail:
         input.fromEmail ??
         `noreply-${token()}@${createdDomain?.name ?? "factory.example.com"}`,
+      postalAddress:
+        input.postalAddress === undefined
+          ? "100 Factory Street, Austin, TX 78701"
+          : input.postalAddress,
       status: input.status ?? "active",
       createdBy: input.createdBy,
     })
@@ -243,6 +249,7 @@ export async function createMessage(
       templateVersionId,
       emailType: emailType ?? "thank_you",
       idempotencyKey: input.idempotencyKey ?? `factory-${token()}`,
+      mergeData: input.mergeData ?? {},
       status,
       skipReason:
         status === "skipped" ? (input.skipReason ?? "frequency_cap") : null,

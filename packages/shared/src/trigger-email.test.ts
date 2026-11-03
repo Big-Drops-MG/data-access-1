@@ -58,6 +58,7 @@ const messageRow = {
   skipReason: null,
   failureReason: null,
   sesMessageId: null,
+  mergeData: {},
   queuedAt: new Date(),
   sentAt: null,
   createdAt: new Date(),
@@ -630,6 +631,10 @@ describe("triggerEmail", () => {
         senderId: senderRow.id,
         idempotencyKey: "key-new",
         status: "queued",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
       })
     )
     expect(enqueueSendEmail).toHaveBeenCalledWith(created.id)
