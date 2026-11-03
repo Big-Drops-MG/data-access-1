@@ -8,7 +8,7 @@ import {
   formatEtDateTime,
   formatEtTime,
   resolveEtWallTime,
-} from "@workspace/shared"
+} from "@workspace/shared/client"
 import {
   AlertDialog,
   AlertDialogAction,

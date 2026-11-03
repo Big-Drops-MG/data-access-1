@@ -4,6 +4,7 @@ import { jsonAppError, toErrorResponse } from "@/lib/api-response"
 import { domainRefSchema } from "@/lib/domains/schemas"
 import { checkDomainDns } from "@/lib/domains/service"
 import { requireDomainsStaffAccess } from "@/lib/domains/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseOrThrow } from "@/lib/zod-parse"
 
 type RouteContext = {
@@ -11,7 +12,10 @@ type RouteContext = {
 }
 
 /** POST /api/domains/{id|fqdn}/check — re-resolve DNS and refresh status (Admin). */
-export async function POST(request: Request, context: RouteContext) {
+async function handlePost(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     const session = await requireDomainsStaffAccess(request, "POST")
     const { id: rawRef } = await context.params
@@ -30,3 +34,5 @@ export async function POST(request: Request, context: RouteContext) {
     return toErrorResponse(error)
   }
 }
+
+export const POST = withApiRequest(handlePost)

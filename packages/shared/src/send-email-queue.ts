@@ -1,3 +1,4 @@
+import { getRequestId, isValidRequestId } from "@workspace/logger"
 import type { JobsOptions, Queue } from "bullmq"
 
 /** BullMQ key prefix (SD#15.5 / queue map). */
@@ -8,6 +9,8 @@ export const SEND_EMAIL_JOB_NAME = "send-email"
 
 export type SendEmailJobData = {
   message_id: string
+  /** Correlation id from the originating request. Absent on jobs queued before T-058. */
+  request_id?: string
 }
 
 /** Default options for send-email jobs (SD#15.5 job map). */
@@ -26,21 +29,25 @@ type SendEmailQueue = Pick<Queue<SendEmailJobData>, "add">
  */
 export async function enqueueSendEmailJob(
   queue: SendEmailQueue,
-  messageId: string
+  messageId: string,
+  requestId?: string
 ): Promise<void> {
-  await queue.add(
-    SEND_EMAIL_JOB_NAME,
-    { message_id: messageId },
-    {
-      jobId: messageId,
-      ...SEND_EMAIL_JOB_OPTIONS,
-    }
-  )
+  const data: SendEmailJobData = { message_id: messageId }
+  const resolved = requestId?.trim() || getRequestId()
+  if (resolved && isValidRequestId(resolved)) {
+    data.request_id = resolved
+  }
+
+  await queue.add(SEND_EMAIL_JOB_NAME, data, {
+    jobId: messageId,
+    ...SEND_EMAIL_JOB_OPTIONS,
+  })
 }
 
 /** Build the `enqueueSendEmail` dep for `triggerEmail` from a BullMQ queue. */
 export function createEnqueueSendEmail(
   queue: SendEmailQueue
-): (messageId: string) => Promise<void> {
-  return (messageId) => enqueueSendEmailJob(queue, messageId)
+): (messageId: string, requestId?: string) => Promise<void> {
+  return (messageId, requestId) =>
+    enqueueSendEmailJob(queue, messageId, requestId)
 }

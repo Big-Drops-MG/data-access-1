@@ -1,3 +1,4 @@
+import { getContextLogger } from "@workspace/logger"
 import { AppError } from "@workspace/shared"
 
 import { jsonAppError, toErrorResponse } from "@/lib/api-response"
@@ -7,10 +8,11 @@ import {
 } from "@/lib/domains/schemas"
 import { createDomain, listDomains } from "@/lib/domains/service"
 import { requireDomainsStaffAccess } from "@/lib/domains/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 /** GET /api/domains — list (Viewer+). */
-export async function GET(request: Request) {
+async function handleGet(request: Request): Promise<Response> {
   try {
     await requireDomainsStaffAccess(request, "GET")
     const url = new URL(request.url)
@@ -35,7 +37,7 @@ export async function GET(request: Request) {
 }
 
 /** POST /api/domains — create with SES identity + DNS (Admin). */
-export async function POST(request: Request) {
+async function handlePost(request: Request): Promise<Response> {
   try {
     const session = await requireDomainsStaffAccess(request, "POST")
     const body = parseOrThrow(
@@ -54,6 +56,15 @@ export async function POST(request: Request) {
       }
     )
 
+    getContextLogger().info(
+      {
+        event: "domain.created",
+        domain_id: created.id,
+        user_id: session.id,
+      },
+      "Domain created"
+    )
+
     return Response.json(created, { status: 201 })
   } catch (error) {
     if (error instanceof AppError) {
@@ -62,3 +73,6 @@ export async function POST(request: Request) {
     return toErrorResponse(error)
   }
 }
+
+export const GET = withApiRequest(handleGet)
+export const POST = withApiRequest(handlePost)

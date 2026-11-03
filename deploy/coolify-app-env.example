@@ -5,6 +5,10 @@
 # Deploy target: `dev` (Mailpit/SMTP allowed) or `prod` (requires MAIL_TRANSPORT=ses, no E2E)
 EMAILHUB_ENV=dev
 
+# Pino. Production stays JSON even if LOG_FORMAT=pretty.
+LOG_LEVEL=info
+# LOG_FORMAT=json
+
 # App role only. Owner login belongs in GitHub DEV_/PROD_DATABASE_MIGRATION_URL, not here.
 # If you rotate this password in Coolify, also ALTER ROLE emailhub_app (or re-run
 # deploy/bootstrap-coolify-postgres.sh) — Postgres volumes keep the old password.

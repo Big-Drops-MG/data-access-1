@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react"
 
-import { JOB_TITLES, type JobTitle } from "@workspace/shared"
+import { JOB_TITLES, type JobTitle } from "@workspace/shared/client"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 

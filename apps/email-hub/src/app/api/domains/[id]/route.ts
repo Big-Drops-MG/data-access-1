@@ -8,6 +8,7 @@ import {
   updateDomainStatus,
 } from "@/lib/domains/service"
 import { requireDomainsStaffAccess } from "@/lib/domains/staff-access"
+import { withApiRequest } from "@/lib/with-api-request"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
 type RouteContext = {
@@ -15,7 +16,10 @@ type RouteContext = {
 }
 
 /** GET /api/domains/{id|fqdn} — detail with DNS + setup steps (Viewer+). */
-export async function GET(request: Request, context: RouteContext) {
+async function handleGet(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     await requireDomainsStaffAccess(request, "GET")
     const { id: rawRef } = await context.params
@@ -31,7 +35,10 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 /** PATCH /api/domains/{id|fqdn} — status change (Admin). */
-export async function PATCH(request: Request, context: RouteContext) {
+async function handlePatch(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     const session = await requireDomainsStaffAccess(request, "PATCH")
     const { id: rawRef } = await context.params
@@ -56,7 +63,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 /** DELETE /api/domains/{id|fqdn} — remove SES identity + domain row (Admin). */
-export async function DELETE(request: Request, context: RouteContext) {
+async function handleDelete(
+  request: Request,
+  context: RouteContext
+): Promise<Response> {
   try {
     const session = await requireDomainsStaffAccess(request, "DELETE")
     const { id: rawRef } = await context.params
@@ -75,3 +85,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     return toErrorResponse(error)
   }
 }
+
+export const GET = withApiRequest(handleGet)
+export const PATCH = withApiRequest(handlePatch)
+export const DELETE = withApiRequest(handleDelete)
