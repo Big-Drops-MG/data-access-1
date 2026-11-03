@@ -65,8 +65,12 @@ export type DomainDetailResponse = DomainListItem & {
   setup_steps: DomainSetupStepItem[]
 }
 
-export function fetchDomainDetail(id: string): Promise<DomainDetailResponse> {
-  return apiJson<DomainDetailResponse>(`/api/domains/${id}`)
+function domainApiPath(ref: string): string {
+  return `/api/domains/${encodeURIComponent(ref)}`
+}
+
+export function fetchDomainDetail(ref: string): Promise<DomainDetailResponse> {
+  return apiJson<DomainDetailResponse>(domainApiPath(ref))
 }
 
 export type CreateDomainResponse = DomainDetailResponse
@@ -86,17 +90,28 @@ export function createDomain(
   })
 }
 
-export function checkDomainDns(id: string): Promise<DomainDetailResponse> {
-  return apiJson<DomainDetailResponse>(`/api/domains/${id}/check`, {
+export function checkDomainDns(ref: string): Promise<DomainDetailResponse> {
+  return apiJson<DomainDetailResponse>(`${domainApiPath(ref)}/check`, {
     method: "POST",
   })
 }
 
-export function disableDomain(id: string): Promise<unknown> {
-  return apiJson<unknown>(`/api/domains/${id}`, {
+export function disableDomain(ref: string): Promise<unknown> {
+  return apiJson<unknown>(domainApiPath(ref), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "inactive" }),
+  })
+}
+
+export type DeleteDomainResponse = {
+  ses_deleted: boolean
+  cloudflare_deleted: boolean
+}
+
+export function deleteDomain(ref: string): Promise<DeleteDomainResponse> {
+  return apiJson<DeleteDomainResponse>(domainApiPath(ref), {
+    method: "DELETE",
   })
 }
 

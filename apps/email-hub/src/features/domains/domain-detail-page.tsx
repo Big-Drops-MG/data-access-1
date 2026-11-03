@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCw } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/app/confirm-dialog"
@@ -12,6 +13,7 @@ import { PageHeader } from "@/components/app/page-header"
 import { StatusBadge } from "@/components/app/status-badge"
 import {
   checkDomainDns,
+  deleteDomain,
   disableDomain,
   fetchDomainDetail,
   type DomainDetailResponse,
@@ -25,10 +27,6 @@ import {
   dnsPurposeLabel,
   shortDomainId,
 } from "@/features/domains/domain-setup-summary"
-import {
-  getMockDomainDetail,
-  USE_MOCK_DOMAINS,
-} from "@/features/domains/mock-domains"
 import { SetupStepper } from "@/features/domains/setup-stepper"
 import { isApiError, isConflictError } from "@/lib/api-client"
 import { detailQueryOptions } from "@/lib/query-options"
@@ -36,7 +34,8 @@ import { detailQueryKey, listQueryKey } from "@/lib/query-keys"
 import { cn } from "@workspace/ui/lib/utils"
 
 type DomainDetailPageProps = {
-  domainId: string
+  /** UUID or FQDN from the route (`/domains/dev.quotifii.com`). */
+  domainRef: string
   /** Admin-only actions (check now, disable). */
   canManage?: boolean
 }
@@ -56,29 +55,21 @@ function DnsTypeBadge({ type }: { type: string }) {
 }
 
 export function DomainDetailPage({
-  domainId,
+  domainRef,
   canManage = false,
 }: DomainDetailPageProps) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
   const detail = useQuery(
-    detailQueryOptions("domains", domainId, () =>
-      USE_MOCK_DOMAINS
-        ? getMockDomainDetail(domainId)
-        : fetchDomainDetail(domainId)
-    )
+    detailQueryOptions("domains", domainRef, () => fetchDomainDetail(domainRef))
   )
 
   const check = useMutation({
-    mutationFn: async () => {
-      if (USE_MOCK_DOMAINS) {
-        return getMockDomainDetail(domainId)
-      }
-      return checkDomainDns(domainId)
-    },
+    mutationFn: () => checkDomainDns(domainRef),
     meta: { skipConflictDialog: true },
     onSuccess: async (updated) => {
-      queryClient.setQueryData(detailQueryKey("domains", domainId), updated)
+      queryClient.setQueryData(detailQueryKey("domains", domainRef), updated)
       await queryClient.invalidateQueries({ queryKey: listQueryKey("domains") })
       toast.success("DNS records checked")
     },
@@ -90,17 +81,12 @@ export function DomainDetailPage({
   })
 
   const disable = useMutation({
-    mutationFn: async () => {
-      if (USE_MOCK_DOMAINS) {
-        return getMockDomainDetail(domainId)
-      }
-      return disableDomain(domainId)
-    },
+    mutationFn: () => disableDomain(domainRef),
     meta: { skipConflictDialog: true },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: detailQueryKey("domains", domainId),
+          queryKey: detailQueryKey("domains", domainRef),
         }),
         queryClient.invalidateQueries({ queryKey: listQueryKey("domains") }),
       ])
@@ -113,6 +99,45 @@ export function DomainDetailPage({
           : isApiError(error)
             ? error.message
             : "Could not disable domain"
+      )
+    },
+  })
+
+  const remove = useMutation({
+    mutationFn: () => deleteDomain(domainRef),
+    meta: { skipConflictDialog: true },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: listQueryKey("domains") })
+      queryClient.removeQueries({
+        queryKey: detailQueryKey("domains", domainRef),
+      })
+      if (result.ses_deleted && result.cloudflare_deleted) {
+        toast.success("Domain deleted")
+      } else if (!result.ses_deleted && !result.cloudflare_deleted) {
+        toast.warning(
+          "Domain removed from Email Hub, but SES and Cloudflare cleanup failed. Remove the SES identity and DNS records manually if needed."
+        )
+      } else if (!result.ses_deleted) {
+        toast.warning(
+          "Domain and Cloudflare DNS removed, but Amazon SES denied DeleteEmailIdentity. Apply ses:DeleteEmailIdentity and remove the identity in AWS if needed."
+        )
+      } else {
+        toast.warning(
+          "Domain removed from Email Hub and SES, but Cloudflare DNS cleanup failed. Set CLOUDFLARE_API_TOKEN and remove leftover records if needed."
+        )
+      }
+      router.push("/domains")
+    },
+    onError: (error) => {
+      const detailMessage =
+        isApiError(error) && error.details[0]?.message
+          ? error.details[0].message
+          : null
+      toast.error(
+        isConflictError(error)
+          ? "Remove all senders on this domain before deleting it."
+          : detailMessage ||
+              (isApiError(error) ? error.message : "Could not delete domain")
       )
     },
   })
@@ -227,7 +252,8 @@ export function DomainDetailPage({
               DNS records
             </h2>
             <p className="text-sm text-fg-muted">
-              Add these in Cloudflare. DNS can take up to 72 hours.
+              Add these in Cloudflare (or rely on auto-sync when
+              CLOUDFLARE_API_TOKEN is set). Re-check after publishing.
             </p>
           </header>
 
@@ -339,44 +365,89 @@ export function DomainDetailPage({
           />
 
           {canManage ? (
-            <section
-              className="space-y-3 rounded-lg border border-border bg-surface p-5"
-              aria-labelledby="domains-disable-heading"
-              data-testid="domains-disable"
-            >
-              <h2
-                id="domains-disable-heading"
-                className="text-base font-semibold text-fg"
+            <>
+              <section
+                className="space-y-3 rounded-lg border border-border bg-surface p-5"
+                aria-labelledby="domains-disable-heading"
+                data-testid="domains-disable"
               >
-                Disable domain
-              </h2>
-              <p className="text-sm leading-5 text-fg-muted">
-                {isDisabled
-                  ? "This domain is disabled and cannot be used for new senders."
-                  : "Senders on this domain stop working. Blocked while scheduled sends use it."}
-              </p>
-              {isDisabled ? null : (
+                <h2
+                  id="domains-disable-heading"
+                  className="text-base font-semibold text-fg"
+                >
+                  Disable domain
+                </h2>
+                <p className="text-sm leading-5 text-fg-muted">
+                  {isDisabled
+                    ? "This domain is disabled and cannot be used for new senders."
+                    : "Senders on this domain stop working. Blocked while scheduled sends use it."}
+                </p>
+                {isDisabled ? null : (
+                  <ConfirmDialog
+                    title="Disable domain"
+                    description={`Disabling ${domain.name} stops all sending from it.`}
+                    confirmLabel="Disable domain"
+                    confirmPhrase={domain.name}
+                    destructive
+                    onConfirm={() => disable.mutate()}
+                    trigger={
+                      <button
+                        type="button"
+                        disabled={
+                          disable.isPending ||
+                          remove.isPending ||
+                          actionsDisabled
+                        }
+                        title={mutationDisabled.title}
+                        data-testid="domains-disable-trigger"
+                        className={detailDangerBtn}
+                      >
+                        Disable domain
+                      </button>
+                    }
+                  />
+                )}
+              </section>
+
+              <section
+                className="space-y-3 rounded-lg border border-border bg-surface p-5"
+                aria-labelledby="domains-delete-heading"
+                data-testid="domains-delete"
+              >
+                <h2
+                  id="domains-delete-heading"
+                  className="text-base font-semibold text-fg"
+                >
+                  Delete domain
+                </h2>
+                <p className="text-sm leading-5 text-fg-muted">
+                  Permanently removes this domain from Email Hub and Amazon SES.
+                  DNS records in your DNS provider are not changed. Remove all
+                  senders first.
+                </p>
                 <ConfirmDialog
-                  title="Disable domain"
-                  description={`Disabling ${domain.name} stops all sending from it.`}
-                  confirmLabel="Disable domain"
+                  title="Delete domain"
+                  description={`This deletes ${domain.name} from Email Hub and Amazon SES. This cannot be undone.`}
+                  confirmLabel="Delete domain"
                   confirmPhrase={domain.name}
                   destructive
-                  onConfirm={() => disable.mutate()}
+                  onConfirm={() => remove.mutate()}
                   trigger={
                     <button
                       type="button"
-                      disabled={disable.isPending || actionsDisabled}
+                      disabled={
+                        remove.isPending || disable.isPending || actionsDisabled
+                      }
                       title={mutationDisabled.title}
-                      data-testid="domains-disable-trigger"
+                      data-testid="domains-delete-trigger"
                       className={detailDangerBtn}
                     >
-                      Disable domain
+                      Delete domain
                     </button>
                   }
                 />
-              )}
-            </section>
+              </section>
+            </>
           ) : null}
         </aside>
       </div>

@@ -17,7 +17,7 @@ export default async function Page({ params }: PageProps) {
   const session = await getSession()
   return (
     <DomainDetailPage
-      domainId={id}
+      domainRef={decodeURIComponent(id)}
       canManage={hasAtLeastRole(session, "admin")}
     />
   )

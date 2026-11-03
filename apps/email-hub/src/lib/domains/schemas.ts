@@ -62,4 +62,8 @@ export const updateDomainBodySchema = z
   })
   .strict()
 
-export const domainIdParamSchema = uuidSchema
+/** Path param: domain UUID or FQDN (`/domains/dev.quotifii.com`). */
+export const domainRefSchema = z.union([uuidSchema, fqdnSchema])
+
+/** @deprecated Prefer {@link domainRefSchema}. */
+export const domainIdParamSchema = domainRefSchema

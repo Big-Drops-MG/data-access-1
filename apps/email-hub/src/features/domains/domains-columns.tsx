@@ -30,7 +30,7 @@ export const domainsColumns: ColumnDef<DomainListItem, unknown>[] = [
     header: "Domain",
     cell: ({ row }) => (
       <Link
-        href={`/domains/${row.original.id}`}
+        href={`/domains/${encodeURIComponent(row.original.name)}`}
         className="block truncate font-medium text-fg hover:underline"
         title={row.original.name}
       >

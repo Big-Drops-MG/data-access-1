@@ -20,7 +20,7 @@ import { cn } from "@workspace/ui/lib/utils"
 const formCardClass =
   "space-y-5 rounded-xl border border-border bg-surface p-6 shadow-sm"
 
-/** Empty MAIL FROM is omitted; SES uses its own default label (not bounce). */
+/** Empty MAIL FROM is omitted — no custom MAIL FROM identity or DNS rows. */
 const createDomainFormSchema = z
   .object({
     name: fqdnSchema,
@@ -41,7 +41,7 @@ const createDomainFormSchema = z
 type CreateDomainFormValues = z.output<typeof createDomainFormSchema>
 
 type CreateDomainFormProps = {
-  onSuccess?: (domainId: string) => void
+  onSuccess?: (domainName: string) => void
   className?: string
 }
 
@@ -73,7 +73,7 @@ export function CreateDomainForm({
       form.reset(defaults)
       await queryClient.invalidateQueries({ queryKey: listQueryKey("domains") })
       toast.success("Domain created")
-      onSuccess?.(domain.id)
+      onSuccess?.(domain.name)
     },
   })
 
@@ -86,8 +86,8 @@ export function CreateDomainForm({
     .trim()
     .toLowerCase()
   const mailFromHint = watchedSubdomain
-    ? `Sets ${watchedSubdomain}.${watchedName || "{domain}"} for bounce handling.`
-    : `Optional. Leave blank for the default, or enter a label like mail.`
+    ? `Adds MAIL FROM MX + SPF for ${watchedSubdomain}.${watchedName || "{domain}"}.`
+    : `Optional. Leave blank to skip MAIL FROM, or enter a label like mail.`
 
   return (
     <form

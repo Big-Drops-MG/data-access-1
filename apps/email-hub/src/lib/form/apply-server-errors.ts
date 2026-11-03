@@ -38,6 +38,9 @@ export function applyServerErrors<TFieldValues extends FieldValues>(
   values: TFieldValues
 ): ApplyServerErrorsResult {
   if (!isApiError(error) || !shouldMapDetails(error)) {
+    if (isApiError(error) && error.details.length > 0) {
+      return { fieldMapped: false, unmapped: error.details }
+    }
     return {
       fieldMapped: false,
       unmapped: isApiError(error)

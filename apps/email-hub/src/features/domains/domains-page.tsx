@@ -64,7 +64,7 @@ export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
     <div className="space-y-6">
       <PageHeader
         title="Domains"
-        description="Sending domains in Amazon SES and their DNS records in Cloudflare. Checked every 6 hours."
+        description="Sending domains in Amazon SES. DNS records are written to Cloudflare on create and checked every 6 hours."
         actions={
           canCreateDomain ? (
             <Link
@@ -109,7 +109,7 @@ export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
         equalColumnWidths
         animateRows
         onRowClick={(row) => {
-          router.push(`/domains/${row.id}`)
+          router.push(`/domains/${encodeURIComponent(row.name)}`)
         }}
         testIdPrefix="domains"
         toolbar={

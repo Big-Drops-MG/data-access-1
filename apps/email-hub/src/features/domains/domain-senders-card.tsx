@@ -8,10 +8,6 @@ import {
   fetchDomainSenders,
   type DomainSenderItem,
 } from "@/features/domains/api"
-import {
-  getMockDomainSenders,
-  USE_MOCK_DOMAINS,
-} from "@/features/domains/mock-domains"
 import { listQueryOptions } from "@/lib/query-options"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -65,14 +61,9 @@ export function DomainSendersCard({
   domainActive,
 }: DomainSendersCardProps) {
   const senders = useQuery({
-    ...listQueryOptions(
-      "domain-senders",
-      () =>
-        USE_MOCK_DOMAINS
-          ? getMockDomainSenders(domainId)
-          : fetchDomainSenders(domainId),
-      { domainId }
-    ),
+    ...listQueryOptions("domain-senders", () => fetchDomainSenders(domainId), {
+      domainId,
+    }),
     enabled: senderCount > 0,
   })
 

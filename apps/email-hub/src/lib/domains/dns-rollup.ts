@@ -10,8 +10,6 @@ export type DnsRollupRecord = {
   status: "pending" | "pass" | "fail" | "pending_propagation"
 }
 
-const GROUPS: readonly DnsCheckGroup[] = ["spf", "dkim", "dmarc", "mail_from"]
-
 function normalizeHost(value: string): string {
   return value.trim().toLowerCase().replace(/\.$/, "")
 }
@@ -35,9 +33,12 @@ export function dnsCheckGroup(
   }
 }
 
-function rollup(statuses: DnsRollupRecord["status"][]): DnsCheckState {
+function rollup(
+  statuses: DnsRollupRecord["status"][],
+  options: { emptyAs?: DnsCheckState } = {}
+): DnsCheckState {
   if (statuses.length === 0) {
-    return "pending"
+    return options.emptyAs ?? "pending"
   }
   if (statuses.includes("fail")) {
     return "fail"
@@ -62,9 +63,13 @@ export function summarizeDnsRecords(
     byGroup[dnsCheckGroup(domainName, record)].push(record.status)
   }
 
-  return Object.fromEntries(
-    GROUPS.map((group) => [group, rollup(byGroup[group])])
-  ) as DnsSummary
+  return {
+    spf: rollup(byGroup.spf),
+    dkim: rollup(byGroup.dkim),
+    dmarc: rollup(byGroup.dmarc),
+    // No MAIL FROM records when the user skipped custom MAIL FROM — treat as pass.
+    mail_from: rollup(byGroup.mail_from, { emptyAs: "pass" }),
+  }
 }
 
 /** The custom MAIL FROM host is the name of the MX record SES asked for. */

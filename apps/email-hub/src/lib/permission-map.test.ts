@@ -30,6 +30,12 @@ describe("minRoleForStaffApi", () => {
         "/api/domains/019a0000-0000-7000-8000-000000000001"
       )
     ).toBe("admin")
+    expect(
+      minRoleForStaffApi(
+        "DELETE",
+        "/api/domains/019a0000-0000-7000-8000-000000000001"
+      )
+    ).toBe("admin")
   })
 
   it("restricts manual DNS check to admin", () => {

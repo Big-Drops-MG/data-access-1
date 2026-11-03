@@ -53,6 +53,10 @@ const baseEnvSchema = z
     SES_MAX_SEND_RATE: optionalString,
     AWS_ACCESS_KEY_ID: optionalString,
     AWS_SECRET_ACCESS_KEY: optionalString,
+    /** Cloudflare API token with Zone.DNS Edit for sending-domain zones. */
+    CLOUDFLARE_API_TOKEN: optionalString,
+    /** Optional zone id override; otherwise resolved from the domain name. */
+    CLOUDFLARE_ZONE_ID: optionalString,
     E2E: e2eSchema,
     SENTRY_DSN: optionalString,
     APP_ENCRYPTION_KEY: optionalString,

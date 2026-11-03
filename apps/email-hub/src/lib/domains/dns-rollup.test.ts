@@ -62,7 +62,21 @@ describe("summarizeDnsRecords", () => {
       spf: "pending",
       dkim: "pending",
       dmarc: "pending",
-      mail_from: "pending",
+      mail_from: "pass",
+    })
+  })
+
+  it("treats missing MAIL FROM records as pass (optional)", () => {
+    const withoutMailFrom = records({}).filter(
+      (record) =>
+        record.purpose !== "mx" &&
+        !(record.purpose === "spf" && record.name.startsWith("bounce."))
+    )
+    expect(summarizeDnsRecords(domain, withoutMailFrom)).toEqual({
+      spf: "pass",
+      dkim: "pass",
+      dmarc: "pass",
+      mail_from: "pass",
     })
   })
 })

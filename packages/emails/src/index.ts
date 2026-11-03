@@ -22,10 +22,13 @@ export {
   DEFAULT_MAIL_FROM_SUBDOMAIN,
   SesIdentityError,
   buildDnsRecordsFromSes,
+  deleteSesDomainIdentity,
   mailFromDomainFor,
   provisionSesDomainIdentity,
 } from "./ses-identity.js"
 export type {
+  DeleteSesIdentityInput,
+  DeleteSesIdentityResult,
   DnsRecordDraft,
   ProvisionSesIdentityInput,
   ProvisionedSesIdentity,

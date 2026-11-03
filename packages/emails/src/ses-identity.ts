@@ -1,21 +1,26 @@
 import {
   AlreadyExistsException,
   CreateEmailIdentityCommand,
+  DeleteEmailIdentityCommand,
   GetEmailIdentityCommand,
+  NotFoundException,
   PutEmailIdentityMailFromAttributesCommand,
   SESv2Client,
   type CreateEmailIdentityCommandOutput,
+  type DeleteEmailIdentityCommandOutput,
   type GetEmailIdentityCommandOutput,
   type PutEmailIdentityMailFromAttributesCommandOutput,
 } from "@aws-sdk/client-sesv2"
 
 type SesIdentityCommand =
   | CreateEmailIdentityCommand
+  | DeleteEmailIdentityCommand
   | GetEmailIdentityCommand
   | PutEmailIdentityMailFromAttributesCommand
 
 type SesIdentityCommandOutput =
   | CreateEmailIdentityCommandOutput
+  | DeleteEmailIdentityCommandOutput
   | GetEmailIdentityCommandOutput
   | PutEmailIdentityMailFromAttributesCommandOutput
 
@@ -33,7 +38,8 @@ export type DnsRecordDraft = {
 export type ProvisionedSesIdentity = {
   emailIdentity: string
   identityArn: string | null
-  mailFromDomain: string
+  /** Set only when the user opted into a custom MAIL FROM subdomain. */
+  mailFromDomain: string | null
   dkimTokens: string[]
   dnsRecords: DnsRecordDraft[]
 }
@@ -45,6 +51,18 @@ export type ProvisionSesIdentityInput = {
   client?: SesIdentityClient
 }
 
+export type DeleteSesIdentityInput = {
+  domainName: string
+  region: string
+  client?: SesIdentityClient
+}
+
+export type DeleteSesIdentityResult = {
+  /** False when SES returned AccessDenied (dev IAM may lag Terraform). */
+  deleted: boolean
+  skippedBecauseAccessDenied: boolean
+}
+
 export class SesIdentityError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
@@ -52,25 +70,49 @@ export class SesIdentityError extends Error {
   }
 }
 
-/** Default custom MAIL FROM subdomain (SD#9.1 / SD#11.2). */
+function awsErrorDetail(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim()
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message.trim()
+  }
+  return "Unknown AWS error"
+}
+
+function isAccessDenied(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name: string }).name === "AccessDeniedException"
+  )
+}
+
+/** Suggested custom MAIL FROM label when the user opts in (SD#9.1 / SD#11.2). */
 export const DEFAULT_MAIL_FROM_SUBDOMAIN = "mail"
 
 export function mailFromDomainFor(
   domainName: string,
-  subdomain: string = DEFAULT_MAIL_FROM_SUBDOMAIN
+  subdomain: string
 ): string {
   return `${subdomain}.${domainName}`
 }
 
 /**
- * Build DNS rows from SES Easy DKIM tokens + MAIL FROM subdomain.
- * Values match SES Easy DKIM / custom MAIL FROM documentation.
+ * Build DNS rows from SES Easy DKIM tokens.
+ * MAIL FROM MX + SPF are included only when `mailFromDomain` is set.
  */
 export function buildDnsRecordsFromSes(input: {
   domainName: string
   region: string
   dkimTokens: string[]
-  mailFromDomain: string
+  mailFromDomain?: string | null
 }): DnsRecordDraft[] {
   const { domainName, region, dkimTokens, mailFromDomain } = input
   const records: DnsRecordDraft[] = []
@@ -98,19 +140,21 @@ export function buildDnsRecordsFromSes(input: {
     expectedValue: "v=DMARC1; p=none;",
   })
 
-  records.push({
-    purpose: "mx",
-    name: mailFromDomain,
-    recordType: "MX",
-    expectedValue: `10 feedback-smtp.${region}.amazonses.com`,
-  })
+  if (mailFromDomain) {
+    records.push({
+      purpose: "mx",
+      name: mailFromDomain,
+      recordType: "MX",
+      expectedValue: `10 feedback-smtp.${region}.amazonses.com`,
+    })
 
-  records.push({
-    purpose: "spf",
-    name: mailFromDomain,
-    recordType: "TXT",
-    expectedValue: "v=spf1 include:amazonses.com ~all",
-  })
+    records.push({
+      purpose: "spf",
+      name: mailFromDomain,
+      recordType: "TXT",
+      expectedValue: "v=spf1 include:amazonses.com ~all",
+    })
+  }
 
   return records
 }
@@ -130,8 +174,19 @@ function isAlreadyExists(error: unknown): boolean {
   )
 }
 
+function isNotFound(error: unknown): boolean {
+  return (
+    error instanceof NotFoundException ||
+    (typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      (error as { name: string }).name === "NotFoundException")
+  )
+}
+
 /**
- * Create SES domain identity with Easy DKIM and custom MAIL FROM (SD#11.2).
+ * Create SES domain identity with Easy DKIM (SD#11.2).
+ * Custom MAIL FROM is set only when `mailFromSubdomain` is provided.
  * If the identity already exists, loads DKIM tokens via GetEmailIdentity.
  * Call before persisting domain rows so SES failure leaves no DB rows (T-049).
  */
@@ -146,10 +201,13 @@ export async function provisionSesDomainIdentity(
 
   const client = input.client ?? defaultClient(region)
   const mailFromSubdomain =
-    input.mailFromSubdomain?.trim().toLowerCase() || DEFAULT_MAIL_FROM_SUBDOMAIN
-  const mailFromDomain = mailFromDomainFor(domainName, mailFromSubdomain)
+    input.mailFromSubdomain?.trim().toLowerCase() || null
+  const mailFromDomain = mailFromSubdomain
+    ? mailFromDomainFor(domainName, mailFromSubdomain)
+    : null
 
   let dkimTokens: string[]
+  let existingMailFrom: string | undefined
   try {
     const createOutput = (await client.send(
       new CreateEmailIdentityCommand({
@@ -159,9 +217,10 @@ export async function provisionSesDomainIdentity(
     dkimTokens = [...(createOutput.DkimAttributes?.Tokens ?? [])]
   } catch (error) {
     if (!isAlreadyExists(error)) {
-      throw new SesIdentityError("SES CreateEmailIdentity failed", {
-        cause: error,
-      })
+      throw new SesIdentityError(
+        `SES CreateEmailIdentity failed: ${awsErrorDetail(error)}`,
+        { cause: error }
+      )
     }
 
     try {
@@ -171,26 +230,36 @@ export async function provisionSesDomainIdentity(
         })
       )) as GetEmailIdentityCommandOutput
       dkimTokens = [...(existing.DkimAttributes?.Tokens ?? [])]
+      existingMailFrom =
+        existing.MailFromAttributes?.MailFromDomain?.trim().toLowerCase()
     } catch (getError) {
-      throw new SesIdentityError("SES GetEmailIdentity failed", {
-        cause: getError,
-      })
+      throw new SesIdentityError(
+        `SES GetEmailIdentity failed: ${awsErrorDetail(getError)}`,
+        { cause: getError }
+      )
     }
   }
 
-  try {
-    await client.send(
-      new PutEmailIdentityMailFromAttributesCommand({
-        EmailIdentity: domainName,
-        MailFromDomain: mailFromDomain,
-        BehaviorOnMxFailure: "USE_DEFAULT_VALUE",
-      })
-    )
-  } catch (error) {
-    throw new SesIdentityError(
-      "SES PutEmailIdentityMailFromAttributes failed",
-      { cause: error }
-    )
+  if (mailFromDomain && existingMailFrom !== mailFromDomain) {
+    try {
+      await client.send(
+        new PutEmailIdentityMailFromAttributesCommand({
+          EmailIdentity: domainName,
+          MailFromDomain: mailFromDomain,
+          BehaviorOnMxFailure: "USE_DEFAULT_VALUE",
+        })
+      )
+    } catch (error) {
+      const detail = awsErrorDetail(error)
+      // Dev IAM may lag Terraform (infra/modules/ses_iam already lists this action).
+      // Still return DNS drafts so the domain can be created; fix IAM then re-set MAIL FROM.
+      if (!isAccessDenied(error)) {
+        throw new SesIdentityError(
+          `SES PutEmailIdentityMailFromAttributes failed: ${detail}`,
+          { cause: error }
+        )
+      }
+    }
   }
 
   if (dkimTokens.length === 0) {
@@ -211,5 +280,41 @@ export async function provisionSesDomainIdentity(
       dkimTokens,
       mailFromDomain,
     }),
+  }
+}
+
+/**
+ * Remove a domain identity from Amazon SES.
+ * Missing identities are treated as already deleted (idempotent).
+ * AccessDenied is soft-failed so app-side delete can finish when IAM lags Terraform.
+ */
+export async function deleteSesDomainIdentity(
+  input: DeleteSesIdentityInput
+): Promise<DeleteSesIdentityResult> {
+  const domainName = input.domainName.trim().toLowerCase()
+  const region = input.region.trim()
+  if (!domainName || !region) {
+    throw new SesIdentityError("domainName and region are required")
+  }
+
+  const client = input.client ?? defaultClient(region)
+  try {
+    await client.send(
+      new DeleteEmailIdentityCommand({
+        EmailIdentity: domainName,
+      })
+    )
+    return { deleted: true, skippedBecauseAccessDenied: false }
+  } catch (error) {
+    if (isNotFound(error)) {
+      return { deleted: true, skippedBecauseAccessDenied: false }
+    }
+    if (isAccessDenied(error)) {
+      return { deleted: false, skippedBecauseAccessDenied: true }
+    }
+    throw new SesIdentityError(
+      `SES DeleteEmailIdentity failed: ${awsErrorDetail(error)}`,
+      { cause: error }
+    )
   }
 }

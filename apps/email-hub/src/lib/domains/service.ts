@@ -15,6 +15,7 @@ import {
   type DatabaseTransaction,
 } from "@workspace/db/client"
 import {
+  deleteSesDomainIdentity,
   provisionSesDomainIdentity,
   SesIdentityError,
   type ProvisionedSesIdentity,
@@ -27,6 +28,14 @@ import {
   evaluateDnsRecord,
   type DnsLookup,
 } from "./check-dns"
+import {
+  CloudflareDnsError,
+  deleteCloudflareDnsRecords,
+  isCloudflareDnsConfigured,
+  upsertCloudflareDnsRecords,
+  type CloudflareDnsDeps,
+  type CloudflareDnsRecordInput,
+} from "./cloudflare-dns"
 import { createDnsLookup } from "./dns-resolver"
 import {
   serializeDnsRecord,
@@ -65,6 +74,12 @@ export type CreateDomainDeps = {
     mailFromSubdomain?: string
     client?: SesIdentityClient
   }) => Promise<ProvisionedSesIdentity>
+  upsertCloudflareDns?: (
+    domainName: string,
+    records: readonly CloudflareDnsRecordInput[],
+    deps?: CloudflareDnsDeps
+  ) => Promise<{ upserted: number; zone_id: string }>
+  cloudflare?: CloudflareDnsDeps
   sesRegion?: string
 }
 
@@ -72,6 +87,30 @@ export type CheckDomainDnsDeps = {
   db?: Database
   lookup?: DnsLookup
   now?: Date
+}
+
+export type DeleteDomainResult = {
+  /** False when SES AccessDenied skipped identity removal (IAM lag). */
+  ses_deleted: boolean
+  /** False when Cloudflare DNS cleanup failed or was skipped. */
+  cloudflare_deleted: boolean
+}
+
+export type DeleteDomainDeps = {
+  db?: Database
+  sesClient?: SesIdentityClient
+  deleteIdentity?: (input: {
+    domainName: string
+    region: string
+    client?: SesIdentityClient
+  }) => Promise<{ deleted: boolean; skippedBecauseAccessDenied: boolean }>
+  deleteCloudflareDns?: (
+    domainName: string,
+    records: readonly CloudflareDnsRecordInput[],
+    deps?: CloudflareDnsDeps
+  ) => Promise<{ deleted: number }>
+  cloudflare?: CloudflareDnsDeps
+  sesRegion?: string
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -83,10 +122,31 @@ function isUniqueViolation(error: unknown): boolean {
   )
 }
 
+const UUID_REF =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 async function requireDomain(db: Db, id: string): Promise<Domain> {
   const [row] = await db.select().from(domain).where(eq(domain.id, id)).limit(1)
   if (!row) {
     throw AppError.notFound([{ path: "id", message: "Domain not found" }])
+  }
+  return row
+}
+
+/** Resolve a path param that may be a UUID or an FQDN. */
+async function requireDomainByRef(db: Db, ref: string): Promise<Domain> {
+  const key = ref.trim()
+  if (UUID_REF.test(key)) {
+    return requireDomain(db, key)
+  }
+  const name = key.toLowerCase()
+  const [row] = await db
+    .select()
+    .from(domain)
+    .where(eq(domain.name, name))
+    .limit(1)
+  if (!row) {
+    throw AppError.notFound([{ path: "name", message: "Domain not found" }])
   }
   return row
 }
@@ -230,10 +290,11 @@ export async function listDomains(
 }
 
 export async function getDomain(
-  id: string,
+  ref: string,
   db: Database = getDb()
 ): Promise<DomainDetailJson> {
-  const row = await requireDomain(db, id)
+  const row = await requireDomainByRef(db, ref)
+  const id = row.id
   const [dnsRows, stepRows, counts] = await Promise.all([
     db
       .select()
@@ -256,8 +317,9 @@ export async function getDomain(
 }
 
 /**
- * Provision SES first, then persist domain + DNS + setup steps in one txn.
- * SES failure → no rows (T-049 Done When).
+ * Provision SES, optionally write DNS to Cloudflare, then persist domain rows.
+ * SES failure → no DB rows (T-049 Done When).
+ * Cloudflare is skipped when CLOUDFLARE_API_TOKEN is unset (manual DNS).
  */
 export async function createDomain(
   input: CreateDomainInput,
@@ -267,6 +329,8 @@ export async function createDomain(
   const db = deps.db ?? getDb()
   const region = resolveSesRegion(deps.sesRegion)
   const provision = deps.provision ?? provisionSesDomainIdentity
+  const writeCloudflareDns =
+    deps.upsertCloudflareDns ?? upsertCloudflareDnsRecords
 
   let provisioned: ProvisionedSesIdentity
   try {
@@ -281,11 +345,31 @@ export async function createDomain(
       throw AppError.unavailable([
         {
           path: "ses",
-          message: error.message,
+          message: error.message || "Amazon SES is unavailable",
         },
       ])
     }
     throw error
+  }
+
+  if (isCloudflareDnsConfigured(deps.cloudflare)) {
+    try {
+      await writeCloudflareDns(
+        provisioned.emailIdentity,
+        provisioned.dnsRecords,
+        deps.cloudflare
+      )
+    } catch (error) {
+      if (error instanceof CloudflareDnsError) {
+        throw AppError.unavailable([
+          {
+            path: "cloudflare",
+            message: error.message || "Cloudflare DNS is unavailable",
+          },
+        ])
+      }
+      throw error
+    }
   }
 
   const now = new Date()
@@ -383,7 +467,7 @@ export async function createDomain(
  * status and verification step to match. Resolver errors leave a record as is.
  */
 export async function checkDomainDns(
-  id: string,
+  ref: string,
   actor: DomainActor,
   deps: CheckDomainDnsDeps = {}
 ): Promise<DomainDetailJson> {
@@ -391,7 +475,8 @@ export async function checkDomainDns(
   const lookup = deps.lookup ?? createDnsLookup()
   const now = deps.now ?? new Date()
 
-  const row = await requireDomain(db, id)
+  const row = await requireDomainByRef(db, ref)
+  const id = row.id
   const records = await db
     .select()
     .from(dnsRecord)
@@ -485,13 +570,14 @@ export async function checkDomainDns(
 }
 
 export async function updateDomainStatus(
-  id: string,
+  ref: string,
   status: Domain["status"],
   actor: DomainActor,
   db: Database = getDb()
 ): Promise<DomainJson> {
   return db.transaction(async (tx) => {
-    const before = await requireDomain(tx, id)
+    const before = await requireDomainByRef(tx, ref)
+    const id = before.id
 
     if (status === "inactive" && before.status !== "inactive") {
       const [activeSender] = await tx
@@ -551,4 +637,108 @@ export async function updateDomainStatus(
 
     return serializeDomain(updated)
   })
+}
+
+/**
+ * Delete SES identity first, then the domain row (DNS + setup steps cascade).
+ * Blocked while any sender still references the domain (FK restrict).
+ * SES AccessDenied soft-fails so the DB row can still be removed when IAM lags.
+ */
+export async function deleteDomain(
+  ref: string,
+  actor: DomainActor,
+  deps: DeleteDomainDeps = {}
+): Promise<DeleteDomainResult> {
+  const db = deps.db ?? getDb()
+  const region = resolveSesRegion(deps.sesRegion)
+  const removeIdentity = deps.deleteIdentity ?? deleteSesDomainIdentity
+
+  const before = await requireDomainByRef(db, ref)
+  const id = before.id
+
+  const [linkedSender] = await db
+    .select({ id: sender.id })
+    .from(sender)
+    .where(eq(sender.domainId, id))
+    .limit(1)
+  if (linkedSender) {
+    throw AppError.conflict([
+      {
+        path: "sender",
+        message: linkedSender.id,
+      },
+    ])
+  }
+
+  const dnsRows = await db
+    .select()
+    .from(dnsRecord)
+    .where(eq(dnsRecord.domainId, id))
+    .orderBy(dnsRecord.id)
+
+  let sesDeleted = true
+  try {
+    const sesResult = await removeIdentity({
+      domainName: before.name,
+      region,
+      client: deps.sesClient,
+    })
+    sesDeleted = sesResult.deleted
+  } catch (error) {
+    if (error instanceof SesIdentityError) {
+      throw AppError.unavailable([
+        {
+          path: "ses",
+          message: error.message || "Amazon SES is unavailable",
+        },
+      ])
+    }
+    throw error
+  }
+
+  const removeCloudflareDns =
+    deps.deleteCloudflareDns ?? deleteCloudflareDnsRecords
+  let cloudflareDeleted = dnsRows.length === 0
+  try {
+    await removeCloudflareDns(
+      before.name,
+      dnsRows.map((row) => ({
+        purpose: row.purpose,
+        name: row.name,
+        recordType: row.recordType,
+        expectedValue: row.expectedValue,
+      })),
+      deps.cloudflare
+    )
+    cloudflareDeleted = true
+  } catch (error) {
+    if (!(error instanceof CloudflareDnsError)) {
+      throw error
+    }
+    cloudflareDeleted = false
+  }
+
+  await db.transaction(async (tx) => {
+    const stillThere = await requireDomainByRef(tx, id)
+
+    await writeAudit(tx, {
+      actor: { type: "user", id: actor.userId },
+      action: "domain.delete",
+      objectType: "domain",
+      objectId: stillThere.id,
+      requestId: actor.requestId,
+      before: serializeDomain(stillThere),
+      after: {
+        ses_deleted: sesDeleted,
+        cloudflare_deleted: cloudflareDeleted,
+      },
+    })
+
+    await tx.delete(domain).where(eq(domain.id, stillThere.id))
+  })
+
+  return {
+    ses_deleted: sesDeleted,
+    cloudflare_deleted: cloudflareDeleted,
+  }
 }

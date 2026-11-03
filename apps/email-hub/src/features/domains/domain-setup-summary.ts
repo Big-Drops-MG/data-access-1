@@ -99,7 +99,7 @@ export function buildSetupStepViews(input: {
       title: "DNS records added in Cloudflare",
       description:
         recordsState === "pending"
-          ? "Add the records below in Cloudflare."
+          ? "Waiting for Cloudflare DNS to publish."
           : dnsProgressLabel(progress),
       state: recordsState,
     },

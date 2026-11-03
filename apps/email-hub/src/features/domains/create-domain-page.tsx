@@ -16,9 +16,9 @@ const NEXT_STEPS: readonly SetupStepView[] = [
   },
   {
     key: "dns_records",
-    title: "You add 7 DNS records",
+    title: "DNS records in Cloudflare",
     description:
-      "3 DKIM, SPF, DMARC, and the MAIL FROM MX and SPF. Copy each one into Cloudflare.",
+      "Auto-written when CLOUDFLARE_API_TOKEN is set; otherwise copy DKIM, SPF, and DMARC from the detail page.",
     state: "pending",
   },
   {
@@ -44,8 +44,8 @@ export function CreateDomainPage() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(16rem,3fr)]">
         <CreateDomainForm
-          onSuccess={(id) => {
-            router.push(`/domains/${id}`)
+          onSuccess={(name) => {
+            router.push(`/domains/${encodeURIComponent(name)}`)
           }}
         />
 
