@@ -11,6 +11,10 @@ export type ClickHouseQueryParams = NonNullable<
   Parameters<ClickHouseClient["query"]>[0]["query_params"]
 >
 
+export type ClickHouseSettings = NonNullable<
+  Parameters<ClickHouseClient["query"]>[0]["clickhouse_settings"]
+>
+
 export type ClickHouseInsertValues<T extends Record<string, unknown>> = T[]
 
 let client: ClickHouseClient | undefined
@@ -67,7 +71,10 @@ export async function clickhouseCommand(
 
 export async function clickhouseInsert<T extends Record<string, unknown>>(
   table: string,
-  values: ClickHouseInsertValues<T>
+  values: ClickHouseInsertValues<T>,
+  options: {
+    clickhouse_settings?: ClickHouseSettings
+  } = {}
 ): Promise<void> {
   if (values.length === 0) {
     return
@@ -78,6 +85,9 @@ export async function clickhouseInsert<T extends Record<string, unknown>>(
     table: safeTable,
     values,
     format: "JSONEachRow",
+    ...(options.clickhouse_settings
+      ? { clickhouse_settings: options.clickhouse_settings }
+      : {}),
   })
 }
 

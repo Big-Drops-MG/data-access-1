@@ -708,6 +708,56 @@ describe("handleSesWebhook", () => {
     expect(harness.store.has(snsDedupeKey(SNS_MESSAGE_ID))).toBe(false)
   })
 
+  it("enqueues the events job after the status update", async () => {
+    const harness = createHarness()
+    const enqueueEvents = vi.fn(async () => undefined)
+
+    await handleSesWebhook(
+      {
+        contentType: "text/plain",
+        body: signRecord(baseNotification(sesEvent("Delivery"))),
+      },
+      { ...harness.dependencies, enqueueEvents }
+    )
+
+    expect(harness.updateStatus).toHaveBeenCalledWith(SES_ID, "delivered")
+    expect(enqueueEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sns_message_id: SNS_MESSAGE_ID,
+        records: [
+          expect.objectContaining({
+            event_type: "delivered",
+            ses_message_id: SES_ID,
+          }),
+        ],
+      })
+    )
+    expect(harness.store.get(snsDedupeKey(SNS_MESSAGE_ID))).toBe("done")
+  })
+
+  it("releases the claim when the events queue is unavailable", async () => {
+    const harness = createHarness()
+    const enqueueEvents = vi.fn(async () => {
+      throw new Error("redis down")
+    })
+
+    await expect(
+      handleSesWebhook(
+        {
+          contentType: "text/plain",
+          body: signRecord(baseNotification(sesEvent("Delivery"))),
+        },
+        { ...harness.dependencies, enqueueEvents }
+      )
+    ).rejects.toMatchObject({
+      kind: "unavailable",
+      detail: "redis",
+      status: 503,
+    })
+    expect(harness.updateStatus).toHaveBeenCalledWith(SES_ID, "delivered")
+    expect(harness.store.has(snsDedupeKey(SNS_MESSAGE_ID))).toBe(false)
+  })
+
   it("returns unavailable when redis cannot record the claim", async () => {
     const harness = createHarness()
     harness.dependencies.dedupe = {
@@ -863,18 +913,22 @@ describe("handleSesWebhook", () => {
     const harness = createHarness()
     const { updateStatus: _updateStatus, ...dependencies } =
       harness.dependencies
+    const enqueueEvents = vi.fn(async () => undefined)
 
     await handleSesWebhook(
       {
         contentType: "text/plain",
         body: signRecord(baseNotification(sesEvent("Delivery"))),
       },
-      dependencies
+      { ...dependencies, enqueueEvents }
     )
 
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("message_status"),
       ["delivered", SES_ID, ["queued", "sent"]]
+    )
+    expect(enqueueEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ sns_message_id: SNS_MESSAGE_ID })
     )
   })
 

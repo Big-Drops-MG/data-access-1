@@ -1,4 +1,5 @@
 import { getDb } from "@workspace/db/client"
+import { closeClickHouseClient } from "@workspace/db/clickhouse"
 import { createMailTransport } from "@workspace/emails"
 import {
   WORKER_SERVICE,
@@ -10,6 +11,7 @@ import {
   setFallbackLogger,
 } from "@workspace/logger"
 import {
+  EVENTS_QUEUE_NAME,
   claimQueuedMessage,
   loadQueuedSend,
   loadServerEnv,
@@ -20,11 +22,13 @@ import {
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
+  type EventsJobData,
   type SendEmailJobData,
 } from "@workspace/shared"
 import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
+import { processEventsJob } from "./events-writer.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
 
@@ -144,13 +148,28 @@ async function main(): Promise<void> {
   })
 
   const workers: Worker[] = QUEUE_NAMES.filter(
-    (name) => name !== SEND_EMAIL_QUEUE_NAME
+    (name) => name !== SEND_EMAIL_QUEUE_NAME && name !== EVENTS_QUEUE_NAME
   ).map(
     (name) =>
       new Worker(name, (job) => processJob(name, job), {
         connection,
         prefix: BULLMQ_PREFIX,
       })
+  )
+
+  workers.push(
+    new Worker<EventsJobData>(
+      EVENTS_QUEUE_NAME,
+      (job) =>
+        withJobLogs(EVENTS_QUEUE_NAME, job, async () => {
+          await processEventsJob(job.data, { db })
+        }),
+      {
+        connection,
+        prefix: BULLMQ_PREFIX,
+        concurrency: 10,
+      }
+    )
   )
 
   workers.push(
@@ -198,6 +217,7 @@ async function main(): Promise<void> {
       prefix: BULLMQ_PREFIX,
       send_email_concurrency: sendOptions.concurrency,
       send_email_limiter: limiterLabel,
+      events_concurrency: 10,
     },
     "Worker ready"
   )
@@ -214,6 +234,9 @@ async function main(): Promise<void> {
     )
     await Promise.all(workers.map((worker) => worker.close()))
     await sendEmailQueue.close()
+    await closeClickHouseClient().catch((err) => {
+      logger.warn({ event: "worker.clickhouse_close_failed", err })
+    })
     await connection.quit()
     await queueConnection.quit()
     process.exit(0)
