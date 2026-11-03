@@ -141,7 +141,9 @@ describe("processEventsJob", () => {
   })
 
   it("fills domains and optional columns from the fallbacks", async () => {
-    const insertEvents = vi.fn(async () => undefined)
+    const insertEvents = vi.fn(
+      async (_rows: ReadonlyArray<Record<string, unknown>>) => undefined
+    )
     const occurredAt = Date.parse("2026-11-03T12:00:00.000Z")
 
     await processEventsJob(
@@ -150,6 +152,7 @@ describe("processEventsJob", () => {
         workspace_id: "ws-1",
         records: [
           {
+            event_id: "",
             event_type: "bounce_hard",
             event_time: new Date(occurredAt) as unknown as string,
             ses_message_id: "ses-2",
@@ -192,9 +195,7 @@ describe("processEventsJob", () => {
       }
     )
 
-    const rows = insertEvents.mock.calls[0]?.[0] as Array<
-      Record<string, unknown>
-    >
+    const rows = insertEvents.mock.calls[0]?.[0] ?? []
     expect(rows).toHaveLength(2)
     expect(rows[0]).toEqual(
       expect.objectContaining({
