@@ -44,6 +44,20 @@ export {
   type SendEmailJobData,
 } from "./send-email-queue.js"
 export {
+  EVENTS_JOB_NAME,
+  EVENTS_JOB_OPTIONS,
+  EVENTS_QUEUE_NAME,
+  createEnqueueEvents,
+  enqueueEventsJob,
+  extractDomain,
+  mapSesEventTypeToClickHouse,
+  parseUserAgentEnvironment,
+  type EventsJobData,
+  type EventsQueue,
+  type NormalizedEmailEventRecord,
+  type ParsedUserAgentEnvironment,
+} from "./events-queue.js"
+export {
   SES_ACCOUNT_PAUSED_ALERT_TYPE,
   SES_ACCOUNT_PAUSED_DEDUPE_KEY,
   claimQueuedMessage,

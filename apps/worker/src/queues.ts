@@ -1,11 +1,15 @@
-import { BULLMQ_PREFIX, SEND_EMAIL_QUEUE_NAME } from "@workspace/shared"
+import {
+  BULLMQ_PREFIX,
+  EVENTS_QUEUE_NAME,
+  SEND_EMAIL_QUEUE_NAME,
+} from "@workspace/shared"
 
 export { BULLMQ_PREFIX }
 
 export const QUEUE_NAMES = [
   SEND_EMAIL_QUEUE_NAME,
   "dispatch",
-  "events",
+  EVENTS_QUEUE_NAME,
   "sync",
   "monitoring",
   "intake",

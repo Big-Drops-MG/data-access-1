@@ -1,12 +1,22 @@
 import {
   createVerify,
+  randomUUID,
   timingSafeEqual,
   X509Certificate,
   type KeyObject,
 } from "node:crypto"
 
 import { getPool } from "@workspace/db/client"
+import { getRequestId } from "@workspace/logger"
+import {
+  enqueueEventsJob,
+  mapSesEventTypeToClickHouse,
+  type EventsJobData,
+  type NormalizedEmailEventRecord,
+} from "@workspace/shared"
 import { Redis } from "ioredis"
+
+import { getEventsQueue } from "@/lib/events-queue"
 
 import {
   applySesNotificationEvent,
@@ -100,6 +110,8 @@ type StatusUpdater = (
 
 export type SesEventProcessor = (event: ParsedSesEvent) => Promise<void>
 
+export type SesEventEnqueuer = (payload: EventsJobData) => Promise<void>
+
 export type SesWebhookDependencies = {
   fetch?: typeof fetch
   certificates?: Map<string, string>
@@ -111,6 +123,7 @@ export type SesWebhookDependencies = {
   updateStatus?: StatusUpdater
   processEvent?: SesEventProcessor
   topicArn?: string
+  enqueueEvents?: SesEventEnqueuer
 }
 
 export class SesWebhookError extends Error {
@@ -248,6 +261,7 @@ export async function handleSesWebhook(
       )
     } else if (envelope.Type === "Notification") {
       await applyNotification(envelope.Message, dependencies)
+      await enqueueNotificationEvents(envelope, dependencies)
     }
   } catch (error) {
     await dedupe.release(envelope.MessageId).catch(() => undefined)
@@ -728,4 +742,214 @@ function uniqueEmails(emails: string[]): string[] {
     out.push(email.trim())
   }
   return out
+}
+
+function isDuplicateJob(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.toLowerCase().includes("already exists") ||
+      error.message.toLowerCase().includes("duplicated"))
+  )
+}
+
+function extractSmtpStatus(smtpResponse: unknown): string | null {
+  if (typeof smtpResponse !== "string") {
+    return null
+  }
+  const match =
+    /\b([245]\.\d+\.\d+)\b/.exec(smtpResponse) ||
+    /\b([245]\d{2})\b/.exec(smtpResponse)
+  return match?.[1] ?? null
+}
+
+function firstBouncedStatus(bounce: Record<string, unknown>): string | null {
+  const list = bounce.bouncedRecipients
+  if (!Array.isArray(list) || list.length === 0) {
+    return null
+  }
+  const first = list[0]
+  if (!first || typeof first !== "object") {
+    return null
+  }
+  const status = (first as Record<string, unknown>).status
+  return typeof status === "string" && status.trim().length > 0
+    ? status.trim()
+    : null
+}
+
+function firstBouncedDiagnostic(
+  bounce: Record<string, unknown>
+): string | null {
+  const list = bounce.bouncedRecipients
+  if (!Array.isArray(list) || list.length === 0) {
+    return null
+  }
+  const first = list[0]
+  if (!first || typeof first !== "object") {
+    return null
+  }
+  const diag = (first as Record<string, unknown>).diagnosticCode
+  return typeof diag === "string" && diag.trim().length > 0 ? diag.trim() : null
+}
+
+export function parseSesNotificationForEvents(
+  envelope: SnsEnvelope
+): EventsJobData | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(envelope.Message)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null
+  }
+
+  const record = parsed as Record<string, unknown>
+  const eventTypeRaw = record.eventType ?? record.notificationType
+  if (typeof eventTypeRaw !== "string" || eventTypeRaw.length === 0) {
+    return null
+  }
+
+  const mail = record.mail
+  if (!mail || typeof mail !== "object" || Array.isArray(mail)) {
+    return null
+  }
+  const mailRecord = mail as Record<string, unknown>
+  const sesMessageId = mailRecord.messageId
+  if (typeof sesMessageId !== "string" || !SES_MESSAGE_ID.test(sesMessageId)) {
+    return null
+  }
+
+  const bounce = nestedRecord(record, "bounce")
+  const bounceType =
+    bounce && typeof bounce.bounceType === "string" ? bounce.bounceType : null
+  const bounceSubtype =
+    bounce && typeof bounce.bounceSubType === "string"
+      ? bounce.bounceSubType
+      : null
+
+  const eventType = mapSesEventTypeToClickHouse(eventTypeRaw, bounceType)
+  if (!eventType) {
+    return null
+  }
+
+  const delivery = nestedRecord(record, "delivery")
+  const complaint = nestedRecord(record, "complaint")
+  const open = nestedRecord(record, "open")
+  const click = nestedRecord(record, "click")
+  const delay =
+    nestedRecord(record, "deliveryDelay") ??
+    nestedRecord(record, "deliverydelay")
+  const reject = nestedRecord(record, "reject")
+  const renderingFailure = nestedRecord(record, "renderingFailure")
+
+  const eventTimeRaw =
+    (typeof delivery?.timestamp === "string"
+      ? delivery.timestamp
+      : undefined) ??
+    (typeof bounce?.timestamp === "string" ? bounce.timestamp : undefined) ??
+    (typeof complaint?.timestamp === "string"
+      ? complaint.timestamp
+      : undefined) ??
+    (typeof open?.timestamp === "string" ? open.timestamp : undefined) ??
+    (typeof click?.timestamp === "string" ? click.timestamp : undefined) ??
+    (typeof delay?.timestamp === "string" ? delay.timestamp : undefined) ??
+    (typeof mailRecord.timestamp === "string"
+      ? mailRecord.timestamp
+      : undefined) ??
+    envelope.Timestamp
+
+  const recipientEmails = readRecipientEmails(record)
+
+  const smtpDiagnostic =
+    (typeof delivery?.smtpResponse === "string"
+      ? delivery.smtpResponse
+      : undefined) ??
+    (bounce ? firstBouncedDiagnostic(bounce) : undefined) ??
+    (typeof reject?.reason === "string" ? reject.reason : undefined) ??
+    (typeof renderingFailure?.errorMessage === "string"
+      ? renderingFailure.errorMessage
+      : undefined)
+
+  const smtpStatus =
+    (delivery ? extractSmtpStatus(delivery.smtpResponse) : undefined) ??
+    (bounce ? firstBouncedStatus(bounce) : undefined)
+
+  const userAgent =
+    (typeof open?.userAgent === "string" ? open.userAgent : undefined) ??
+    (typeof click?.userAgent === "string" ? click.userAgent : undefined)
+
+  const linkUrl = typeof click?.link === "string" ? click.link : undefined
+  const complaintType =
+    typeof complaint?.complaintFeedbackType === "string"
+      ? complaint.complaintFeedbackType
+      : undefined
+  const delayType =
+    typeof delay?.delayType === "string" ? delay.delayType : undefined
+
+  const eventRecord: NormalizedEmailEventRecord = {
+    event_id: randomUUID(),
+    event_type: eventType,
+    event_time: eventTimeRaw,
+    ses_message_id: sesMessageId,
+    recipient_emails: recipientEmails,
+    bounce_type: bounceType,
+    bounce_subtype: bounceSubtype,
+    smtp_status: smtpStatus ?? null,
+    smtp_diagnostic: smtpDiagnostic ?? null,
+    delay_type: delayType ?? null,
+    complaint_type: complaintType ?? null,
+    link_url: linkUrl ?? null,
+    user_agent: userAgent ?? null,
+    raw_payload: envelope.Message,
+  }
+
+  const requestId = getRequestId()
+
+  return {
+    sns_message_id: envelope.MessageId,
+    ...(requestId ? { request_id: requestId } : {}),
+    event_type: eventType,
+    event_timestamp: eventTimeRaw,
+    records: [eventRecord],
+  }
+}
+
+async function enqueueNotificationEvents(
+  envelope: SnsEnvelope,
+  dependencies: SesWebhookDependencies
+): Promise<void> {
+  const jobData = parseSesNotificationForEvents(envelope)
+  if (!jobData) {
+    return
+  }
+
+  const enqueue =
+    dependencies.enqueueEvents ??
+    (dependencies.updateStatus || dependencies.processEvent
+      ? undefined
+      : async (data: EventsJobData) => {
+          try {
+            const queue = getEventsQueue()
+            await enqueueEventsJob(queue, data)
+          } catch (error) {
+            if (isDuplicateJob(error)) {
+              return
+            }
+            throw new SesWebhookError("unavailable", "redis")
+          }
+        })
+
+  if (enqueue) {
+    try {
+      await enqueue(jobData)
+    } catch (error) {
+      if (isDuplicateJob(error)) {
+        return
+      }
+      if (error instanceof SesWebhookError) throw error
+      throw new SesWebhookError("unavailable", "redis")
+    }
+  }
 }

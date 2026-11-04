@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   EMAIL_EVENTS_ORDER_BY,
@@ -13,7 +13,9 @@ import {
   RECIPIENT_ACTIVITY_TABLE,
   clickHouseColumnNamesFromCreateTable,
   emailEventsQualifiedName,
+  insertEmailEvents,
   recipientActivityQualifiedName,
+  type EmailEventRow,
 } from "./email-events-schema.js"
 import {
   clickhouseMigrationsDir,
@@ -95,6 +97,38 @@ describe("email events ClickHouse migration", () => {
     expect(recipientActivityQualifiedName()).toBe("emailhub.recipient_activity")
     expect(EMAIL_EVENT_TYPES).toContain("unsubscribe")
     expect(EMAIL_EVENT_TYPES).toHaveLength(10)
+  })
+
+  it("inserts with async_insert and wait_for_async_insert", async () => {
+    const insert = vi.fn(async () => undefined)
+    const row: EmailEventRow = {
+      event_id: "evt-1",
+      event_type: "delivered",
+      event_time: "2026-11-03 12:00:00.000",
+      message_id: "019a0000-0000-7000-8000-000000000001",
+      ses_message_id: "ses-1",
+      recipient_id: "019a0000-0000-7000-8000-000000000002",
+      send_id: null,
+      offer_id: null,
+      email_type: "thank_you",
+      template_version_id: "019a0000-0000-7000-8000-000000000004",
+      sender_id: "019a0000-0000-7000-8000-000000000005",
+      sending_domain: "mail.example.com",
+      recipient_domain: "inbox.example",
+      provider: "ses",
+    }
+
+    await insertEmailEvents([row], { insert } as never)
+
+    expect(insert).toHaveBeenCalledWith({
+      table: EMAIL_EVENTS_TABLE,
+      values: [row],
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 1,
+      },
+    })
   })
 
   it("keeps the migration file readable on disk for deploy packages", () => {

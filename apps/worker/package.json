@@ -19,6 +19,7 @@
     "@workspace/emails": "workspace:*",
     "@workspace/shared": "workspace:*",
     "bullmq": "^5.66.4",
+    "drizzle-orm": "^0.45.4",
     "ioredis": "^5.9.2"
   },
   "devDependencies": {

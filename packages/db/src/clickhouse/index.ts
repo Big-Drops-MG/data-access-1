@@ -13,6 +13,7 @@ export {
   getClickHouseClient,
   type ClickHouseInsertValues,
   type ClickHouseQueryParams,
+  type ClickHouseSettings,
 } from "./client.js"
 export { migrateClickHouse, type ClickHouseMigrateResult } from "./migrate.js"
 export {
@@ -33,7 +34,9 @@ export {
   RECIPIENT_ACTIVITY_TABLE,
   clickHouseColumnNamesFromCreateTable,
   emailEventsQualifiedName,
+  insertEmailEvents,
   recipientActivityQualifiedName,
+  type EmailEventRow,
   type EmailEventType,
 } from "./email-events-schema.js"
 export {
