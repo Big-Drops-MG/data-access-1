@@ -16,6 +16,7 @@ overrides:
   fast-uri: 3.1.9
   brace-expansion@5: 5.0.12
   baseline-browser-mapping: 2.11.29
+  systeminformation: 5.33.19
 
 minimumReleaseAgeExclude:
   - "@typescript-eslint/eslint-plugin@8.71.2"
