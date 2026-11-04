@@ -1,5 +1,14 @@
+import { createHash } from "node:crypto"
+
 export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase()
+}
+
+/** SHA-256 hex of the normalised email (suppression / recipient lookup). */
+export function hashEmail(email: string): string {
+  return createHash("sha256")
+    .update(normaliseEmail(email), "utf8")
+    .digest("hex")
 }
 
 export function maskEmail(email: string): string {

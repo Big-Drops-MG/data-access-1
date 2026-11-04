@@ -4,8 +4,8 @@ ssh_key_ids = [
   #   doctl compute ssh-key list
 ]
 
-# Tighten before Prod apply (defaults are world-open for early bootstrap only):
-# ssh_allowed_cidrs = ["203.0.113.10/32"]
+# Required (P21 office IPs). Do not use 0.0.0.0/0.
+ssh_allowed_cidrs = ["203.0.113.10/32"]
 
 # Optional overrides (defaults match SD#13.1 Prod):
 # droplet_size    = "s-4vcpu-16gb-amd"

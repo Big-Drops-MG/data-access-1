@@ -55,7 +55,7 @@ describe("checkReadiness", () => {
     vi.stubGlobal("fetch", fetchMock)
     vi.stubEnv(
       "DATABASE_URL",
-      "postgresql://emailhub:emailhub@127.0.0.1:5432/emailhub"
+      "postgresql://emailhub_app:emailhub@127.0.0.1:5432/emailhub"
     )
     vi.stubEnv("REDIS_URL", "redis://:emailhub@127.0.0.1:6379")
     vi.stubEnv("CLICKHOUSE_URL", "http://127.0.0.1:8123")

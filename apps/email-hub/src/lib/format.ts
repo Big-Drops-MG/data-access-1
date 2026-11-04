@@ -1,4 +1,4 @@
-export { formatEtDateTime } from "@workspace/shared"
+export { formatEtDateTime } from "@workspace/shared/client"
 
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value)

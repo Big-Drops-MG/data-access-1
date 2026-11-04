@@ -2,6 +2,7 @@ import { desc, sql } from "drizzle-orm"
 import {
   check,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -21,6 +22,7 @@ import { templateVersion } from "./template.js"
 
 export const messageStatus = pgEnum("message_status", [
   "queued",
+  "sending",
   "sent",
   "delivered",
   "bounced",
@@ -51,13 +53,19 @@ export const message = pgTable(
       onDelete: "restrict",
     }),
     emailType: emailType("email_type").notNull(),
-    templateVersionId: uuid("template_version_id")
-      .notNull()
-      .references(() => templateVersion.id, { onDelete: "restrict" }),
-    senderId: uuid("sender_id")
-      .notNull()
-      .references(() => sender.id, { onDelete: "restrict" }),
+    // Nullable only for skipped/no_route (no template/sender resolved).
+    templateVersionId: uuid("template_version_id").references(
+      () => templateVersion.id,
+      { onDelete: "restrict" }
+    ),
+    senderId: uuid("sender_id").references(() => sender.id, {
+      onDelete: "restrict",
+    }),
     idempotencyKey: text("idempotency_key").notNull(),
+    mergeData: jsonb("merge_data")
+      .$type<Record<string, string | number | boolean>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     status: messageStatus("status").notNull(),
     skipReason: messageSkipReason("skip_reason"),
     failureReason: text("failure_reason"),
@@ -87,6 +95,25 @@ export const message = pgTable(
       sql`(
         (${table.status} = 'skipped' AND ${table.skipReason} IS NOT NULL)
         OR (${table.status} <> 'skipped' AND ${table.skipReason} IS NULL)
+      )`
+    ),
+    check(
+      "message_no_route_assets_check",
+      sql`(
+        (
+          ${table.status} = 'skipped'
+          AND ${table.skipReason} = 'no_route'
+          AND ${table.templateVersionId} IS NULL
+          AND ${table.senderId} IS NULL
+        )
+        OR (
+          NOT (
+            ${table.status} = 'skipped'
+            AND ${table.skipReason} = 'no_route'
+          )
+          AND ${table.templateVersionId} IS NOT NULL
+          AND ${table.senderId} IS NOT NULL
+        )
       )`
     ),
   ]

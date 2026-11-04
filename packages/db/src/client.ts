@@ -1,11 +1,20 @@
+import type { ExtractTablesWithRelations } from "drizzle-orm"
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
+import type { PgQueryResultHKT, PgTransaction } from "drizzle-orm/pg-core"
 import { Pool } from "pg"
 
 import { sslForApplicationUrl } from "./connection-policy.js"
 import * as schema from "./schema/index.js"
 
+export type Database = NodePgDatabase<typeof schema>
+export type DatabaseTransaction = PgTransaction<
+  PgQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>
+
 let pool: Pool | undefined
-let database: NodePgDatabase<typeof schema> | undefined
+let database: Database | undefined
 
 export function getPool(): Pool {
   if (pool) {
@@ -37,7 +46,7 @@ function sslOption(
   return ssl ? { ssl } : {}
 }
 
-export function getDb(): NodePgDatabase<typeof schema> {
+export function getDb(): Database {
   if (!database) {
     database = drizzle({ client: getPool(), schema })
   }
