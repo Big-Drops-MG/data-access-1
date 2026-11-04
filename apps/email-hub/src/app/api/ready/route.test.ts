@@ -18,7 +18,7 @@ describe("GET /api/ready", () => {
   it("returns ok when every dependency is reachable", async () => {
     readiness.checkReadiness.mockResolvedValue([])
 
-    const response = await GET()
+    const response = await GET(new Request("http://localhost/api/ready"))
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true })
@@ -27,7 +27,7 @@ describe("GET /api/ready", () => {
   it("returns 503 naming the failing dependency", async () => {
     readiness.checkReadiness.mockResolvedValue(["redis"])
 
-    const response = await GET()
+    const response = await GET(new Request("http://localhost/api/ready"))
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toEqual({
@@ -46,7 +46,7 @@ describe("GET /api/ready", () => {
       "clickhouse",
     ])
 
-    const response = await GET()
+    const response = await GET(new Request("http://localhost/api/ready"))
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toEqual({

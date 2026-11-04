@@ -1,5 +1,6 @@
 # Weekly dependency updates (SD#14.8).
 # Model B: open PRs against `dev` (integration), not `main`.
+# Group updates so Dependabot opens a few batched PRs instead of one per package.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,13 +9,25 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     labels:
       - dependencies
     commit-message:
       prefix: chore
       include: scope
-    # Keep majors as planned work; bot handles patch/minor only for these.
+    groups:
+      production-patch-and-minor:
+        dependency-type: production
+        update-types:
+          - "minor"
+          - "patch"
+      development:
+        dependency-type: development
+      production-major:
+        dependency-type: production
+        update-types:
+          - "major"
+    # Keep majors as planned work for high-impact packages; bot handles the rest.
     ignore:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
@@ -24,6 +37,18 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "lint-staged"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "bullmq"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@tanstack/react-table"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -31,8 +56,13 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 1
     labels:
       - dependencies
     commit-message:
       prefix: ci
       include: scope
+    groups:
+      github-actions:
+        patterns:
+          - "*"

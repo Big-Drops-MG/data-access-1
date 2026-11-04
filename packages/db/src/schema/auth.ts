@@ -109,11 +109,22 @@ export const twoFactor = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     secret: text("secret").notNull(),
     backupCodes: text("backup_codes").notNull(),
-    verified: boolean("verified").notNull().default(true),
+    verified: boolean("verified").notNull().default(false),
     failedVerificationCount: integer("failed_verification_count")
       .notNull()
       .default(0),
+    failureWindowStartedAt: timestamp("failure_window_started_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     lockedUntil: timestamp("locked_until", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    consecutiveLockoutCount: integer("consecutive_lockout_count")
+      .notNull()
+      .default(0),
+    lastCountedLockoutUntil: timestamp("last_counted_lockout_until", {
       withTimezone: true,
       mode: "date",
     }),

@@ -1,9 +1,10 @@
+import { buildLoginPath } from "@/lib/login/login-path"
+
 /**
- * SD#12.8 — 401 responses send the user to login with a return path.
+ * SD#12.8 / T-031 — 401 responses send the user to login with a safe return path.
  */
 export function loginRedirectPath(nextPath: string): string {
-  const path = nextPath.startsWith("/") ? nextPath : `/${nextPath}`
-  return `/login?next=${encodeURIComponent(path)}`
+  return buildLoginPath({ next: nextPath })
 }
 
 export function redirectToLogin(nextPath: string): void {

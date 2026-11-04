@@ -7,6 +7,7 @@ export default mergeConfig(
   defineProject({
     test: {
       name: "emails",
+      setupFiles: ["./src/warm-render-worker.ts"],
     },
   })
 )

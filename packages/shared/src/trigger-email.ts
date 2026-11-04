@@ -1,0 +1,521 @@
+import {
+  alert,
+  emailRoute,
+  message,
+  recipient,
+  sender,
+  template,
+  templateVersion,
+} from "@workspace/db"
+import type {
+  EmailRoute,
+  Message,
+  Recipient,
+  Sender,
+  TemplateVersion,
+} from "@workspace/db"
+import type { Database, DatabaseTransaction } from "@workspace/db/client"
+import {
+  getContextLogger,
+  getRequestId,
+  isValidRequestId,
+  maskEmail,
+} from "@workspace/logger"
+import { and, eq, isNull, sql } from "drizzle-orm"
+
+import { hashEmail, normaliseEmail } from "./email.js"
+import { AppError } from "./errors.js"
+import { emailSchema } from "./schemas.js"
+import { insertSkippedSendCheckMessage, runSendChecks } from "./send-checks.js"
+
+export type EmailHubDb = Database
+export type EmailHubTx = DatabaseTransaction
+
+export type TriggerEmailType = "thank_you" | "feedback_request" | "engagement"
+
+export type MergeData = Record<string, string | number | boolean>
+
+export type TriggerEmailInput = {
+  email: string
+  idempotencyKey: string
+  emailType: TriggerEmailType
+  offerId?: string | null
+  mergeData?: MergeData | null
+  externalUserId?: string | null
+  /** Propagated onto the send-email job. Falls back to the active request context. */
+  requestId?: string | null
+}
+
+export type ResolvedRouteAssets = {
+  route: EmailRoute
+  templateVersion: TemplateVersion
+  sender: Sender
+  categoryId: string
+}
+
+/** Dependencies for Stage A commit + enqueue (T-045). */
+export type TriggerEmailDeps = {
+  /**
+   * Enqueue `send-email` after the message row is committed.
+   * Failures must not change the message; leave `queued` for the watchdog.
+   */
+  enqueueSendEmail: (messageId: string, requestId?: string) => Promise<void>
+}
+
+export type TriggerEmailResult = {
+  message: Message
+  recipient: Recipient
+  /** False when an existing row for `idempotencyKey` was returned. */
+  created: boolean
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "23505"
+  )
+}
+
+/**
+ * Find or create a recipient by normalised email (SD#7 Stage A step 2).
+ * Concurrent inserts race on the unique email index and re-select.
+ */
+export async function findOrCreateRecipient(
+  db: EmailHubDb | EmailHubTx,
+  email: string,
+  externalUserId?: string | null
+): Promise<Recipient> {
+  const normalised = normaliseEmail(email)
+  const parsed = emailSchema.safeParse(normalised)
+  if (!parsed.success) {
+    throw new AppError(
+      "validation_failed",
+      422,
+      parsed.error.issues.map((issue) => ({
+        path: issue.path.length > 0 ? issue.path.join(".") : "email",
+        message: issue.message,
+      }))
+    )
+  }
+
+  const existing = await db
+    .select()
+    .from(recipient)
+    .where(eq(recipient.email, normalised))
+    .limit(1)
+
+  if (existing[0]) {
+    return existing[0]
+  }
+
+  const emailHash = hashEmail(normalised)
+  try {
+    const [created] = await db
+      .insert(recipient)
+      .values({
+        email: normalised,
+        emailHash,
+        externalUserId: externalUserId ?? null,
+      })
+      .returning()
+    if (!created) {
+      throw new AppError("internal")
+    }
+    return created
+  } catch (error) {
+    if (!isUniqueViolation(error)) {
+      throw error
+    }
+    const raced = await db
+      .select()
+      .from(recipient)
+      .where(eq(recipient.email, normalised))
+      .limit(1)
+    if (!raced[0]) {
+      throw new AppError("internal")
+    }
+    return raced[0]
+  }
+}
+
+/** Per-recipient transaction lock (SD#7 Stage A step 3). */
+export async function lockRecipientTx(
+  tx: EmailHubTx,
+  recipientId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${recipientId}::text))`
+  )
+}
+
+/**
+ * Resolve active email_route: (email_type, offer_id) then (email_type, null).
+ * SD#7 Stage A step 5 / route resolution.
+ */
+export async function resolveEmailRoute(
+  db: EmailHubDb | EmailHubTx,
+  emailType: TriggerEmailType,
+  offerId: string | null
+): Promise<EmailRoute | null> {
+  if (offerId) {
+    const [specific] = await db
+      .select()
+      .from(emailRoute)
+      .where(
+        and(
+          eq(emailRoute.emailType, emailType),
+          eq(emailRoute.offerId, offerId),
+          eq(emailRoute.status, "active")
+        )
+      )
+      .limit(1)
+    if (specific) {
+      return specific
+    }
+  }
+
+  const [fallback] = await db
+    .select()
+    .from(emailRoute)
+    .where(
+      and(
+        eq(emailRoute.emailType, emailType),
+        isNull(emailRoute.offerId),
+        eq(emailRoute.status, "active")
+      )
+    )
+    .limit(1)
+
+  return fallback ?? null
+}
+
+/** Required merge tag names from a template_version.merge_tags jsonb value. */
+export function requiredMergeTagNames(mergeTags: unknown): string[] {
+  if (Array.isArray(mergeTags)) {
+    return mergeTags.filter((tag): tag is string => typeof tag === "string")
+  }
+  if (mergeTags && typeof mergeTags === "object") {
+    return Object.keys(mergeTags as Record<string, unknown>)
+  }
+  return []
+}
+
+/**
+ * Ensure merge_data includes every required tag (SD#7 step 6 / SD#10.1).
+ * Throws 422 validation_failed with paths `merge_data.<tag>`.
+ */
+export function assertMergeDataHasRequiredTags(
+  mergeData: MergeData | null | undefined,
+  mergeTags: unknown
+): void {
+  const data = mergeData ?? {}
+  const details = requiredMergeTagNames(mergeTags)
+    .filter((tag) => {
+      const value = data[tag]
+      if (value === undefined || value === null) {
+        return true
+      }
+      return typeof value === "string" && value.trim() === ""
+    })
+    .map((tag) => ({
+      path: `merge_data.${tag}`,
+      message: "Required",
+    }))
+  if (details.length > 0) {
+    throw AppError.validationFailed(details)
+  }
+}
+
+/** Load the route's template current version and sender. */
+export async function loadRouteSendAssets(
+  db: EmailHubDb | EmailHubTx,
+  route: EmailRoute
+): Promise<ResolvedRouteAssets> {
+  const [tpl] = await db
+    .select()
+    .from(template)
+    .where(eq(template.id, route.templateId))
+    .limit(1)
+  if (!tpl?.currentVersionId) {
+    throw new AppError("internal")
+  }
+
+  const [version] = await db
+    .select()
+    .from(templateVersion)
+    .where(eq(templateVersion.id, tpl.currentVersionId))
+    .limit(1)
+  if (!version) {
+    throw new AppError("internal")
+  }
+
+  const [from] = await db
+    .select()
+    .from(sender)
+    .where(eq(sender.id, route.senderId))
+    .limit(1)
+  if (!from) {
+    throw new AppError("internal")
+  }
+
+  return {
+    route,
+    templateVersion: version,
+    sender: from,
+    categoryId: tpl.categoryId,
+  }
+}
+
+export function noRouteAlertDedupeKey(
+  emailType: TriggerEmailType,
+  offerId: string | null
+): string {
+  return `no_route:${emailType}:${offerId ?? "null"}`
+}
+
+/** Open or bump a `no_route` alert (SD#15.4). */
+export async function openNoRouteAlert(
+  tx: EmailHubTx,
+  emailType: TriggerEmailType,
+  offerId: string | null
+): Promise<void> {
+  const dedupeKey = noRouteAlertDedupeKey(emailType, offerId)
+  try {
+    await tx.insert(alert).values({
+      type: "no_route",
+      severity: "warning",
+      status: "open",
+      dedupeKey,
+      payload: { email_type: emailType, offer_id: offerId },
+    })
+  } catch (error) {
+    if (!isUniqueViolation(error)) {
+      throw error
+    }
+    await tx
+      .update(alert)
+      .set({
+        lastTriggeredAt: new Date(),
+        occurrenceCount: sql`${alert.occurrenceCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(alert.dedupeKey, dedupeKey), eq(alert.status, "open")))
+  }
+}
+
+async function insertNoRouteSkippedMessage(
+  tx: EmailHubTx,
+  input: {
+    recipientId: string
+    emailType: TriggerEmailType
+    offerId: string | null
+    idempotencyKey: string
+  }
+): Promise<Message> {
+  const [skipped] = await tx
+    .insert(message)
+    .values({
+      recipientId: input.recipientId,
+      offerId: input.offerId,
+      emailType: input.emailType,
+      templateVersionId: null,
+      senderId: null,
+      idempotencyKey: input.idempotencyKey,
+      status: "skipped",
+      skipReason: "no_route",
+    })
+    .returning()
+  if (!skipped) {
+    throw new AppError("internal")
+  }
+  return skipped
+}
+
+/**
+ * Insert a queued message inside the Stage A transaction (SD#7 step 9 / T-045).
+ */
+export async function insertQueuedMessage(
+  tx: EmailHubTx,
+  input: {
+    recipientId: string
+    offerId: string | null
+    emailType: TriggerEmailType
+    templateVersionId: string
+    senderId: string
+    idempotencyKey: string
+    mergeData: MergeData
+  }
+): Promise<Message> {
+  const [created] = await tx
+    .insert(message)
+    .values({
+      recipientId: input.recipientId,
+      offerId: input.offerId,
+      emailType: input.emailType,
+      templateVersionId: input.templateVersionId,
+      senderId: input.senderId,
+      idempotencyKey: input.idempotencyKey,
+      mergeData: input.mergeData,
+      status: "queued",
+      queuedAt: new Date(),
+    })
+    .returning()
+  if (!created) {
+    throw new AppError("internal")
+  }
+  return created
+}
+
+/**
+ * Stage A steps 2–9 (SD#7): recipient, lock, idempotency, route resolve,
+ * merge tags, send checks, insert queued message, commit, then enqueue
+ * `send-email` with `jobId = message_id` (T-045). Enqueue failures leave
+ * the row `queued` for the queue-watchdog (SD#15.5).
+ */
+export async function triggerEmail(
+  db: EmailHubDb,
+  input: TriggerEmailInput,
+  deps: TriggerEmailDeps
+): Promise<TriggerEmailResult> {
+  const idempotencyKey = input.idempotencyKey.trim()
+  if (!idempotencyKey) {
+    throw new AppError("validation_failed", 422, [
+      { path: "idempotency_key", message: "Required" },
+    ])
+  }
+
+  const emailType = input.emailType
+  const offerId = input.offerId ?? null
+  const mergeData = input.mergeData ?? {}
+  const externalUserId = input.externalUserId ?? null
+  const foundRecipient = await findOrCreateRecipient(
+    db,
+    input.email,
+    externalUserId
+  )
+
+  const result = await db.transaction(async (tx) => {
+    await lockRecipientTx(tx, foundRecipient.id)
+
+    const [lockedRecipient] = await tx
+      .select()
+      .from(recipient)
+      .where(eq(recipient.id, foundRecipient.id))
+      .limit(1)
+    const activeRecipient = lockedRecipient ?? foundRecipient
+
+    const existing = await tx
+      .select()
+      .from(message)
+      .where(eq(message.idempotencyKey, idempotencyKey))
+      .limit(1)
+
+    if (existing[0]) {
+      return {
+        message: existing[0],
+        recipient: activeRecipient,
+        created: false,
+      }
+    }
+
+    const route = await resolveEmailRoute(tx, emailType, offerId)
+    if (!route) {
+      await openNoRouteAlert(tx, emailType, offerId)
+      const skipped = await insertNoRouteSkippedMessage(tx, {
+        recipientId: activeRecipient.id,
+        emailType,
+        offerId,
+        idempotencyKey,
+      })
+      return {
+        message: skipped,
+        recipient: activeRecipient,
+        created: true,
+      }
+    }
+
+    const assets = await loadRouteSendAssets(tx, route)
+    assertMergeDataHasRequiredTags(mergeData, assets.templateVersion.mergeTags)
+
+    const skipReason = await runSendChecks(tx, {
+      recipient: activeRecipient,
+      emailType,
+      offerId,
+      categoryId: assets.categoryId,
+    })
+    if (skipReason) {
+      const skipped = await insertSkippedSendCheckMessage(tx, {
+        recipientId: activeRecipient.id,
+        emailType,
+        offerId,
+        idempotencyKey,
+        templateVersionId: assets.templateVersion.id,
+        senderId: assets.sender.id,
+        skipReason,
+      })
+      return {
+        message: skipped,
+        recipient: activeRecipient,
+        created: true,
+      }
+    }
+
+    const created = await insertQueuedMessage(tx, {
+      recipientId: activeRecipient.id,
+      offerId,
+      emailType,
+      templateVersionId: assets.templateVersion.id,
+      senderId: assets.sender.id,
+      idempotencyKey,
+      mergeData,
+    })
+
+    return {
+      message: created,
+      recipient: activeRecipient,
+      created: true,
+    }
+  })
+
+  if (result.created && result.message.status === "queued") {
+    const explicitRequestId = input.requestId?.trim()
+    const requestId =
+      explicitRequestId && isValidRequestId(explicitRequestId)
+        ? explicitRequestId
+        : getRequestId()
+    const logger = requestId
+      ? getContextLogger().child({ request_id: requestId })
+      : getContextLogger()
+    const recipient = maskEmail(input.email)
+    try {
+      if (requestId) {
+        await deps.enqueueSendEmail(result.message.id, requestId)
+      } else {
+        await deps.enqueueSendEmail(result.message.id)
+      }
+      logger.info(
+        {
+          event: "message.queued",
+          message_id: result.message.id,
+          recipient,
+        },
+        "Message queued"
+      )
+    } catch (error) {
+      logger.error(
+        {
+          event: "message.queue_failed",
+          message_id: result.message.id,
+          recipient,
+          err: error,
+        },
+        "Message queue failed"
+      )
+      // Message stays queued; queue-watchdog re-enqueues (SD#15.5).
+    }
+  }
+
+  return result
+}

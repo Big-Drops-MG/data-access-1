@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest"
 
-import { maskEmail, normaliseEmail } from "./email.js"
+import { hashEmail, maskEmail, normaliseEmail } from "./email.js"
 
 describe("normaliseEmail", () => {
   it("trims and lowercases", () => {
     expect(normaliseEmail("  Jane.Doe@Example.COM ")).toBe(
       "jane.doe@example.com"
     )
+  })
+})
+
+describe("hashEmail", () => {
+  it("hashes the normalised email as sha256 hex", () => {
+    const a = hashEmail("  Jane@Example.COM ")
+    const b = hashEmail("jane@example.com")
+    expect(a).toBe(b)
+    expect(a).toMatch(/^[a-f0-9]{64}$/)
+    expect(a).not.toBe(hashEmail("other@example.com"))
   })
 })
 

@@ -1,26 +1,25 @@
-import {
-  createClient,
-  type ClickHouseClient,
-  type ClickHouseClientConfigOptions,
-} from "@clickhouse/client"
+import { createClient, type ClickHouseClient } from "@clickhouse/client"
 
 import {
   CLICKHOUSE_DATABASE,
   assertClickHouseUrl,
   resolveClickHouseUrl,
 } from "./env.js"
+import { assertClickHouseTableName } from "./identifiers.js"
 
 export type ClickHouseQueryParams = NonNullable<
   Parameters<ClickHouseClient["query"]>[0]["query_params"]
+>
+
+export type ClickHouseSettings = NonNullable<
+  Parameters<ClickHouseClient["query"]>[0]["clickhouse_settings"]
 >
 
 export type ClickHouseInsertValues<T extends Record<string, unknown>> = T[]
 
 let client: ClickHouseClient | undefined
 
-export function getClickHouseClient(
-  options?: Partial<ClickHouseClientConfigOptions>
-): ClickHouseClient {
+export function getClickHouseClient(): ClickHouseClient {
   if (client) {
     return client
   }
@@ -33,7 +32,6 @@ export function getClickHouseClient(
       date_time_input_format: "best_effort",
       date_time_output_format: "iso",
     },
-    ...options,
   })
 
   return client
@@ -73,22 +71,29 @@ export async function clickhouseCommand(
 
 export async function clickhouseInsert<T extends Record<string, unknown>>(
   table: string,
-  values: ClickHouseInsertValues<T>
+  values: ClickHouseInsertValues<T>,
+  options: {
+    clickhouse_settings?: ClickHouseSettings
+  } = {}
 ): Promise<void> {
   if (values.length === 0) {
     return
   }
 
+  const safeTable = assertClickHouseTableName(table)
   await getClickHouseClient().insert({
-    table,
+    table: safeTable,
     values,
     format: "JSONEachRow",
+    ...(options.clickhouse_settings
+      ? { clickhouse_settings: options.clickhouse_settings }
+      : {}),
   })
 }
 
+/** Internal/test helper — not for app code. Prefer clickhouseQuery/Command/Insert. */
 export function createClickHouseClientFromUrl(
-  connectionString: string,
-  options?: Partial<ClickHouseClientConfigOptions>
+  connectionString: string
 ): ClickHouseClient {
   assertClickHouseUrl(connectionString)
   return createClient({
@@ -98,6 +103,5 @@ export function createClickHouseClientFromUrl(
       date_time_input_format: "best_effort",
       date_time_output_format: "iso",
     },
-    ...options,
   })
 }

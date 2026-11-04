@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./src/client.ts",
+      "default": "./dist/client.js"
     }
   },
   "files": [
@@ -29,6 +33,10 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "zod": "^4.6.5"
+    "@workspace/logger": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "bullmq": "^5.81.5",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
   }
 }

@@ -1,23 +1,26 @@
 import { AppError } from "@workspace/shared"
-import { NextResponse } from "next/server"
 
+import { jsonAppError } from "@/lib/api-response"
+import { handler } from "@/lib/handler"
 import { checkReadiness } from "@/lib/readiness"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-export async function GET() {
+async function handleGet(_request: Request): Promise<Response> {
   const failing = await checkReadiness()
   if (failing.length === 0) {
-    return NextResponse.json({ ok: true })
+    return Response.json({ ok: true })
   }
 
-  const error = AppError.unavailable(
-    failing.map((name) => ({
-      path: name,
-      message: "unreachable",
-    }))
+  return jsonAppError(
+    AppError.unavailable(
+      failing.map((name) => ({
+        path: name,
+        message: "unreachable",
+      }))
+    )
   )
-
-  return NextResponse.json(error.toJSON(), { status: error.status })
 }
+
+export const GET = handler(handleGet)

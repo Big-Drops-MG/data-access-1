@@ -7,6 +7,9 @@ import { defineConfig } from "vitest/config"
  */
 export default defineConfig({
   test: {
+    // The render worker's 5s deadline includes process startup. Running the
+    // emails and worker projects at the same time makes that startup exceed 5s.
+    maxWorkers: 1,
     projects: ["packages/*/vitest.config.ts", "apps/*/vitest.config.ts"],
     coverage: {
       provider: "v8",
@@ -27,6 +30,16 @@ export default defineConfig({
         "**/.next/**",
         // Browser-only helper; not unit-tested in Node.
         "apps/email-hub/src/lib/tokens.ts",
+        // Browser Better Auth client (needs DOM / React).
+        "apps/email-hub/src/lib/auth-client.ts",
+        // Better Auth factory + Next catch-all: need DB/runtime; policy is unit-tested in auth-gates.
+        "apps/email-hub/src/lib/auth/server.ts",
+        "apps/email-hub/src/lib/auth/auth.ts",
+        "apps/email-hub/src/app/api/auth/**",
+        // Better Auth middleware glue; lockout rules covered in two-factor-policy / lockout tests.
+        "apps/email-hub/src/lib/auth/two-factor-hooks.ts",
+        // Client hook (Next router + React state); URL helpers covered in url-state tests.
+        "apps/email-hub/src/lib/data-table/use-data-table-url-state.ts",
       ],
       thresholds: {
         // packages/shared — 90%
