@@ -22,6 +22,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 RUN pnpm turbo build --filter=@workspace/email-hub --filter=@workspace/worker
 RUN pnpm --filter=@workspace/worker deploy --prod --legacy /out/worker \
     && printf '%s\n' "import './dist/index.js'" > /out/worker/index.js
+RUN UI_SRC="$(node -p "require('path').dirname(require.resolve('@bull-board/ui/package.json',{paths:['/app/apps/email-hub']}))")" \
+    && mkdir -p /out/bull-board-ui \
+    && cp -aL "$UI_SRC"/. /out/bull-board-ui/
 
 FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS runner
 RUN apk add --no-cache libc6-compat \
@@ -38,6 +41,7 @@ COPY --from=builder --chown=appuser:nodejs /app/apps/email-hub/.next/standalone 
 COPY --from=builder --chown=appuser:nodejs /app/apps/email-hub/.next/static ./apps/email-hub/.next/static
 COPY --from=builder --chown=appuser:nodejs /app/apps/email-hub/public ./apps/email-hub/public
 COPY --from=builder --chown=appuser:nodejs /out/worker ./apps/worker
+COPY --from=builder --chown=appuser:nodejs /out/bull-board-ui ./node_modules/@bull-board/ui
 
 USER appuser
 EXPOSE 3000
