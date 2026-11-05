@@ -1,0 +1,35 @@
+﻿ RUN  v3.2.7 D:/Big Drops/data-access-1
+
+pnpm.exe : Sourcemap for "D:/Big Drops/data-access-1/packages/shared/dist/e2e-runtime.js" points to missing source 
+files
+At C:\Users\Admin\AppData\Roaming\npm\pnpm.ps1:14 char:3
++   & "$basedir/node_modules/pnpm/pnpm.exe"   $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Sourcemap for "...ng source files:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+{"level":"info","time":"2026-11-05T18:54:55.173Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-6491-7484-8b67-2f0d1fb5a6b3","source":"manual","scope":"global","offer_id":null,"email_hash":"011c65270581d5e8632540463a7473d7767f5b70de99616c9bc9d62231453c1c","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.219Z","service":"emailhub-web","environment":"test","event":"suppression.duplicate_ignored","suppression_id":"01a1ad10-6491-7484-8b67-2f0d1fb5a6b3","source":"manual","scope":"global","offer_id":null,"email_hash":"011c65270581d5e8632540463a7473d7767f5b70de99616c9bc9d62231453c1c","msg":"Duplicate manual suppression ignored"}
+{"level":"info","time":"2026-11-05T18:54:55.324Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-6553-7032-ac87-5d6cd7c5af4a","source":"manual","scope":"global","offer_id":null,"email_hash":"aaf3c46d97a62d4cd6b72c7f4ae679586888b34b7a3d4febc696682b85efc9dc","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.380Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-658a-73c7-b092-e69806ceb591","source":"manual","scope":"global","offer_id":null,"email_hash":"f7488e2f1533f20b13475db57b5928b9bd179c9fe972a9f3ae81ff0dea685db4","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.406Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-65a4-78e7-9744-d3d00839657a","source":"manual","scope":"offer","offer_id":"01a1ad10-657e-7404-9f7a-01e7f29bef5e","email_hash":"f7488e2f1533f20b13475db57b5928b9bd179c9fe972a9f3ae81ff0dea685db4","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.471Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-65e0-756c-bf3a-4d5038438224","source":"manual","scope":"global","offer_id":null,"email_hash":"44193416eeeb1cd637e45ec183d377c78bb529838b5409aa42663d9b091eccef","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.523Z","service":"emailhub-web","environment":"test","event":"suppression.duplicate_ignored","suppression_id":"01a1ad10-65e0-756c-bf3a-4d5038438224","source":"manual","scope":"global","offer_id":null,"email_hash":"44193416eeeb1cd637e45ec183d377c78bb529838b5409aa42663d9b091eccef","msg":"Duplicate manual suppression ignored"}
+{"level":"warn","time":"2026-11-05T18:54:55.612Z","service":"emailhub-web","environment":"test","event":"suppression.conflict","suppression_id":"01a1ad10-6657-731e-93b7-038f62939b15","source":"hard_bounce","scope":"global","offer_id":null,"email_hash":"f4812899d19afe11094baceb740a8ebbe1ba616f3e7f6c9d6b12a757fdd0d0a1","msg":"Active suppression already exists for this email and scope"}
+{"level":"warn","time":"2026-11-05T18:54:55.640Z","service":"emailhub-web","environment":"test","event":"suppression.remove_rejected","suppression_id":"01a1ad10-6657-731e-93b7-038f62939b15","source":"hard_bounce","email_hash":"f4812899d19afe11094baceb740a8ebbe1ba616f3e7f6c9d6b12a757fdd0d0a1","msg":"hard_bounce suppression cannot be removed"}
+{"level":"warn","time":"2026-11-05T18:54:55.655Z","service":"emailhub-web","environment":"test","event":"suppression.remove_rejected","suppression_id":"01a1ad10-6657-731e-93b7-038f62939b15","source":"hard_bounce","email_hash":"f4812899d19afe11094baceb740a8ebbe1ba616f3e7f6c9d6b12a757fdd0d0a1","msg":"hard_bounce suppression cannot be removed"}
+{"level":"info","time":"2026-11-05T18:54:55.719Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-66d0-77d9-b15b-696065afb8cf","source":"manual","scope":"global","offer_id":null,"email_hash":"b91d783d0fd525c8e3d2513565cdb1c15b5a047cde94498350d31c3a57bc5425","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.792Z","service":"emailhub-web","environment":"test","event":"suppression.removed","suppression_id":"01a1ad10-66d0-77d9-b15b-696065afb8cf","source":"manual","scope":"global","offer_id":null,"msg":"Suppression removed"}
+{"level":"info","time":"2026-11-05T18:54:55.894Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-6771-7675-82e1-cdbf8f1dff0d","source":"manual","scope":"global","offer_id":null,"email_hash":"ad3fb6e00d47ed913ee25461fd7f1217833501d5b352f6333479b9da49d7a121","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.924Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-67a3-78b8-a382-87ac05467513","source":"manual","scope":"global","offer_id":null,"email_hash":"70dbbab008c38e1c9b743fe4c272a92c924ec8bd00450282cfc241fec612d9a6","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:55.953Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-67c2-702c-865c-aa9badff800a","source":"manual","scope":"global","offer_id":null,"email_hash":"ab4c467b06f8187001f21a631d25748a312bb81159832bd9b3c7108c36d622d4","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:56.054Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-682c-7fa8-909f-ce24e0137d29","source":"manual","scope":"global","offer_id":null,"email_hash":"e19f0595cd1cf7555fc226384e2b93e854e4ee8484f32b9d760425345d86d867","msg":"Manual suppression created"}
+{"level":"info","time":"2026-11-05T18:54:56.142Z","service":"emailhub-web","environment":"test","event":"suppression.removed","suppression_id":"01a1ad10-682c-7fa8-909f-ce24e0137d29","source":"manual","scope":"global","offer_id":null,"msg":"Suppression removed"}
+{"level":"info","time":"2026-11-05T18:54:56.257Z","service":"emailhub-web","environment":"test","event":"suppression.created","suppression_id":"01a1ad10-68d4-7172-bafa-69088208b7a1","source":"manual","scope":"offer","offer_id":"01a1ad10-6808-7ff2-8c5f-260c1f3a0de8","email_hash":"e19f0595cd1cf7555fc226384e2b93e854e4ee8484f32b9d760425345d86d867","msg":"Manual suppression created"}
+ âœ“ |int| apps/email-hub/src/lib/suppressions/service.int.test.ts (8 tests) 1410ms
+   âœ“ suppression service (isolated clone) > follows send-check scope for manual, offer, removed, and hard bounce rows  422ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  00:24:37
+   Duration  19.40s (transform 2.37s, setup 1.47s, collect 6.85s, tests 1.41s, environment 5ms, prepare 1.08s)

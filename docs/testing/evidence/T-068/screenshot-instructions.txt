@@ -1,0 +1,20 @@
+Screenshots were not captured. This environment has no terminal screenshot tool, and generating images from the logs would not be genuine evidence.
+
+The Vitest logs in this folder are the real command output:
+
+- unit-vitest.txt
+- int-vitest.txt
+- typecheck.txt
+
+To attach PNG evidence to the pull request, open each log in a terminal or editor, scroll so the command and the pass or fail summary are visible, and capture the window:
+
+1. unit-vitest.txt — show "Test Files  4 passed" and "Tests  30 passed". Save as 01-suppression-tests-passed.png.
+2. int-vitest.txt — show suppression.created and suppression.duplicate_ignored. Save as 03-manual-suppression-created.png and 04-duplicate-suppression-ignored.png.
+3. int-vitest.txt — show suppression.remove_rejected for hard_bounce. Save as 08-hard-bounce-remove-rejected.png.
+4. int-vitest.txt — show suppression.removed. Save as 06-admin-remove-success.png.
+5. unit-vitest.txt — show GET /api/suppressions status 200 and POST remove status 403. Save as 02-get-suppression-list.png and 07-viewer-remove-rejected.png.
+6. typecheck.txt — show the tsc errors. Save as 09-typecheck-lint-build.png.
+
+Do not invent a 05-recipient-linked.png unless a later run prints the recipient id assertion. The integration test asserts the link in process; the log shows suppression.created for that case but not the recipient id.
+
+No application server was started, so there is no browser page to capture.
