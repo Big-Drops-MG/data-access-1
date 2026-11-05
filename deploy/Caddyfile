@@ -1,8 +1,8 @@
 {
-	email {$ACME_EMAIL}
+	auto_https off
 }
 
-{$APP_HOST} {
+:80 {
 	encode zstd gzip
 
 	header {

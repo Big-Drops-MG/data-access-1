@@ -9,7 +9,7 @@ const TRANSITIONS: Record<SendStatus, readonly SendStatus[]> = {
   draft: ["scheduled"],
   scheduled: ["cancelled"],
   queued: [],
-  dispatching: [],
+  dispatching: ["cancelled"],
   completed: [],
   cancelled: [],
   failed: [],
