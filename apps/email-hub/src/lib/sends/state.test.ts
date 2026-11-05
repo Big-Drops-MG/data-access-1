@@ -24,15 +24,17 @@ const STATUSES: SendStatus[] = [
 ]
 
 describe("send state machine", () => {
-  it("allows only draft to scheduled and scheduled to cancelled", () => {
+  it("allows draft to scheduled and scheduled/dispatching to cancelled", () => {
     expect(canTransition("draft", "scheduled")).toBe(true)
     expect(canTransition("scheduled", "cancelled")).toBe(true)
+    expect(canTransition("dispatching", "cancelled")).toBe(true)
 
     for (const from of STATUSES) {
       for (const to of STATUSES) {
         const allowed =
           (from === "draft" && to === "scheduled") ||
-          (from === "scheduled" && to === "cancelled")
+          (from === "scheduled" && to === "cancelled") ||
+          (from === "dispatching" && to === "cancelled")
         expect(canTransition(from, to)).toBe(allowed)
       }
     }

@@ -60,6 +60,15 @@ export function SendersPage({ canWrite = false }: SendersPageProps) {
   )
 
   const list = useSendersList(listParams)
+  const activeForCounts = useSendersList({ status: "active", limit: 100 })
+  const inactiveForCounts = useSendersList({ status: "inactive", limit: 100 })
+  const statusCounts = useMemo(
+    () => ({
+      active: activeForCounts.data?.data.length ?? 0,
+      inactive: inactiveForCounts.data?.data.length ?? 0,
+    }),
+    [activeForCounts.data?.data.length, inactiveForCounts.data?.data.length]
+  )
   const rows = useMemo(() => {
     const data = list.data?.data ?? []
     if (!searchQuery) {
@@ -219,9 +228,10 @@ export function SendersPage({ canWrite = false }: SendersPageProps) {
         rowActions={rowActions}
         testIdPrefix="senders"
         toolbar={
-          <div className="flex w-full flex-wrap items-end justify-between gap-3">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
             <SenderStatusTabs
               value={selectedStatus}
+              counts={statusCounts}
               onChange={(value) => {
                 tableState.setFilter(
                   "status",

@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, max } from "drizzle-orm"
+import { and, desc, eq, inArray, lt, max } from "drizzle-orm"
 
 import {
   emailCategory,
@@ -27,6 +27,7 @@ import {
   serializeTemplate,
   serializeTemplateVersion,
   type TemplateJson,
+  type TemplateSerializeExtras,
   type TemplateVersionJson,
 } from "./serialize"
 
@@ -100,6 +101,71 @@ async function requireCategory(db: Db, categoryId: string): Promise<void> {
   }
 }
 
+async function loadCategoryExtras(
+  db: Db,
+  categoryId: string
+): Promise<Pick<TemplateSerializeExtras, "category_name" | "category_kind">> {
+  const [row] = await db
+    .select({
+      category_name: emailCategory.name,
+      category_kind: emailCategory.kind,
+    })
+    .from(emailCategory)
+    .where(eq(emailCategory.id, categoryId))
+    .limit(1)
+  if (!row) {
+    throw AppError.validationFailed([
+      { path: "category_id", message: "Category not found" },
+    ])
+  }
+  return row
+}
+
+async function resolveCurrentVersionNo(
+  db: Db,
+  row: Template,
+  versions?: { id: string; versionNo: number }[]
+): Promise<number | null> {
+  if (row.currentVersionId) {
+    if (versions) {
+      const published = versions.find(
+        (version) => version.id === row.currentVersionId
+      )
+      if (published) {
+        return published.versionNo
+      }
+    } else {
+      const [published] = await db
+        .select({ versionNo: templateVersion.versionNo })
+        .from(templateVersion)
+        .where(eq(templateVersion.id, row.currentVersionId))
+        .limit(1)
+      if (published) {
+        return published.versionNo
+      }
+    }
+  }
+
+  if (versions && versions.length > 0) {
+    return Math.max(...versions.map((version) => version.versionNo))
+  }
+
+  const [agg] = await db
+    .select({ maxNo: max(templateVersion.versionNo) })
+    .from(templateVersion)
+    .where(eq(templateVersion.templateId, row.id))
+  return agg?.maxNo ?? null
+}
+
+async function toTemplateJson(db: Db, row: Template): Promise<TemplateJson> {
+  const category = await loadCategoryExtras(db, row.categoryId)
+  const currentVersionNo = await resolveCurrentVersionNo(db, row)
+  return serializeTemplate(row, {
+    ...category,
+    current_version_no: currentVersionNo,
+  })
+}
+
 async function listActiveRoutesForTemplate(
   db: Db,
   templateId: string
@@ -141,17 +207,59 @@ export async function listTemplates(
         : and(...conditions)
 
   const rows = await db
-    .select()
+    .select({
+      template,
+      category_name: emailCategory.name,
+      category_kind: emailCategory.kind,
+      published_version_no: templateVersion.versionNo,
+    })
     .from(template)
+    .innerJoin(emailCategory, eq(template.categoryId, emailCategory.id))
+    .leftJoin(
+      templateVersion,
+      eq(template.currentVersionId, templateVersion.id)
+    )
     .where(where)
     .orderBy(desc(template.id))
     .limit(input.limit + 1)
 
   const page = rows.slice(0, input.limit)
-  const next = rows.length > input.limit ? (page.at(-1)?.id ?? null) : null
+  const next =
+    rows.length > input.limit ? (page.at(-1)?.template.id ?? null) : null
+
+  const missingLatest = page
+    .filter((row) => row.published_version_no == null)
+    .map((row) => row.template.id)
+
+  const latestByTemplate = new Map<string, number>()
+  if (missingLatest.length > 0) {
+    const latestRows = await db
+      .select({
+        templateId: templateVersion.templateId,
+        maxNo: max(templateVersion.versionNo),
+      })
+      .from(templateVersion)
+      .where(inArray(templateVersion.templateId, missingLatest))
+      .groupBy(templateVersion.templateId)
+
+    for (const latest of latestRows) {
+      if (latest.maxNo != null) {
+        latestByTemplate.set(latest.templateId, latest.maxNo)
+      }
+    }
+  }
 
   return {
-    data: page.map(serializeTemplate),
+    data: page.map((row) =>
+      serializeTemplate(row.template, {
+        category_name: row.category_name,
+        category_kind: row.category_kind,
+        current_version_no:
+          row.published_version_no ??
+          latestByTemplate.get(row.template.id) ??
+          null,
+      })
+    ),
     next_cursor: next,
   }
 }
@@ -167,8 +275,14 @@ export async function getTemplate(
     .where(eq(templateVersion.templateId, id))
     .orderBy(desc(templateVersion.versionNo))
 
+  const category = await loadCategoryExtras(db, row.categoryId)
+  const currentVersionNo = await resolveCurrentVersionNo(db, row, versions)
+
   return {
-    ...serializeTemplate(row),
+    ...serializeTemplate(row, {
+      ...category,
+      current_version_no: currentVersionNo,
+    }),
     versions: versions.map(serializeTemplateVersion),
   }
 }
@@ -197,16 +311,18 @@ export async function createTemplate(
         throw AppError.internal()
       }
 
+      const json = await toTemplateJson(tx, row)
+
       await writeAudit(tx, {
         actor: { type: "user", id: actor.userId },
         action: "template.create",
         objectType: "template",
         objectId: row.id,
         requestId: actor.requestId,
-        after: serializeTemplate(row),
+        after: json,
       })
 
-      return serializeTemplate(row)
+      return json
     })
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -298,17 +414,20 @@ export async function updateTemplate(
       throw error
     }
 
+    const beforeJson = await toTemplateJson(tx, before)
+    const afterJson = await toTemplateJson(tx, row)
+
     await writeAudit(tx, {
       actor: { type: "user", id: actor.userId },
       action: "template.update",
       objectType: "template",
       objectId: row.id,
       requestId: actor.requestId,
-      before: serializeTemplate(before),
-      after: serializeTemplate(row),
+      before: beforeJson,
+      after: afterJson,
     })
 
-    return serializeTemplate(row)
+    return afterJson
   })
 }
 
@@ -426,19 +545,22 @@ export async function publishTemplateVersion(
       throw AppError.internal()
     }
 
+    const beforeJson = await toTemplateJson(tx, before)
+    const afterJson = await toTemplateJson(tx, row)
+
     await writeAudit(tx, {
       actor: { type: "user", id: actor.userId },
       action: "template.publish",
       objectType: "template",
       objectId: row.id,
       requestId: actor.requestId,
-      before: serializeTemplate(before),
-      after: serializeTemplate(row),
+      before: beforeJson,
+      after: afterJson,
     })
 
     logTemplateEvent(actor, "template.published", templateId, version.id)
 
-    return serializeTemplate(row)
+    return afterJson
   })
 }
 
