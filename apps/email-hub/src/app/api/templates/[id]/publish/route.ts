@@ -7,6 +7,8 @@ import { requireTemplatesStaffAccess } from "@/lib/templates/staff-access"
 import { handler } from "@/lib/handler"
 import { parseJsonBody, parseOrThrow } from "@/lib/zod-parse"
 
+export const runtime = "nodejs"
+
 type RouteContext = {
   params: Promise<{ id: string }>
 }

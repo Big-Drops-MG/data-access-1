@@ -1,19 +1,25 @@
 import type { Metadata } from "next"
 
 import { ForbiddenPage } from "@/components/app/full-page-message"
-import { ModulePlaceholderPage } from "@/components/app/module-placeholder-page"
+import { TemplateEditorPage } from "@/features/templates/template-editor-page"
 import { requireRoleForPage } from "@/lib/auth/require-role"
 
 export const metadata: Metadata = {
-  title: "Queues",
+  title: "New template",
 }
 
 export default async function Page() {
-  const access = await requireRoleForPage("admin", {
-    nextPath: "/admin/queues",
+  const access = await requireRoleForPage("operator", {
+    nextPath: "/templates/new",
   })
   if ("forbidden" in access) {
     return <ForbiddenPage />
   }
-  return <ModulePlaceholderPage title="Queues" />
+  return (
+    <TemplateEditorPage
+      mode="create"
+      canWrite
+      operatorEmail={access.user.email}
+    />
+  )
 }

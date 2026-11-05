@@ -18,7 +18,15 @@ export type RenderedMessage = {
   subject: string
   html: string
   text: string
+  /** Footer / body unsubscribe link. */
   unsubscribeUrl?: string
+  /** List-Unsubscribe header URL; defaults to `unsubscribeUrl`. */
+  listUnsubscribeUrl?: string
+  /**
+   * When true (default if a list-unsubscribe URL is set), also set
+   * List-Unsubscribe-Post. Engagement / Everflow URLs pass false.
+   */
+  oneClickUnsubscribe?: boolean
 }
 
 export type SendResult = {
@@ -107,7 +115,7 @@ export function createSesTransport(options: {
       loggedSend("ses", message, () =>
         providerResult("SES", async () => {
           const replyTo = prepareMessage(message)
-          const headers = unsubscribeHeaders(message.unsubscribeUrl)
+          const headers = unsubscribeHeaders(message)
           const output = await client.send(
             new SendEmailCommand({
               FromEmailAddress: message.from,
@@ -152,7 +160,7 @@ export function createSmtpTransport(options: {
       loggedSend("smtp", message, () =>
         providerResult("SMTP", async () => {
           const replyTo = prepareMessage(message)
-          const headers = smtpUnsubscribeHeaders(message.unsubscribeUrl)
+          const headers = smtpUnsubscribeHeaders(message)
           const info = await sender.sendMail({
             from: message.from,
             to: message.to,
@@ -206,23 +214,36 @@ async function loggedSend(
 }
 
 function unsubscribeHeaders(
-  unsubscribeUrl: string | undefined
+  message: Pick<
+    RenderedMessage,
+    "unsubscribeUrl" | "listUnsubscribeUrl" | "oneClickUnsubscribe"
+  >
 ): { Name: string; Value: string }[] {
-  const url = unsubscribeUrl?.trim() ?? ""
+  const url =
+    message.listUnsubscribeUrl?.trim() || message.unsubscribeUrl?.trim() || ""
   if (url === "") {
     return []
   }
   const value = url.startsWith("<") ? url : `<${url}>`
-  return [
+  const headers: { Name: string; Value: string }[] = [
     { Name: LIST_UNSUBSCRIBE_HEADER, Value: value },
-    { Name: LIST_UNSUBSCRIBE_POST_HEADER, Value: LIST_UNSUBSCRIBE_POST },
   ]
+  if (message.oneClickUnsubscribe !== false) {
+    headers.push({
+      Name: LIST_UNSUBSCRIBE_POST_HEADER,
+      Value: LIST_UNSUBSCRIBE_POST,
+    })
+  }
+  return headers
 }
 
 function smtpUnsubscribeHeaders(
-  unsubscribeUrl: string | undefined
+  message: Pick<
+    RenderedMessage,
+    "unsubscribeUrl" | "listUnsubscribeUrl" | "oneClickUnsubscribe"
+  >
 ): Record<string, string> | undefined {
-  const headers = unsubscribeHeaders(unsubscribeUrl)
+  const headers = unsubscribeHeaders(message)
   if (headers.length === 0) {
     return undefined
   }

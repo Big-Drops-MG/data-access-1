@@ -7,23 +7,33 @@ const at = new Date("2026-10-30T12:00:00.000Z")
 describe("template serialize", () => {
   it("serializes template rows to snake_case JSON", () => {
     expect(
-      serializeTemplate({
-        id: "019a0000-0000-7000-8000-0000000000aa",
-        name: "Welcome",
-        emailType: "thank_you",
-        categoryId: "019a0000-0000-7000-8000-000000000010",
-        currentVersionId: null,
-        status: "draft",
-        createdBy: "019a0000-0000-7000-8000-000000000001",
-        createdAt: at,
-        updatedAt: at,
-      })
+      serializeTemplate(
+        {
+          id: "019a0000-0000-7000-8000-0000000000aa",
+          name: "Welcome",
+          emailType: "thank_you",
+          categoryId: "019a0000-0000-7000-8000-000000000010",
+          currentVersionId: null,
+          status: "draft",
+          createdBy: "019a0000-0000-7000-8000-000000000001",
+          createdAt: at,
+          updatedAt: at,
+        },
+        {
+          category_name: "Thank you",
+          category_kind: "transactional",
+          current_version_no: null,
+        }
+      )
     ).toEqual({
       id: "019a0000-0000-7000-8000-0000000000aa",
       name: "Welcome",
       email_type: "thank_you",
       category_id: "019a0000-0000-7000-8000-000000000010",
+      category_name: "Thank you",
+      category_kind: "transactional",
       current_version_id: null,
+      current_version_no: null,
       status: "draft",
       created_by: "019a0000-0000-7000-8000-000000000001",
       created_at: "2026-10-30T12:00:00.000Z",

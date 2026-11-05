@@ -9,10 +9,10 @@ import {
 import type { Message, Recipient } from "@workspace/db"
 import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm"
 
+import type { MessageEnvironment } from "./compliance-tags.js"
 import { AppError } from "./errors.js"
 import type { EmailHubTx, TriggerEmailType } from "./trigger-email.js"
 
-/** Schema / SD#7 Stage A skip reasons (excludes `no_route`, handled earlier). */
 export type SendCheckSkipReason =
   | "recipient_bounced"
   | "suppressed"
@@ -25,9 +25,7 @@ export type SendCheckFacts = {
   emailType: TriggerEmailType
   recipientStatus: Recipient["status"]
   recipientTier: Recipient["tier"]
-  /** Active hard_bounce or feedback_review suppression. */
   hardOrComplaintSuppressed: boolean
-  /** Active Optizmo / list_unsub / manual / offer suppression. */
   engagementSuppressed: boolean
   categoryOptedOut: boolean
   collisionHit: boolean
@@ -56,10 +54,6 @@ export function isTransactionalEmailType(emailType: TriggerEmailType): boolean {
   return TRANSACTIONAL_TYPES.has(emailType)
 }
 
-/**
- * SD#7 Stage A step 7 — first failing check wins.
- * Thank-you / feedback_request ignore engagement suppressions and opt-outs.
- */
 export function firstFailedSendCheck(
   facts: SendCheckFacts
 ): SendCheckSkipReason | null {
@@ -107,9 +101,6 @@ export type RunSendChecksInput = {
   now?: Date
 }
 
-/**
- * Load check facts from the DB and return the first Stage A skip reason, or null.
- */
 export async function runSendChecks(
   tx: EmailHubTx,
   input: RunSendChecksInput
@@ -400,6 +391,8 @@ export async function insertSkippedSendCheckMessage(
     templateVersionId: string
     senderId: string
     skipReason: SendCheckSkipReason
+    environment?: MessageEnvironment
+    sendId?: string | null
   }
 ): Promise<Message> {
   const [skipped] = await tx
@@ -410,9 +403,11 @@ export async function insertSkippedSendCheckMessage(
       emailType: input.emailType,
       templateVersionId: input.templateVersionId,
       senderId: input.senderId,
+      sendId: input.sendId ?? null,
       idempotencyKey: input.idempotencyKey,
       status: "skipped",
       skipReason: input.skipReason,
+      environment: input.environment ?? "production",
     })
     .returning()
 

@@ -23,6 +23,8 @@ export type EnrichedMessageContext = {
   sendingDomain: string | null
   senderFromEmail: string | null
   recipientEmail: string | null
+  /** Message classification from `message.environment`. */
+  messageEnvironment?: "production" | "test"
 }
 
 export type EventsWorkerDependencies = {
@@ -67,6 +69,7 @@ export async function defaultLookupMessageContext(
       sendingDomain: domain.name,
       senderFromEmail: sender.fromEmail,
       recipientEmail: recipient.email,
+      messageEnvironment: message.environment,
     })
     .from(message)
     .leftJoin(recipient, eq(message.recipientId, recipient.id))
@@ -88,6 +91,7 @@ export async function defaultLookupMessageContext(
         sendingDomain: row.sendingDomain,
         senderFromEmail: row.senderFromEmail,
         recipientEmail: row.recipientEmail,
+        messageEnvironment: row.messageEnvironment,
       })
     }
   }
@@ -200,6 +204,13 @@ export async function processEventsJob(
 
   const lagMs = Math.max(0, insertAcknowledgedAt - eventOccurredAt)
 
+  const messageEnvironment = jobData.records
+    .map(
+      (record) =>
+        messageContextMap.get(record.ses_message_id)?.messageEnvironment
+    )
+    .find((value) => value === "test" || value === "production")
+
   getContextLogger().info(
     {
       event: "events.inserted",
@@ -207,6 +218,7 @@ export async function processEventsJob(
       job_id: jobData.sns_message_id,
       message_id: rows[0]?.message_id,
       ...(jobData.workspace_id ? { workspace_id: jobData.workspace_id } : {}),
+      ...(messageEnvironment ? { environment: messageEnvironment } : {}),
       inserted_count: rows.length,
       lag_ms: lagMs,
     },

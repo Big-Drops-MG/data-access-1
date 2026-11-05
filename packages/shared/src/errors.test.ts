@@ -16,6 +16,7 @@ describe("ERROR_CODES / ERROR_STATUS", () => {
       "forbidden",
       "not_found",
       "conflict",
+      "gone",
       "validation_failed",
       "rate_limited",
       "internal",
@@ -27,6 +28,7 @@ describe("ERROR_CODES / ERROR_STATUS", () => {
       forbidden: 403,
       not_found: 404,
       conflict: 409,
+      gone: 410,
       validation_failed: 422,
       rate_limited: 429,
       internal: 500,
@@ -73,6 +75,8 @@ describe("AppError", () => {
     expect(AppError.forbidden().status).toBe(403)
     expect(AppError.notFound().code).toBe("not_found")
     expect(AppError.conflict().status).toBe(409)
+    expect(AppError.gone().status).toBe(410)
+    expect(AppError.gone().code).toBe("gone")
     expect(
       AppError.validationFailed([{ path: "a", message: "b" }]).details
     ).toEqual([{ path: "a", message: "b" }])

@@ -3,8 +3,11 @@ import {
   TemplateRenderError,
   renderEmailTemplate,
 } from "@workspace/emails/render"
+import { getContextLogger } from "@workspace/logger"
 import {
+  applyRenderedComplianceMergeData,
   buildUnsubscribeUrl,
+  isTransactionalEmailType,
   sesSendRatePerSecond,
   UnsubscribeTokenError,
   uuidSchema,
@@ -95,14 +98,21 @@ export async function renderQueuedEmail(
   html: string
   text: string
   unsubscribeUrl?: string
+  listUnsubscribeUrl?: string
+  oneClickUnsubscribe?: boolean
 }> {
   const replyTo = context.replyTo?.trim() ?? ""
+  const links = unsubscribeLinksFor(context, compliance)
+  const postalAddress = context.postalAddress ?? ""
   const rendered = await renderEmailTemplate({
     source: context.bodySource,
     subject: context.subject,
-    mergeData: context.mergeData ?? {},
-    unsubscribeUrl: unsubscribeUrlFor(context, compliance),
-    postalAddress: context.postalAddress ?? "",
+    mergeData: applyRenderedComplianceMergeData(context.mergeData, {
+      unsubscribeUrl: links.footerUrl,
+      postalAddress,
+    }),
+    unsubscribeUrl: links.footerUrl,
+    postalAddress,
   })
   return {
     from: formatFromAddress(context.fromName, context.fromEmail),
@@ -112,6 +122,8 @@ export async function renderQueuedEmail(
     html: rendered.html,
     text: rendered.text,
     unsubscribeUrl: rendered.unsubscribeUrl,
+    listUnsubscribeUrl: links.listUnsubscribeUrl,
+    oneClickUnsubscribe: links.oneClickUnsubscribe,
   }
 }
 
@@ -178,6 +190,17 @@ export async function processSendEmailJob(
   if (skipReason) {
     return
   }
+
+  const environment =
+    loaded.context.environment ?? data.environment ?? "production"
+  getContextLogger().info(
+    {
+      event: "message.send",
+      message_id: messageId,
+      environment,
+    },
+    "Send email"
+  )
 
   const claimed = await deps.claim(messageId)
   if (!claimed) {
@@ -281,20 +304,48 @@ function readStatusCode(value: object): number | undefined {
     : undefined
 }
 
-function unsubscribeUrlFor(
+function unsubscribeLinksFor(
   context: QueuedSendContext,
   compliance?: { origin?: string; secret?: string }
-): string {
+): {
+  footerUrl: string
+  listUnsubscribeUrl: string
+  oneClickUnsubscribe: boolean
+} {
   const provided = context.unsubscribeUrl?.trim() ?? ""
   if (provided !== "") {
-    return provided
+    // Engagement / Everflow: footer + List-Unsubscribe only (no Post, no Hub token).
+    return {
+      footerUrl: provided,
+      listUnsubscribeUrl: provided,
+      oneClickUnsubscribe: false,
+    }
   }
+
+  if (!isTransactionalEmailType(context.emailType)) {
+    throw new TemplateRenderError(
+      "compliance",
+      "Unsubscribe URL is not configured"
+    )
+  }
+
   try {
-    return buildUnsubscribeUrl({
+    const footerUrl = buildUnsubscribeUrl({
       origin: compliance?.origin,
       secret: compliance?.secret,
       messageId: context.messageId,
     })
+    const listUnsubscribeUrl = buildUnsubscribeUrl({
+      origin: compliance?.origin,
+      secret: compliance?.secret,
+      messageId: context.messageId,
+      path: "api/u",
+    })
+    return {
+      footerUrl,
+      listUnsubscribeUrl,
+      oneClickUnsubscribe: true,
+    }
   } catch (error) {
     if (error instanceof UnsubscribeTokenError) {
       throw new TemplateRenderError("compliance", error.message)
