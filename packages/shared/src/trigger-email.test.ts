@@ -640,6 +640,202 @@ describe("triggerEmail", () => {
     expect(enqueueSendEmail).toHaveBeenCalledWith(created.id)
   })
 
+  it("enqueues a test message with its environment", async () => {
+    const selectRecipient = createChain([recipientRow])
+    const created = {
+      ...messageRow,
+      id: "01900000-0000-7000-8000-000000000098",
+      idempotencyKey: "key-test",
+    } as Message
+    const { tx, insertMessage } = happyPathTx(created)
+    const db = {
+      select: vi.fn(() => selectRecipient),
+      insert: vi.fn(),
+      transaction: vi.fn(async (fn: (inner: EmailHubTx) => Promise<unknown>) =>
+        fn(tx)
+      ),
+    } as unknown as EmailHubDb
+    const enqueueSendEmail = vi.fn(async () => undefined)
+
+    await triggerEmail(
+      db,
+      {
+        email: "jane@example.com",
+        idempotencyKey: "key-test",
+        emailType: "thank_you",
+        environment: "test",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
+        requestId: "req-test-send",
+      },
+      { enqueueSendEmail }
+    )
+
+    expect(insertMessage.values).toHaveBeenCalledWith(
+      expect.objectContaining({ environment: "test", status: "queued" })
+    )
+    expect(enqueueSendEmail).toHaveBeenCalledWith(
+      created.id,
+      "req-test-send",
+      "test"
+    )
+  })
+
+  it("queues a caller-selected template version", async () => {
+    const requestedId = "01900000-0000-7000-8000-000000000077"
+    const requestedVersion = {
+      ...versionRow,
+      id: requestedId,
+    } as TemplateVersion
+    const selectRecipient = createChain([recipientRow])
+    const created = {
+      ...messageRow,
+      id: "01900000-0000-7000-8000-000000000097",
+      templateVersionId: requestedId,
+      idempotencyKey: "key-version",
+    } as Message
+    const insertMessage = createChain([created])
+    insertMessage.values = vi.fn(() => insertMessage)
+    let selectCalls = 0
+    const rows = [
+      [recipientRow],
+      [],
+      [routeRow],
+      [templateRow],
+      [versionRow],
+      [senderRow],
+      [requestedVersion],
+      [templateRow],
+    ]
+    const tx = {
+      execute: vi.fn(async () => undefined),
+      select: vi.fn(() => {
+        const result = rows[selectCalls] ?? []
+        selectCalls += 1
+        return createChain(result)
+      }),
+      insert: vi.fn(() => insertMessage),
+    } as unknown as EmailHubTx
+    const db = {
+      select: vi.fn(() => selectRecipient),
+      insert: vi.fn(),
+      transaction: vi.fn(async (fn: (inner: EmailHubTx) => Promise<unknown>) =>
+        fn(tx)
+      ),
+    } as unknown as EmailHubDb
+    const enqueueSendEmail = vi.fn(async () => undefined)
+
+    const result = await triggerEmail(
+      db,
+      {
+        email: "jane@example.com",
+        idempotencyKey: "key-version",
+        emailType: "thank_you",
+        templateVersionId: requestedId,
+        environment: "test",
+        mergeData: {
+          first_name: "Jane",
+          quote_url: "https://example.com/q",
+        },
+      },
+      { enqueueSendEmail }
+    )
+
+    expect(result.created).toBe(true)
+    expect(insertMessage.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateVersionId: requestedId,
+        environment: "test",
+        status: "queued",
+      })
+    )
+  })
+
+  it("rejects a caller-selected version that is missing or for another email type", async () => {
+    const requestedId = "01900000-0000-7000-8000-000000000078"
+    const selectRecipient = createChain([recipientRow])
+
+    function dbFor(rows: unknown[][]) {
+      let selectCalls = 0
+      const tx = {
+        execute: vi.fn(async () => undefined),
+        select: vi.fn(() => {
+          const result = rows[selectCalls] ?? []
+          selectCalls += 1
+          return createChain(result)
+        }),
+        insert: vi.fn(),
+      } as unknown as EmailHubTx
+      return {
+        select: vi.fn(() => selectRecipient),
+        insert: vi.fn(),
+        transaction: vi.fn(
+          async (fn: (inner: EmailHubTx) => Promise<unknown>) => fn(tx)
+        ),
+      } as unknown as EmailHubDb
+    }
+
+    const prefix = [
+      [recipientRow],
+      [],
+      [routeRow],
+      [templateRow],
+      [versionRow],
+      [senderRow],
+    ]
+    const enqueueSendEmail = vi.fn(async () => undefined)
+    const input = {
+      email: "jane@example.com",
+      idempotencyKey: "key-missing-version",
+      emailType: "thank_you" as const,
+      templateVersionId: requestedId,
+      mergeData: {
+        first_name: "Jane",
+        quote_url: "https://example.com/q",
+      },
+    }
+
+    await expect(
+      triggerEmail(dbFor([...prefix, []]), input, { enqueueSendEmail })
+    ).rejects.toMatchObject({
+      code: "not_found",
+      details: [{ path: "version_id", message: "Version not found" }],
+    })
+
+    await expect(
+      triggerEmail(
+        dbFor([...prefix, [versionRow], []]),
+        { ...input, idempotencyKey: "key-missing-template" },
+        { enqueueSendEmail }
+      )
+    ).rejects.toMatchObject({
+      details: [{ path: "template_id", message: "Template not found" }],
+    })
+
+    await expect(
+      triggerEmail(
+        dbFor([
+          ...prefix,
+          [versionRow],
+          [{ ...templateRow, emailType: "engagement" }],
+        ]),
+        { ...input, idempotencyKey: "key-wrong-type" },
+        { enqueueSendEmail }
+      )
+    ).rejects.toMatchObject({
+      code: "validation_failed",
+      details: [
+        {
+          path: "version_id",
+          message: "Version does not match the template email type",
+        },
+      ],
+    })
+    expect(enqueueSendEmail).not.toHaveBeenCalled()
+  })
+
   it("leaves the message queued when enqueue fails", async () => {
     const selectRecipient = createChain([recipientRow])
     const { tx } = happyPathTx(messageRow)

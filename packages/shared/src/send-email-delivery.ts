@@ -10,6 +10,7 @@ import {
 import type { Database, DatabaseTransaction } from "@workspace/db/client"
 import { and, eq, inArray, sql } from "drizzle-orm"
 
+import type { MessageEnvironment } from "./compliance-tags.js"
 import { runSendChecks, type SendCheckSkipReason } from "./send-checks.js"
 import type { MergeData, TriggerEmailType } from "./trigger-email.js"
 
@@ -35,6 +36,8 @@ export type QueuedSendContext = {
   mergeData?: MergeData
   unsubscribeUrl?: string
   postalAddress?: string
+  /** Persisted message classification. Absent only for in-memory fixtures. */
+  environment?: MessageEnvironment
 }
 
 export type LoadQueuedSendResult =
@@ -120,6 +123,7 @@ export async function loadQueuedSend(
     replyTo: from.replyTo,
     mergeData: readMergeData(row.mergeData),
     postalAddress: readPostalAddress(from.postalAddress),
+    environment: row.environment,
   }
 
   return { state: "queued", context }

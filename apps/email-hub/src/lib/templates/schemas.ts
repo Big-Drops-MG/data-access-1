@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import { paginationSchema, uuidSchema } from "@workspace/shared"
 
+import { mergeDataSchema } from "@/lib/ext-emails/schemas"
+
 export const templateStatusSchema = z.enum(["draft", "active", "archived"])
 export const emailTypeSchema = z.enum([
   "thank_you",
@@ -51,6 +53,15 @@ export const createTemplateVersionBodySchema = z
 export const publishTemplateBodySchema = z
   .object({
     version_id: uuidSchema,
+  })
+  .strict()
+
+export const testSendTemplateBodySchema = z
+  .object({
+    version_id: uuidSchema,
+    offer_id: uuidSchema.nullable().optional(),
+    idempotency_key: z.string().trim().min(1).max(200).optional(),
+    merge_data: mergeDataSchema.optional(),
   })
   .strict()
 

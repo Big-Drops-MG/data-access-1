@@ -9,6 +9,7 @@ import {
 import type { Message, Recipient } from "@workspace/db"
 import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm"
 
+import type { MessageEnvironment } from "./compliance-tags.js"
 import { AppError } from "./errors.js"
 import type { EmailHubTx, TriggerEmailType } from "./trigger-email.js"
 
@@ -400,6 +401,7 @@ export async function insertSkippedSendCheckMessage(
     templateVersionId: string
     senderId: string
     skipReason: SendCheckSkipReason
+    environment?: MessageEnvironment
   }
 ): Promise<Message> {
   const [skipped] = await tx
@@ -413,6 +415,7 @@ export async function insertSkippedSendCheckMessage(
       idempotencyKey: input.idempotencyKey,
       status: "skipped",
       skipReason: input.skipReason,
+      environment: input.environment ?? "production",
     })
     .returning()
 

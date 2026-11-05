@@ -3,7 +3,9 @@ import {
   TemplateRenderError,
   renderEmailTemplate,
 } from "@workspace/emails/render"
+import { getContextLogger } from "@workspace/logger"
 import {
+  applyRenderedComplianceMergeData,
   buildUnsubscribeUrl,
   sesSendRatePerSecond,
   UnsubscribeTokenError,
@@ -97,12 +99,17 @@ export async function renderQueuedEmail(
   unsubscribeUrl?: string
 }> {
   const replyTo = context.replyTo?.trim() ?? ""
+  const unsubscribeUrl = unsubscribeUrlFor(context, compliance)
+  const postalAddress = context.postalAddress ?? ""
   const rendered = await renderEmailTemplate({
     source: context.bodySource,
     subject: context.subject,
-    mergeData: context.mergeData ?? {},
-    unsubscribeUrl: unsubscribeUrlFor(context, compliance),
-    postalAddress: context.postalAddress ?? "",
+    mergeData: applyRenderedComplianceMergeData(context.mergeData, {
+      unsubscribeUrl,
+      postalAddress,
+    }),
+    unsubscribeUrl,
+    postalAddress,
   })
   return {
     from: formatFromAddress(context.fromName, context.fromEmail),
@@ -178,6 +185,17 @@ export async function processSendEmailJob(
   if (skipReason) {
     return
   }
+
+  const environment =
+    loaded.context.environment ?? data.environment ?? "production"
+  getContextLogger().info(
+    {
+      event: "message.send",
+      message_id: messageId,
+      environment,
+    },
+    "Send email"
+  )
 
   const claimed = await deps.claim(messageId)
   if (!claimed) {

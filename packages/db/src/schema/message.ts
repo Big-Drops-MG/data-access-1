@@ -31,6 +31,11 @@ export const messageStatus = pgEnum("message_status", [
   "failed",
 ])
 
+export const messageEnvironment = pgEnum("message_environment", [
+  "production",
+  "test",
+])
+
 export const messageSkipReason = pgEnum("message_skip_reason", [
   "recipient_bounced",
   "suppressed",
@@ -62,6 +67,9 @@ export const message = pgTable(
       onDelete: "restrict",
     }),
     idempotencyKey: text("idempotency_key").notNull(),
+    environment: messageEnvironment("environment")
+      .notNull()
+      .default("production"),
     mergeData: jsonb("merge_data")
       .$type<Record<string, string | number | boolean>>()
       .notNull()
