@@ -78,12 +78,14 @@ function selectQueue(results: unknown[]) {
 function entryRow(
   overrides: Partial<{
     id: string
-    source: "manual" | "hard_bounce" | "complaint" | "unsubscribe" | "optizmo"
-    scope: "global" | "offer"
+    source:
+      "manual" | "list_unsub" | "optizmo" | "feedback_review" | "hard_bounce"
+    scope: "global" | "offer" | "list_unsub"
     offerId: string | null
     recipientId: string | null
     removedAt: Date | null
     reason: string | null
+    syncRunId: string | null
   }> = {}
 ) {
   return {
@@ -96,6 +98,7 @@ function entryRow(
     source: overrides.source ?? "manual",
     reason: overrides.reason === undefined ? null : overrides.reason,
     addedBy: userId,
+    syncRunId: overrides.syncRunId === undefined ? null : overrides.syncRunId,
     createdAt: at,
     removedAt: overrides.removedAt === undefined ? null : overrides.removedAt,
   }
