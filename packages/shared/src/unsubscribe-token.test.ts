@@ -95,5 +95,50 @@ describe("unsubscribe tokens", () => {
         messageId: MESSAGE_ID,
       })
     ).toThrow(UnsubscribeTokenError)
+    expect(() =>
+      buildUnsubscribeUrl({
+        origin: "not-a-url",
+        secret: SECRET,
+        messageId: MESSAGE_ID,
+      })
+    ).toThrow(UnsubscribeTokenError)
+    expect(() =>
+      buildUnsubscribeUrl({
+        origin: "ftp://example.com",
+        secret: SECRET,
+        messageId: MESSAGE_ID,
+      })
+    ).toThrow(UnsubscribeTokenError)
+  })
+
+  it("rejects empty secrets, future tokens, and invalid message ids", () => {
+    const token = signUnsubscribeToken(SECRET, MESSAGE_ID, { now: NOW })
+    expect(
+      verifyUnsubscribeToken(["", "  ", null], token, { now: NOW })
+    ).toEqual({ status: "invalid" })
+    expect(
+      verifyUnsubscribeToken([SECRET, SECRET, ""], token, { now: NOW }).status
+    ).toBe("valid")
+
+    const future = new Date(NOW.getTime() + 120_000)
+    const futureToken = signUnsubscribeToken(SECRET, MESSAGE_ID, {
+      now: future,
+    })
+    expect(
+      verifyUnsubscribeToken(SECRET, futureToken, { now: NOW })
+    ).toMatchObject({ status: "expired", messageId: MESSAGE_ID })
+
+    expect(() => signUnsubscribeToken(SECRET, "not-a-uuid")).toThrow(
+      UnsubscribeTokenError
+    )
+    expect(verifyUnsubscribeToken(SECRET, "v2.bad.token.mac")).toEqual({
+      status: "invalid",
+    })
+    expect(verifyUnsubscribeToken(SECRET, "v1.not-uuid.1.mac")).toEqual({
+      status: "invalid",
+    })
+    expect(verifyUnsubscribeToken(SECRET, `v1.${MESSAGE_ID}.0.mac`)).toEqual({
+      status: "invalid",
+    })
   })
 })

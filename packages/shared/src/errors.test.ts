@@ -75,6 +75,8 @@ describe("AppError", () => {
     expect(AppError.forbidden().status).toBe(403)
     expect(AppError.notFound().code).toBe("not_found")
     expect(AppError.conflict().status).toBe(409)
+    expect(AppError.gone().status).toBe(410)
+    expect(AppError.gone().code).toBe("gone")
     expect(
       AppError.validationFailed([{ path: "a", message: "b" }]).details
     ).toEqual([{ path: "a", message: "b" }])
