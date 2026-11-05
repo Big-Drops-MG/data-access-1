@@ -140,6 +140,45 @@ describe("mail transport", () => {
     expect(smtp.sent).toHaveLength(1)
   })
 
+  it("omits List-Unsubscribe-Post for engagement Everflow URLs", async () => {
+    const ses = fakeSes()
+    const smtp = fakeSmtp()
+    const message: RenderedMessage = {
+      ...rendered,
+      listUnsubscribeUrl: "https://everflow.example/unsub",
+      oneClickUnsubscribe: false,
+    }
+
+    await createMailTransport(
+      {
+        MAIL_TRANSPORT: "ses",
+        SES_REGION: "us-east-1",
+        SES_CONFIGURATION_SET: "emailhub-prod",
+      },
+      { sesClient: ses.client }
+    ).send(message)
+    await createMailTransport(
+      { MAIL_TRANSPORT: "smtp", SMTP_HOST: "127.0.0.1", SMTP_PORT: "1025" },
+      { smtpSender: smtp.sender }
+    ).send(message)
+
+    expect(
+      headerValue(
+        ses.inputs[0]?.Content?.Simple?.Headers,
+        LIST_UNSUBSCRIBE_HEADER
+      )
+    ).toBe("<https://everflow.example/unsub>")
+    expect(
+      headerValue(
+        ses.inputs[0]?.Content?.Simple?.Headers,
+        LIST_UNSUBSCRIBE_POST_HEADER
+      )
+    ).toBeUndefined()
+    expect(
+      smtpHeader(smtp.sent[0], LIST_UNSUBSCRIBE_POST_HEADER)
+    ).toBeUndefined()
+  })
+
   it("omits a blank reply-to and SES configuration set", async () => {
     const ses = fakeSes()
     const smtp = fakeSmtp()

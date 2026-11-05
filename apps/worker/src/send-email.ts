@@ -7,6 +7,7 @@ import { getContextLogger } from "@workspace/logger"
 import {
   applyRenderedComplianceMergeData,
   buildUnsubscribeUrl,
+  isTransactionalEmailType,
   sesSendRatePerSecond,
   UnsubscribeTokenError,
   uuidSchema,
@@ -97,18 +98,20 @@ export async function renderQueuedEmail(
   html: string
   text: string
   unsubscribeUrl?: string
+  listUnsubscribeUrl?: string
+  oneClickUnsubscribe?: boolean
 }> {
   const replyTo = context.replyTo?.trim() ?? ""
-  const unsubscribeUrl = unsubscribeUrlFor(context, compliance)
+  const links = unsubscribeLinksFor(context, compliance)
   const postalAddress = context.postalAddress ?? ""
   const rendered = await renderEmailTemplate({
     source: context.bodySource,
     subject: context.subject,
     mergeData: applyRenderedComplianceMergeData(context.mergeData, {
-      unsubscribeUrl,
+      unsubscribeUrl: links.footerUrl,
       postalAddress,
     }),
-    unsubscribeUrl,
+    unsubscribeUrl: links.footerUrl,
     postalAddress,
   })
   return {
@@ -119,6 +122,8 @@ export async function renderQueuedEmail(
     html: rendered.html,
     text: rendered.text,
     unsubscribeUrl: rendered.unsubscribeUrl,
+    listUnsubscribeUrl: links.listUnsubscribeUrl,
+    oneClickUnsubscribe: links.oneClickUnsubscribe,
   }
 }
 
@@ -299,20 +304,48 @@ function readStatusCode(value: object): number | undefined {
     : undefined
 }
 
-function unsubscribeUrlFor(
+function unsubscribeLinksFor(
   context: QueuedSendContext,
   compliance?: { origin?: string; secret?: string }
-): string {
+): {
+  footerUrl: string
+  listUnsubscribeUrl: string
+  oneClickUnsubscribe: boolean
+} {
   const provided = context.unsubscribeUrl?.trim() ?? ""
   if (provided !== "") {
-    return provided
+    // Engagement / Everflow: footer + List-Unsubscribe only (no Post, no Hub token).
+    return {
+      footerUrl: provided,
+      listUnsubscribeUrl: provided,
+      oneClickUnsubscribe: false,
+    }
   }
+
+  if (!isTransactionalEmailType(context.emailType)) {
+    throw new TemplateRenderError(
+      "compliance",
+      "Unsubscribe URL is not configured"
+    )
+  }
+
   try {
-    return buildUnsubscribeUrl({
+    const footerUrl = buildUnsubscribeUrl({
       origin: compliance?.origin,
       secret: compliance?.secret,
       messageId: context.messageId,
     })
+    const listUnsubscribeUrl = buildUnsubscribeUrl({
+      origin: compliance?.origin,
+      secret: compliance?.secret,
+      messageId: context.messageId,
+      path: "api/u",
+    })
+    return {
+      footerUrl,
+      listUnsubscribeUrl,
+      oneClickUnsubscribe: true,
+    }
   } catch (error) {
     if (error instanceof UnsubscribeTokenError) {
       throw new TemplateRenderError("compliance", error.message)

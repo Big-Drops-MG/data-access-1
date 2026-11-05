@@ -42,8 +42,18 @@ export {
   buildUnsubscribeUrl,
   signUnsubscribeToken,
   UnsubscribeTokenError,
+  UNSUBSCRIBE_TOKEN_MAX_AGE_MS,
   verifyUnsubscribeToken,
+  type UnsubscribeTokenVerification,
 } from "./unsubscribe-token.js"
+export {
+  applyUnsubscribe,
+  LIST_UNSUBSCRIBE_ONE_CLICK_BODY,
+  parseUnsubscribeRequestBody,
+  type ApplyUnsubscribeInput,
+  type ApplyUnsubscribeResult,
+  type ApplyUnsubscribeScope,
+} from "./apply-unsubscribe.js"
 export {
   BULLMQ_PREFIX,
   SEND_EMAIL_JOB_NAME,
