@@ -30,6 +30,7 @@ import { Redis } from "ioredis"
 
 import { processEventsJob } from "./events-writer.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
+import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
 
 const logger = createLogger({ service: WORKER_SERVICE })
@@ -147,6 +148,41 @@ async function main(): Promise<void> {
     prefix: BULLMQ_PREFIX,
   })
 
+  const schedulerQueues: SchedulerQueueMap = {}
+  const managedQueues: Queue[] = [sendEmailQueue]
+  for (const name of QUEUE_NAMES) {
+    if (name === SEND_EMAIL_QUEUE_NAME) {
+      continue
+    }
+    const queue = new Queue(name, {
+      connection: queueConnection,
+      prefix: BULLMQ_PREFIX,
+    })
+    managedQueues.push(queue)
+    if (
+      name === "dispatch" ||
+      name === "monitoring" ||
+      name === "intake" ||
+      name === "sync" ||
+      name === "maintenance"
+    ) {
+      schedulerQueues[name] = queue
+    }
+  }
+
+  const schedulerIds = await registerJobSchedulers(
+    schedulerQueues,
+    env.EMAILHUB_ENV
+  )
+  logger.info(
+    {
+      event: "schedulers.registered",
+      scheduler_ids: schedulerIds,
+      emailhub_env: env.EMAILHUB_ENV,
+    },
+    "Job schedulers registered"
+  )
+
   const workers: Worker[] = QUEUE_NAMES.filter(
     (name) => name !== SEND_EMAIL_QUEUE_NAME && name !== EVENTS_QUEUE_NAME
   ).map(
@@ -233,7 +269,7 @@ async function main(): Promise<void> {
       "Worker shutting down"
     )
     await Promise.all(workers.map((worker) => worker.close()))
-    await sendEmailQueue.close()
+    await Promise.all(managedQueues.map((queue) => queue.close()))
     await closeClickHouseClient().catch((err) => {
       logger.warn({ event: "worker.clickhouse_close_failed", err })
     })

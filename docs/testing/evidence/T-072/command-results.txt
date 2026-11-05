@@ -1,0 +1,85 @@
+T-072 QA command evidence. Copied from local terminal output on 2026-11-05.
+No credentials, session cookies, or database URLs are included.
+Screenshots were not captured.
+
+1. Unit tests (sends, routes, permission map, db schema)
+Command: pnpm exec vitest run --project email-hub src/lib/sends src/app/api/sends src/lib/permission-map.test.ts --project db src/schema/send.test.ts
+Exit code: 0
+Duration: 43.72s
+Test Files  9 passed (9)
+Tests  69 passed (69)
+Started 16:36:06 local
+
+2. Integration tests (second run, isolated vitest database)
+Command: pnpm exec vitest run --config vitest.int.config.ts apps/email-hub/src/lib/sends/service.int.test.ts
+Exit code: 1
+Duration: 8.58s
+Test Files  1 failed (1)
+Tests  1 failed | 6 passed (7)
+Started 16:41:08 local
+
+Passed:
+- persists send columns and the draft enum without a workspace column
+- creates a draft and rejects inactive senders, inactive domains, and a mismatched category
+- schedules a draft, pins the template version, cancels, and keeps history
+- lets only one concurrent schedule commit
+- deletes an unlinked draft and refuses a draft that has a message
+- rejects a stale version before writing
+
+Failed:
+FAIL |int| apps/email-hub/src/lib/sends/service.int.test.ts > sends service (int) > updates a draft template version
+at apps/email-hub/src/lib/sends/service.ts:488 (updateSend)
+Caused by: error: send can only be edited while status is scheduled
+SQLSTATE P0001
+where: PL/pgSQL function send_guard_update() line 15 at RAISE
+
+3. email-hub typecheck
+Command: pnpm --filter @workspace/email-hub typecheck
+Exit code: 2
+src/lib/sends/serialize.ts(1,15): error TS2724: '"@workspace/db"' has no exported member named 'Send'. Did you mean 'send'?
+src/lib/sends/service.ts(12,8): error TS2724: '"@workspace/db"' has no exported member named 'Send'. Did you mean 'send'?
+src/lib/sends/state.ts(1,15): error TS2724: '"@workspace/db"' has no exported member named 'Send'. Did you mean 'send'?
+src/lib/sends/state.ts(19,10): error TS2532: Object is possibly 'undefined'.
+
+4. ESLint (first run, before test-only lint fixes)
+Command: pnpm --filter @workspace/email-hub exec eslint src/lib/sends src/app/api/sends src/lib/permission-map.ts src/lib/permission-map.test.ts
+Exit code: 1
+7 errors, all vitest/no-conditional-expect in service.test.ts and state.test.ts
+
+5. ESLint (after test-only edits)
+Same command.
+Exit code: 0
+Elapsed: 50792 ms
+
+6. db package typecheck
+Command: pnpm --filter @workspace/db typecheck
+Exit code: 0
+Elapsed: 52827 ms
+
+7. email-hub unit regression
+Command: pnpm exec vitest run --project email-hub
+Exit code: 1
+Duration: 404.16s
+Test Files  1 failed | 92 passed (93)
+Tests  1 failed | 534 passed (535)
+Started 16:43:56 local
+Only failure: src/proxy.test.ts > proxy request ids > replaces invalid and oversized ids
+AssertionError: expected '978834d1-4829-480e-bbbe-d21a555d1d00' not to contain 'bbb'
+Sends route and service unit files in this run passed.
+
+8. Re-run of the unrelated proxy test
+Command: pnpm exec vitest run --project email-hub src/proxy.test.ts
+Exit code: 0
+Test Files  1 passed (1)
+Tests  3 passed (3)
+Started 16:51:59 local
+Duration: 1.49s
+
+9. email-hub production build
+Command: pnpm --filter @workspace/email-hub build
+Exit code: 1
+Next.js 16.4.2 (Turbopack)
+Compiled successfully in 2.4min
+Then the same four TypeScript errors as the typecheck.
+Failed to type check.
+Elapsed: 325153 ms

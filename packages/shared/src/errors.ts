@@ -9,6 +9,7 @@ export const ERROR_CODES = [
   "forbidden",
   "not_found",
   "conflict",
+  "gone",
   "validation_failed",
   "rate_limited",
   "internal",
@@ -24,6 +25,7 @@ export const ERROR_STATUS = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  gone: 410,
   validation_failed: 422,
   rate_limited: 429,
   internal: 500,
@@ -36,6 +38,7 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   forbidden: "Forbidden",
   not_found: "Not found",
   conflict: "Conflict",
+  gone: "Gone",
   validation_failed: "Validation failed",
   rate_limited: "Rate limited",
   internal: "Internal error",
@@ -99,6 +102,10 @@ export class AppError extends Error {
 
   static conflict(details: AppErrorDetail[] = []): AppError {
     return new AppError("conflict", ERROR_STATUS.conflict, details)
+  }
+
+  static gone(details: AppErrorDetail[] = []): AppError {
+    return new AppError("gone", ERROR_STATUS.gone, details)
   }
 
   static validationFailed(details: AppErrorDetail[]): AppError {

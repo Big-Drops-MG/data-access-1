@@ -89,6 +89,8 @@ const baseEnvSchema = z
     SENTRY_DSN: optionalString,
     APP_ENCRYPTION_KEY: optionalString,
     UNSUBSCRIBE_TOKEN_SECRET: optionalString,
+    /** Prior HMAC secret accepted during rotation (thank-you / feedback tokens). */
+    UNSUBSCRIBE_TOKEN_SECRET_PREVIOUS: optionalString,
     BETTER_AUTH_URL: optionalString,
   })
   .superRefine((env, ctx) => {

@@ -1,0 +1,30 @@
+Screenshots were not taken. There is no staff page that performs these API calls, and no image was generated.
+
+To capture the nine requested shots, run the app against the isolated test database, sign in as a synthetic operator, and redact cookies, tokens, and request bodies that contain secrets.
+
+1. Create send
+POST /api/sends with a published template version, active sender on a verified domain, matching category, optional offer, and scheduled_for at least 30 minutes ahead. Show HTTP 201 and status draft.
+
+2. Five-minute rule
+POST /api/sends/{id}/schedule on a draft whose scheduled_for is under five minutes ahead. Show HTTP 422, path scheduled_for, and a following GET whose status is still draft.
+
+3. Successful schedule
+Set scheduled_for at least 30 minutes ahead, then POST /api/sends/{id}/schedule with the current version. Show HTTP 200 and status scheduled.
+
+4. Edit lock
+PATCH /api/sends/{id} on that scheduled row, changing sender_id and sending the current version. Show HTTP 409 and message "Send configuration is locked". Then GET the row and show the sender_id is unchanged.
+
+5. Template version pin
+After scheduling version A, publish version B on the same template through the existing template API. GET the send and show template_version_id is still version A.
+
+6. Cancellation
+POST /api/sends/{id}/cancel with the current version. Show HTTP 200 and status cancelled. POST schedule again and show HTTP 409.
+
+7. Audit
+Query audit_log for that send id. Show actions send.create, send.schedule, and send.cancel, with actor and entity ids. Hide any payload that is not the send JSON.
+
+8. Automated tests
+Show the integration summary: 1 failed, 6 passed, and the P0001 line "send can only be edited while status is scheduled".
+
+9. Typecheck and build
+Show pnpm --filter @workspace/email-hub typecheck exit 2 and pnpm --filter @workspace/email-hub build exit 1, including TS2724 and TS2532.

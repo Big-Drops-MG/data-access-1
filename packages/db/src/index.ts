@@ -117,6 +117,7 @@ export type {
   RecipientPreference,
   SeedAccount,
   SeedPlacementResult,
+  Send,
   Sender,
   Session,
   SuppressionEntry,
