@@ -85,6 +85,13 @@
       "when": 1792800000000,
       "tag": "0011_message_merge_and_sender_postal",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0012_message_environment",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs"
-import { fileURLToPath } from "node:url"
 import { Worker, type ResourceLimits } from "node:worker_threads"
 
 import type { IrNode } from "./template-plan.js"
@@ -324,7 +322,7 @@ function waitUntilReady(
 }
 
 function createWorker(launch: WorkerLaunch): Worker {
-  const worker = new Worker(renderWorkerUrl(), {
+  const worker = new Worker(new URL("./render-worker.js", import.meta.url), {
     resourceLimits: WORKER_RESOURCE_LIMITS,
     env: workerEnvironment(),
     execArgv: [],
@@ -362,14 +360,6 @@ function launchData(launch: WorkerLaunch): WorkerLaunch | undefined {
 
 async function stopWorker(worker: Worker): Promise<void> {
   await worker.terminate().catch(() => undefined)
-}
-
-function renderWorkerUrl(): URL {
-  const compiled = new URL("./render-worker.js", import.meta.url)
-  if (existsSync(fileURLToPath(compiled))) {
-    return compiled
-  }
-  return new URL("./render-worker.ts", import.meta.url)
 }
 
 function workerEnvironment(): Record<string, string> {

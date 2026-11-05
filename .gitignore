@@ -13,6 +13,7 @@ node_modules
 # testing
 coverage
 tmp/t054-evidence/
+packages/emails/src/render-worker.js
 
 # next.js
 .next/

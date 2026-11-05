@@ -13,7 +13,15 @@ import {
   type Database,
   type DatabaseTransaction,
 } from "@workspace/db/client"
-import { AppError, buildMergeTagsRecord, writeAudit } from "@workspace/shared"
+import { getContextLogger, getRequestId } from "@workspace/logger"
+import {
+  AppError,
+  buildMergeTagsRecord,
+  isAppError,
+  writeAudit,
+} from "@workspace/shared"
+
+import { validateTemplateForPublishing } from "./publish-validation"
 
 import {
   serializeTemplate,
@@ -235,6 +243,29 @@ export async function updateTemplate(
       }
     }
 
+    const nextStatus = input.status ?? before.status
+    const nextCategoryId = input.categoryId ?? before.categoryId
+    const activating =
+      nextStatus === "active" &&
+      (before.status !== "active" || nextCategoryId !== before.categoryId)
+    if (activating) {
+      if (!before.currentVersionId) {
+        throw AppError.validationFailed([
+          {
+            path: "status",
+            message: "Template has no published version",
+          },
+        ])
+      }
+      await assertVersionPublishable(
+        tx,
+        before.id,
+        before.currentVersionId,
+        nextCategoryId,
+        actor
+      )
+    }
+
     let row: Template
     try {
       const [updated] = await tx
@@ -351,7 +382,16 @@ export async function publishTemplateVersion(
   db: Database = getDb()
 ): Promise<TemplateJson> {
   return db.transaction(async (tx) => {
-    const before = await requireTemplate(tx, templateId)
+    const [before] = await tx
+      .select()
+      .from(template)
+      .where(eq(template.id, templateId))
+      .limit(1)
+      .for("update")
+
+    if (!before) {
+      throw AppError.notFound([{ path: "id", message: "Template not found" }])
+    }
 
     if (before.status === "archived") {
       throw AppError.conflict([
@@ -362,22 +402,15 @@ export async function publishTemplateVersion(
       ])
     }
 
-    const [version] = await tx
-      .select()
-      .from(templateVersion)
-      .where(
-        and(
-          eq(templateVersion.id, versionId),
-          eq(templateVersion.templateId, templateId)
-        )
-      )
-      .limit(1)
+    logTemplateEvent(actor, "template.publish_requested", templateId, versionId)
 
-    if (!version) {
-      throw AppError.notFound([
-        { path: "version_id", message: "Version not found for this template" },
-      ])
-    }
+    const version = await assertVersionPublishable(
+      tx,
+      templateId,
+      versionId,
+      before.categoryId,
+      actor
+    )
 
     const [row] = await tx
       .update(template)
@@ -403,6 +436,98 @@ export async function publishTemplateVersion(
       after: serializeTemplate(row),
     })
 
+    logTemplateEvent(actor, "template.published", templateId, version.id)
+
     return serializeTemplate(row)
   })
+}
+
+async function assertVersionPublishable(
+  db: Db,
+  templateId: string,
+  versionId: string,
+  categoryId: string,
+  actor: TemplateActor
+): Promise<TemplateVersion> {
+  const [version] = await db
+    .select()
+    .from(templateVersion)
+    .where(
+      and(
+        eq(templateVersion.id, versionId),
+        eq(templateVersion.templateId, templateId)
+      )
+    )
+    .limit(1)
+
+  if (!version) {
+    throw AppError.notFound([
+      { path: "version_id", message: "Version not found for this template" },
+    ])
+  }
+
+  const [category] = await db
+    .select({ kind: emailCategory.kind })
+    .from(emailCategory)
+    .where(eq(emailCategory.id, categoryId))
+    .limit(1)
+
+  if (!category || typeof category.kind !== "string") {
+    throw AppError.validationFailed([
+      { path: "category_id", message: "Category not found" },
+    ])
+  }
+
+  try {
+    await validateTemplateForPublishing({
+      subject: version.subject,
+      bodySource: version.bodySource,
+      categoryKind: category.kind,
+    })
+  } catch (error) {
+    if (isAppError(error)) {
+      logTemplateEvent(
+        actor,
+        "template.publish_blocked",
+        templateId,
+        version.id,
+        {
+          reason: error.details[0]?.message ?? error.code,
+        }
+      )
+    }
+    throw error
+  }
+
+  return version
+}
+
+function logTemplateEvent(
+  actor: TemplateActor,
+  event:
+    | "template.publish_requested"
+    | "template.publish_blocked"
+    | "template.published",
+  templateId: string,
+  templateVersionId: string,
+  extra?: Record<string, string>
+): void {
+  const requestId = getRequestId() ?? actor.requestId ?? undefined
+  const message =
+    event === "template.publish_blocked"
+      ? "Template publish blocked"
+      : event === "template.published"
+        ? "Template published"
+        : "Template publish requested"
+  getContextLogger().info(
+    {
+      event,
+      template_id: templateId,
+      template_version_id: templateVersionId,
+      user_id: actor.userId,
+      ...(requestId ? { request_id: requestId } : {}),
+      ...extra,
+    },
+    message
+  )
 }

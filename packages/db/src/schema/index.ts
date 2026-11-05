@@ -51,7 +51,12 @@ export type {
   IntegrationSyncState,
   NewIntegrationSyncState,
 } from "./integration-sync-state.js"
-export { message, messageSkipReason, messageStatus } from "./message.js"
+export {
+  message,
+  messageEnvironment,
+  messageSkipReason,
+  messageStatus,
+} from "./message.js"
 export type { Message } from "./message.js"
 export { offer, offerStatus } from "./offer.js"
 export type { NewOffer, Offer } from "./offer.js"
