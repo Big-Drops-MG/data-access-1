@@ -85,6 +85,20 @@
       "when": 1792800000000,
       "tag": "0011_message_merge_and_sender_postal",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0012_send_draft_and_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0013_send_editable_while_draft",
+      "breakpoints": true
     }
   ]
 }
