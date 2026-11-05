@@ -96,6 +96,9 @@ function query(result: unknown) {
     "update",
     "set",
     "for",
+    "innerJoin",
+    "leftJoin",
+    "groupBy",
   ]) {
     q[method] = vi.fn(self)
   }
@@ -122,11 +125,49 @@ describe("templates service", () => {
 
   it("lists templates with cursor pagination", async () => {
     const rows = [
-      templateRow({ id: "019a0000-0000-7000-8000-000000000003", name: "C" }),
-      templateRow({ id: "019a0000-0000-7000-8000-000000000002", name: "B" }),
-      templateRow({ id: "019a0000-0000-7000-8000-000000000001", name: "A" }),
+      {
+        template: templateRow({
+          id: "019a0000-0000-7000-8000-000000000003",
+          name: "C",
+        }),
+        category_name: "Thank you",
+        category_kind: "transactional" as const,
+        published_version_no: 1,
+      },
+      {
+        template: templateRow({
+          id: "019a0000-0000-7000-8000-000000000002",
+          name: "B",
+        }),
+        category_name: "Thank you",
+        category_kind: "transactional" as const,
+        published_version_no: null,
+      },
+      {
+        template: templateRow({
+          id: "019a0000-0000-7000-8000-000000000001",
+          name: "A",
+        }),
+        category_name: "Thank you",
+        category_kind: "transactional" as const,
+        published_version_no: null,
+      },
     ]
-    const db = { select: vi.fn(() => query(rows)) }
+    let selectCall = 0
+    const db = {
+      select: vi.fn(() => {
+        selectCall += 1
+        if (selectCall === 1) {
+          return query(rows)
+        }
+        return query([
+          {
+            templateId: "019a0000-0000-7000-8000-000000000002",
+            maxNo: 3,
+          },
+        ])
+      }),
+    }
     const result = await listTemplates(
       {
         limit: 2,
@@ -139,6 +180,9 @@ describe("templates service", () => {
     )
     expect(result.data).toHaveLength(2)
     expect(result.next_cursor).toBe("019a0000-0000-7000-8000-000000000002")
+    expect(result.data[0]?.category_name).toBe("Thank you")
+    expect(result.data[0]?.current_version_no).toBe(1)
+    expect(result.data[1]?.current_version_no).toBe(3)
   })
 
   it("gets a template with versions", async () => {
@@ -151,12 +195,22 @@ describe("templates service", () => {
     const db = {
       select: vi.fn(() => {
         selectCall += 1
-        return query(selectCall === 1 ? [tpl] : versions)
+        if (selectCall === 1) {
+          return query([tpl])
+        }
+        if (selectCall === 2) {
+          return query(versions)
+        }
+        return query([
+          { category_name: "Thank you", category_kind: "transactional" },
+        ])
       }),
     }
     const result = await getTemplate(templateId, db as never)
     expect(result.id).toBe(templateId)
     expect(result.versions).toHaveLength(2)
+    expect(result.category_name).toBe("Thank you")
+    expect(result.current_version_no).toBe(2)
   })
 
   it("throws not_found when template is missing", async () => {
@@ -168,8 +222,17 @@ describe("templates service", () => {
 
   it("creates a draft template and writes audit", async () => {
     const created = templateRow()
+    let txSelect = 0
     const tx = {
-      select: vi.fn(() => query([{ id: categoryId }])),
+      select: vi.fn(() => {
+        txSelect += 1
+        if (txSelect === 1) {
+          return query([
+            { category_name: "Thank you", category_kind: "transactional" },
+          ])
+        }
+        return query([{ maxNo: null }])
+      }),
       insert: vi.fn(() => query([created])),
     }
     const db = {
@@ -182,6 +245,7 @@ describe("templates service", () => {
       db as never
     )
     expect(result.status).toBe("draft")
+    expect(result.category_name).toBe("Thank you")
     expect(writeAudit).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({ action: "template.create" })
@@ -223,7 +287,13 @@ describe("templates service", () => {
       select: vi.fn(() => {
         selectCall += 1
         if (selectCall === 1) return query([before])
-        return query([])
+        if (selectCall === 2) return query([])
+        if (selectCall === 3 || selectCall === 5) {
+          return query([
+            { category_name: "Thank you", category_kind: "transactional" },
+          ])
+        }
+        return query([{ maxNo: null }])
       }),
       update: vi.fn(() => query([after])),
     }
@@ -307,7 +377,14 @@ describe("templates service", () => {
         selectCall += 1
         if (selectCall === 1) return query([before])
         if (selectCall === 2) return query([version])
-        return query([{ kind: "transactional" }])
+        if (selectCall === 3) return query([{ kind: "transactional" }])
+        if (selectCall === 4 || selectCall === 6) {
+          return query([
+            { category_name: "Thank you", category_kind: "transactional" },
+          ])
+        }
+        if (selectCall === 5) return query([{ maxNo: null }])
+        return query([{ versionNo: 1 }])
       }),
       update: vi.fn(() => query([after])),
     }
@@ -322,6 +399,7 @@ describe("templates service", () => {
     )
     expect(result.current_version_id).toBe(versionId)
     expect(result.status).toBe("active")
+    expect(result.current_version_no).toBe(1)
   })
 
   it("rejects publish for archived templates", async () => {
