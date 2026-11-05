@@ -11,6 +11,7 @@ import {
 
 import { uuidv7PrimaryKey } from "./columns.js"
 
+import { emailCategory } from "./email-category.js"
 import { emailType } from "./email-type.js"
 import { offer } from "./offer.js"
 import { sender } from "./sender.js"
@@ -18,6 +19,7 @@ import { templateVersion } from "./template.js"
 import { user } from "./user.js"
 
 export const sendStatus = pgEnum("send_status", [
+  "draft",
   "scheduled",
   "queued",
   "dispatching",
@@ -40,6 +42,9 @@ export const send = pgTable(
     offerId: uuid("offer_id").references(() => offer.id, {
       onDelete: "restrict",
     }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => emailCategory.id, { onDelete: "restrict" }),
     scheduledFor: timestamp("scheduled_for", {
       withTimezone: true,
       mode: "date",
@@ -66,6 +71,7 @@ export const send = pgTable(
   },
   (table) => [
     index("send_status_scheduled_for_idx").on(table.status, table.scheduledFor),
+    index("send_category_id_idx").on(table.categoryId),
     check("send_version_positive", sql`${table.version} > 0`),
   ]
 )
