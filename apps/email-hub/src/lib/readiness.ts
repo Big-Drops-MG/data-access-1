@@ -75,7 +75,25 @@ async function probeClickhouse(): Promise<void> {
     throw new Error("CLICKHOUSE_URL is not configured")
   }
 
-  const response = await fetch(new URL("/ping", clickhouseUrl), {
+  let parsed: URL
+  try {
+    parsed = new URL(clickhouseUrl)
+  } catch {
+    throw new Error("CLICKHOUSE_URL is invalid")
+  }
+
+  const headers = new Headers()
+  if (parsed.username !== "" || parsed.password !== "") {
+    const token = Buffer.from(
+      `${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`
+    ).toString("base64")
+    headers.set("Authorization", `Basic ${token}`)
+    parsed.username = ""
+    parsed.password = ""
+  }
+
+  const response = await fetch(new URL("/ping", parsed), {
+    headers,
     signal: AbortSignal.timeout(READINESS_TIMEOUT_MS),
   })
   if (!response.ok) {
