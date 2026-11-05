@@ -138,6 +138,24 @@ describe("checkReadiness", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it("strips ClickHouse URL credentials for fetch and sends Basic auth", async () => {
+    vi.stubEnv("CLICKHOUSE_URL", "http://default:s3cret@clickhouse:8123")
+
+    await expect(checkReadiness()).resolves.toEqual([])
+
+    const [requestUrl, init] = fetchMock.mock.calls[0] ?? []
+    expect(String(requestUrl)).toBe("http://clickhouse:8123/ping")
+    expect(init).toEqual(
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      })
+    )
+    const headers = init?.headers as Headers
+    expect(headers.get("Authorization")).toBe(
+      `Basic ${Buffer.from("default:s3cret").toString("base64")}`
+    )
+  })
+
   it("names every dependency that fails, in probe order", async () => {
     db.query.mockRejectedValue(new Error("down"))
     redis.connect.mockRejectedValue(new Error("down"))
