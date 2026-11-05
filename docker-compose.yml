@@ -1,5 +1,6 @@
 # Server stack (Dev droplet / Prod droplet). SD#13.2 / SD#13.3.
-# Only `caddy` publishes host ports. Everything else stays on the internal network.
+# Coolify Traefik owns host :80/:443. Caddy only exposes :80 on the compose
+# network so the Coolify proxy can reach it — do not publish host ports here.
 # Local laptop dependencies remain in docker-compose.dev.yml.
 #
 # Prod:  docker compose --env-file .env.compose up -d
@@ -20,9 +21,8 @@ services:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
     mem_limit: 256m
-    ports:
-      - "80:80"
-      - "443:443"
+    expose:
+      - "80"
     environment:
       APP_HOST: ${APP_HOST:?APP_HOST is required}
       ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}

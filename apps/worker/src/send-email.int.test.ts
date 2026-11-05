@@ -138,6 +138,7 @@ function queuedContext(messageId: string): QueuedSendContext {
     fromEmail: "news@example.com",
     replyTo: null,
     mergeData: {},
+    unsubscribeUrl: "https://everflow.example/unsub/offer",
     postalAddress: "100 Factory Street, Austin, TX 78701",
   }
 }
@@ -528,7 +529,7 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
     })
     const from = await createSender(db, { fromName: "T046" })
     const created = await createTemplate(db, {
-      emailType: "engagement",
+      emailType: "thank_you",
       subject: "Hello {{first_name}}",
       bodySource: "<p>Hello {{first_name}}</p>",
     })
@@ -536,7 +537,7 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
       recipientId: person.id,
       senderId: from.id,
       templateVersionId: created.version.id,
-      emailType: "engagement",
+      emailType: "thank_you",
       status: "queued",
       mergeData: { first_name: "Ada" },
     })
@@ -555,6 +556,10 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
     expect(payload.unsubscribeUrl).toMatch(
       /^http:\/\/127\.0\.0\.1:3000\/unsubscribe\/v1\./
     )
+    expect(payload.listUnsubscribeUrl).toMatch(
+      /^http:\/\/127\.0\.0\.1:3000\/api\/u\/v1\./
+    )
+    expect(payload.oneClickUnsubscribe).toBe(true)
     expect(send).toHaveBeenCalledTimes(1)
     expect(saved?.status).toBe("sent")
     expect(saved?.sesMessageId).toBe("provider-1")
@@ -616,7 +621,7 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
 
   it("sends only once when two workers take the same queued message", async () => {
     const queued = await createMessage(db, {
-      emailType: "engagement",
+      emailType: "thank_you",
       status: "queued",
     })
     let sends = 0
@@ -663,7 +668,7 @@ describe.skipIf(!templateName)("send-email delivery database", () => {
 
   it("marks a permanent SES rejection failed and does not retry", async () => {
     const queued = await createMessage(db, {
-      emailType: "engagement",
+      emailType: "thank_you",
       status: "queued",
     })
     const send = vi.fn(async () => {

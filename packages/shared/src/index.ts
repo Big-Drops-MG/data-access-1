@@ -29,11 +29,31 @@ export {
 } from "./trigger-email.js"
 export { buildMergeTagsRecord, extractMergeTagNames } from "./merge-tags.js"
 export {
+  applyRenderedComplianceMergeData,
+  fillMissingComplianceMergeData,
+  MESSAGE_ENVIRONMENTS,
+  messageEnvironment,
+  PENDING_UNSUBSCRIBE_MERGE_VALUE,
+  POSTAL_ADDRESS_MERGE_TAG,
+  UNSUBSCRIBE_MERGE_TAG,
+  type MessageEnvironment,
+} from "./compliance-tags.js"
+export {
   buildUnsubscribeUrl,
   signUnsubscribeToken,
   UnsubscribeTokenError,
+  UNSUBSCRIBE_TOKEN_MAX_AGE_MS,
   verifyUnsubscribeToken,
+  type UnsubscribeTokenVerification,
 } from "./unsubscribe-token.js"
+export {
+  applyUnsubscribe,
+  LIST_UNSUBSCRIBE_ONE_CLICK_BODY,
+  parseUnsubscribeRequestBody,
+  type ApplyUnsubscribeInput,
+  type ApplyUnsubscribeResult,
+  type ApplyUnsubscribeScope,
+} from "./apply-unsubscribe.js"
 export {
   BULLMQ_PREFIX,
   SEND_EMAIL_JOB_NAME,
@@ -43,6 +63,27 @@ export {
   enqueueSendEmailJob,
   type SendEmailJobData,
 } from "./send-email-queue.js"
+export {
+  DISPATCH_QUEUE_NAME,
+  DISPATCH_SEND_JOB_NAME,
+  DISPATCH_SEND_JOB_OPTIONS,
+  SCHEDULE_PROMOTER_JOB_NAME,
+  SEND_LATE_ALERT_TYPE,
+  SEND_LATE_THRESHOLD_MS,
+  createEnqueueDispatchSend,
+  enqueueDispatchSendJob,
+  isDuplicateBullmqJob,
+  isSendLate,
+  sendLateAlertDedupeKey,
+  type DispatchSendJobData,
+} from "./dispatch-queue.js"
+export {
+  DISPATCH_RECIPIENT_PAGE_SIZE,
+  loadDispatchRecipientPage,
+  type DispatchRecipientPage,
+  type LoadDispatchRecipientPageInput,
+} from "./dispatch-recipients.js"
+export { openSendLateAlert } from "./send-late-alert.js"
 export {
   EVENTS_JOB_NAME,
   EVENTS_JOB_OPTIONS,

@@ -11,8 +11,12 @@ import {
   setFallbackLogger,
 } from "@workspace/logger"
 import {
+  DISPATCH_QUEUE_NAME,
+  DISPATCH_SEND_JOB_NAME,
   EVENTS_QUEUE_NAME,
+  SCHEDULE_PROMOTER_JOB_NAME,
   claimQueuedMessage,
+  createEnqueueSendEmail,
   loadQueuedSend,
   loadServerEnv,
   markMessageFailed,
@@ -22,15 +26,21 @@ import {
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
+  type DispatchSendJobData,
   type EventsJobData,
   type SendEmailJobData,
 } from "@workspace/shared"
 import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
+import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
+import { processSchedulePromoterJob } from "./schedule-promoter.js"
+import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
+
+const DISPATCH_WORKER_CONCURRENCY = 2
 
 const logger = createLogger({ service: WORKER_SERVICE })
 setFallbackLogger(logger)
@@ -146,15 +156,99 @@ async function main(): Promise<void> {
     connection: queueConnection,
     prefix: BULLMQ_PREFIX,
   })
+  const enqueueSendEmail = createEnqueueSendEmail(sendEmailQueue)
+
+  const schedulerQueues: SchedulerQueueMap = {}
+  const managedQueues: Queue[] = [sendEmailQueue]
+  let dispatchQueue: Queue | undefined
+  for (const name of QUEUE_NAMES) {
+    if (name === SEND_EMAIL_QUEUE_NAME) {
+      continue
+    }
+    const queue = new Queue(name, {
+      connection: queueConnection,
+      prefix: BULLMQ_PREFIX,
+    })
+    managedQueues.push(queue)
+    if (name === DISPATCH_QUEUE_NAME) {
+      dispatchQueue = queue
+    }
+    if (
+      name === DISPATCH_QUEUE_NAME ||
+      name === "monitoring" ||
+      name === "intake" ||
+      name === "sync" ||
+      name === "maintenance"
+    ) {
+      schedulerQueues[name] = queue
+    }
+  }
+
+  if (!dispatchQueue) {
+    throw new Error("Dispatch queue failed to initialize")
+  }
+  const activeDispatchQueue = dispatchQueue
+
+  const schedulerIds = await registerJobSchedulers(
+    schedulerQueues,
+    env.EMAILHUB_ENV
+  )
+  logger.info(
+    {
+      event: "schedulers.registered",
+      scheduler_ids: schedulerIds,
+      emailhub_env: env.EMAILHUB_ENV,
+    },
+    "Job schedulers registered"
+  )
 
   const workers: Worker[] = QUEUE_NAMES.filter(
-    (name) => name !== SEND_EMAIL_QUEUE_NAME && name !== EVENTS_QUEUE_NAME
+    (name) =>
+      name !== SEND_EMAIL_QUEUE_NAME &&
+      name !== EVENTS_QUEUE_NAME &&
+      name !== DISPATCH_QUEUE_NAME
   ).map(
     (name) =>
       new Worker(name, (job) => processJob(name, job), {
         connection,
         prefix: BULLMQ_PREFIX,
       })
+  )
+
+  workers.push(
+    new Worker(
+      DISPATCH_QUEUE_NAME,
+      (job) =>
+        withJobLogs(DISPATCH_QUEUE_NAME, job, async () => {
+          if (job.name === SCHEDULE_PROMOTER_JOB_NAME) {
+            await processSchedulePromoterJob({
+              db,
+              dispatchQueue: activeDispatchQueue,
+            })
+            return
+          }
+          if (job.name === DISPATCH_SEND_JOB_NAME) {
+            await processDispatchSendJob(job.data as DispatchSendJobData, {
+              db,
+              enqueueSendEmail,
+            })
+            return
+          }
+          logger.warn(
+            {
+              event: "dispatch.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown dispatch job"
+          )
+        }),
+      {
+        connection,
+        prefix: BULLMQ_PREFIX,
+        concurrency: DISPATCH_WORKER_CONCURRENCY,
+      }
+    )
   )
 
   workers.push(
@@ -218,6 +312,7 @@ async function main(): Promise<void> {
       send_email_concurrency: sendOptions.concurrency,
       send_email_limiter: limiterLabel,
       events_concurrency: 10,
+      dispatch_concurrency: DISPATCH_WORKER_CONCURRENCY,
     },
     "Worker ready"
   )
@@ -233,7 +328,7 @@ async function main(): Promise<void> {
       "Worker shutting down"
     )
     await Promise.all(workers.map((worker) => worker.close()))
-    await sendEmailQueue.close()
+    await Promise.all(managedQueues.map((queue) => queue.close()))
     await closeClickHouseClient().catch((err) => {
       logger.warn({ event: "worker.clickhouse_close_failed", err })
     })

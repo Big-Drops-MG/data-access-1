@@ -17,7 +17,6 @@ overrides:
   brace-expansion@5: 5.0.12
   baseline-browser-mapping: 2.11.29
   systeminformation: 5.33.19
-  qs: 6.17.1
 
 minimumReleaseAgeExclude:
   - "@typescript-eslint/eslint-plugin@8.71.2"

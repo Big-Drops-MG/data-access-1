@@ -36,7 +36,7 @@ export function FormField({
 
   return (
     <div
-      className={cn("space-y-1.5", className)}
+      className={cn("flex flex-col gap-2", className)}
       data-testid={
         testIdPrefix && name ? `${testIdPrefix}-field-${name}` : undefined
       }

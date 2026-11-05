@@ -156,10 +156,11 @@ describe("renderQueuedEmail", { timeout: 20_000 }, () => {
     expect(rendered.text).toContain("Plain body")
   })
 
-  it("builds a signed unsubscribe URL from the app origin and secret", async () => {
+  it("builds Hub page + one-click URLs for thank-you / feedback", async () => {
     const rendered = await renderQueuedEmail(
       {
         ...queuedContext(),
+        emailType: "thank_you",
         unsubscribeUrl: undefined,
       },
       {
@@ -170,13 +171,36 @@ describe("renderQueuedEmail", { timeout: 20_000 }, () => {
     expect(rendered.unsubscribeUrl).toMatch(
       /^http:\/\/127\.0\.0\.1:3000\/unsubscribe\/v1\.0192f6c0-7a3e-7c1e-9d2b-3f6a5b8c1d44\./
     )
+    expect(rendered.listUnsubscribeUrl).toMatch(
+      /^http:\/\/127\.0\.0\.1:3000\/api\/u\/v1\.0192f6c0-7a3e-7c1e-9d2b-3f6a5b8c1d44\./
+    )
+    expect(rendered.oneClickUnsubscribe).toBe(true)
     expect(rendered.html).toContain(rendered.unsubscribeUrl)
+  })
+
+  it("keeps Everflow URL without List-Unsubscribe-Post for engagement", async () => {
+    const rendered = await renderQueuedEmail(queuedContext())
+    expect(rendered.unsubscribeUrl).toBe("https://example.com/unsubscribe/ada")
+    expect(rendered.listUnsubscribeUrl).toBe(
+      "https://example.com/unsubscribe/ada"
+    )
+    expect(rendered.oneClickUnsubscribe).toBe(false)
+  })
+
+  it("does not mint a Hub token for engagement without an Everflow URL", async () => {
+    await expect(
+      renderQueuedEmail({
+        ...queuedContext(),
+        unsubscribeUrl: undefined,
+      })
+    ).rejects.toMatchObject({ code: "compliance" })
   })
 
   it("does not render when compliance data is missing", async () => {
     await expect(
       renderQueuedEmail({
         ...queuedContext(),
+        emailType: "thank_you",
         unsubscribeUrl: undefined,
         postalAddress: undefined,
       })

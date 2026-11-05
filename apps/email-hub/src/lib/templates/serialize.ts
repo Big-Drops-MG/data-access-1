@@ -1,4 +1,4 @@
-import type { Template, TemplateVersion } from "@workspace/db"
+import type { EmailCategory, Template, TemplateVersion } from "@workspace/db"
 
 function isoUtc(value: Date): string {
   return value.toISOString()
@@ -9,7 +9,10 @@ export type TemplateJson = {
   name: string
   email_type: Template["emailType"]
   category_id: string
+  category_name: string
+  category_kind: EmailCategory["kind"]
   current_version_id: string | null
+  current_version_no: number | null
   status: Template["status"]
   created_by: string
   created_at: string
@@ -27,13 +30,25 @@ export type TemplateVersionJson = {
   created_at: string
 }
 
-export function serializeTemplate(row: Template): TemplateJson {
+export type TemplateSerializeExtras = {
+  category_name: string
+  category_kind: EmailCategory["kind"]
+  current_version_no: number | null
+}
+
+export function serializeTemplate(
+  row: Template,
+  extras: TemplateSerializeExtras
+): TemplateJson {
   return {
     id: row.id,
     name: row.name,
     email_type: row.emailType,
     category_id: row.categoryId,
+    category_name: extras.category_name,
+    category_kind: extras.category_kind,
     current_version_id: row.currentVersionId,
+    current_version_no: extras.current_version_no,
     status: row.status,
     created_by: row.createdBy,
     created_at: isoUtc(row.createdAt),

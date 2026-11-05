@@ -4,40 +4,83 @@ import {
   buildUnsubscribeUrl,
   signUnsubscribeToken,
   UnsubscribeTokenError,
+  UNSUBSCRIBE_TOKEN_MAX_AGE_MS,
   verifyUnsubscribeToken,
 } from "./unsubscribe-token.js"
 
 const MESSAGE_ID = "0192f6c0-7a3e-7c1e-9d2b-3f6a5b8c1d44"
 const SECRET = "test-unsubscribe-secret"
+const PREVIOUS = "previous-unsubscribe-secret"
+const NOW = new Date("2026-11-05T12:00:00.000Z")
 
 describe("unsubscribe tokens", () => {
   it("signs a message id and verifies that token", () => {
-    const token = signUnsubscribeToken(SECRET, MESSAGE_ID)
+    const token = signUnsubscribeToken(SECRET, MESSAGE_ID, { now: NOW })
     expect(token.startsWith(`v1.${MESSAGE_ID}.`)).toBe(true)
-    expect(verifyUnsubscribeToken(SECRET, token)).toBe(MESSAGE_ID)
+    expect(token.split(".")).toHaveLength(4)
+    expect(verifyUnsubscribeToken(SECRET, token, { now: NOW })).toEqual({
+      status: "valid",
+      messageId: MESSAGE_ID,
+      issuedAt: NOW,
+    })
+  })
+
+  it("accepts the previous secret during rotation", () => {
+    const token = signUnsubscribeToken(PREVIOUS, MESSAGE_ID, { now: NOW })
+    expect(
+      verifyUnsubscribeToken([SECRET, PREVIOUS], token, { now: NOW })
+    ).toMatchObject({ status: "valid", messageId: MESSAGE_ID })
   })
 
   it("rejects a token signed with a different secret or a changed message", () => {
-    const token = signUnsubscribeToken(SECRET, MESSAGE_ID)
-    expect(verifyUnsubscribeToken("other-secret", token)).toBeNull()
-    const [version, , mac] = token.split(".")
+    const token = signUnsubscribeToken(SECRET, MESSAGE_ID, { now: NOW })
+    expect(verifyUnsubscribeToken("other-secret", token, { now: NOW })).toEqual(
+      { status: "invalid" }
+    )
+    const [version, , iat, mac] = token.split(".")
     expect(
       verifyUnsubscribeToken(
         SECRET,
-        `${version}.0192f6c0-7a3e-7c1e-8d2b-3f6a5b8c1d44.${mac}`
+        `${version}.0192f6c0-7a3e-7c1e-8d2b-3f6a5b8c1d44.${iat}.${mac}`,
+        { now: NOW }
       )
-    ).toBeNull()
+    ).toEqual({ status: "invalid" })
   })
 
-  it("builds an http(s) unsubscribe URL and refuses a missing origin or secret", () => {
+  it("marks tokens older than 180 days as expired", () => {
+    const issued = new Date(
+      NOW.getTime() - UNSUBSCRIBE_TOKEN_MAX_AGE_MS - 60_000
+    )
+    const token = signUnsubscribeToken(SECRET, MESSAGE_ID, { now: issued })
+    expect(verifyUnsubscribeToken(SECRET, token, { now: NOW })).toEqual({
+      status: "expired",
+      messageId: MESSAGE_ID,
+      issuedAt: new Date(Math.floor(issued.getTime() / 1000) * 1000),
+    })
+  })
+
+  it("builds page and one-click URLs and refuses a missing origin or secret", () => {
     const url = buildUnsubscribeUrl({
       origin: "http://127.0.0.1:3000/",
       secret: SECRET,
       messageId: MESSAGE_ID,
+      now: NOW,
     })
     expect(url.startsWith("http://127.0.0.1:3000/unsubscribe/v1.")).toBe(true)
     const token = url.slice("http://127.0.0.1:3000/unsubscribe/".length)
-    expect(verifyUnsubscribeToken(SECRET, token)).toBe(MESSAGE_ID)
+    expect(verifyUnsubscribeToken(SECRET, token, { now: NOW }).status).toBe(
+      "valid"
+    )
+
+    const oneClick = buildUnsubscribeUrl({
+      origin: "http://127.0.0.1:3000",
+      secret: SECRET,
+      messageId: MESSAGE_ID,
+      path: "api/u",
+      now: NOW,
+    })
+    expect(oneClick.startsWith("http://127.0.0.1:3000/api/u/v1.")).toBe(true)
+
     expect(() =>
       buildUnsubscribeUrl({
         origin: undefined,
@@ -52,5 +95,50 @@ describe("unsubscribe tokens", () => {
         messageId: MESSAGE_ID,
       })
     ).toThrow(UnsubscribeTokenError)
+    expect(() =>
+      buildUnsubscribeUrl({
+        origin: "not-a-url",
+        secret: SECRET,
+        messageId: MESSAGE_ID,
+      })
+    ).toThrow(UnsubscribeTokenError)
+    expect(() =>
+      buildUnsubscribeUrl({
+        origin: "ftp://example.com",
+        secret: SECRET,
+        messageId: MESSAGE_ID,
+      })
+    ).toThrow(UnsubscribeTokenError)
+  })
+
+  it("rejects empty secrets, future tokens, and invalid message ids", () => {
+    const token = signUnsubscribeToken(SECRET, MESSAGE_ID, { now: NOW })
+    expect(
+      verifyUnsubscribeToken(["", "  ", null], token, { now: NOW })
+    ).toEqual({ status: "invalid" })
+    expect(
+      verifyUnsubscribeToken([SECRET, SECRET, ""], token, { now: NOW }).status
+    ).toBe("valid")
+
+    const future = new Date(NOW.getTime() + 120_000)
+    const futureToken = signUnsubscribeToken(SECRET, MESSAGE_ID, {
+      now: future,
+    })
+    expect(
+      verifyUnsubscribeToken(SECRET, futureToken, { now: NOW })
+    ).toMatchObject({ status: "expired", messageId: MESSAGE_ID })
+
+    expect(() => signUnsubscribeToken(SECRET, "not-a-uuid")).toThrow(
+      UnsubscribeTokenError
+    )
+    expect(verifyUnsubscribeToken(SECRET, "v2.bad.token.mac")).toEqual({
+      status: "invalid",
+    })
+    expect(verifyUnsubscribeToken(SECRET, "v1.not-uuid.1.mac")).toEqual({
+      status: "invalid",
+    })
+    expect(verifyUnsubscribeToken(SECRET, `v1.${MESSAGE_ID}.0.mac`)).toEqual({
+      status: "invalid",
+    })
   })
 })

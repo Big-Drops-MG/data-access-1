@@ -1,6 +1,8 @@
 import { getRequestId, isValidRequestId } from "@workspace/logger"
 import type { JobsOptions, Queue } from "bullmq"
 
+import type { MessageEnvironment } from "./compliance-tags.js"
+
 /** BullMQ key prefix (SD#15.5 / queue map). */
 export const BULLMQ_PREFIX = "bd"
 
@@ -11,6 +13,8 @@ export type SendEmailJobData = {
   message_id: string
   /** Correlation id from the originating request. Absent on jobs queued before T-058. */
   request_id?: string
+  /** Message classification. Absent on jobs queued before T-069; the row is authoritative. */
+  environment?: MessageEnvironment
 }
 
 /** Default options for send-email jobs (SD#15.5 job map). */
@@ -30,12 +34,16 @@ type SendEmailQueue = Pick<Queue<SendEmailJobData>, "add">
 export async function enqueueSendEmailJob(
   queue: SendEmailQueue,
   messageId: string,
-  requestId?: string
+  requestId?: string,
+  environment?: MessageEnvironment
 ): Promise<void> {
   const data: SendEmailJobData = { message_id: messageId }
   const resolved = requestId?.trim() || getRequestId()
   if (resolved && isValidRequestId(resolved)) {
     data.request_id = resolved
+  }
+  if (environment === "test" || environment === "production") {
+    data.environment = environment
   }
 
   await queue.add(SEND_EMAIL_JOB_NAME, data, {
@@ -47,7 +55,11 @@ export async function enqueueSendEmailJob(
 /** Build the `enqueueSendEmail` dep for `triggerEmail` from a BullMQ queue. */
 export function createEnqueueSendEmail(
   queue: SendEmailQueue
-): (messageId: string, requestId?: string) => Promise<void> {
-  return (messageId, requestId) =>
-    enqueueSendEmailJob(queue, messageId, requestId)
+): (
+  messageId: string,
+  requestId?: string,
+  environment?: MessageEnvironment
+) => Promise<void> {
+  return (messageId, requestId, environment) =>
+    enqueueSendEmailJob(queue, messageId, requestId, environment)
 }
