@@ -1,11 +1,20 @@
-import { existsSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Worker } from "node:worker_threads"
+import ts from "typescript"
 
-const compiled = new URL("./render-worker.js", import.meta.url)
-const workerUrl = existsSync(fileURLToPath(compiled))
-  ? compiled
-  : new URL("./render-worker.ts", import.meta.url)
+const directory = dirname(fileURLToPath(import.meta.url))
+const source = readFileSync(join(directory, "render-worker.ts"), "utf8")
+writeFileSync(
+  join(directory, "render-worker.js"),
+  ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText
+)
 const env: Record<string, string> = {}
 for (const key of ["PATH", "Path", "SystemRoot", "SYSTEMROOT", "PATHEXT"]) {
   const value = process.env[key]
@@ -14,7 +23,7 @@ for (const key of ["PATH", "Path", "SystemRoot", "SYSTEMROOT", "PATHEXT"]) {
   }
 }
 
-const worker = new Worker(workerUrl, {
+const worker = new Worker(new URL("./render-worker.js", import.meta.url), {
   execArgv: [],
   resourceLimits: {
     maxOldGenerationSizeMb: 32,

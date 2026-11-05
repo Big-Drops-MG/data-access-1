@@ -29,6 +29,16 @@ export {
 } from "./trigger-email.js"
 export { buildMergeTagsRecord, extractMergeTagNames } from "./merge-tags.js"
 export {
+  applyRenderedComplianceMergeData,
+  fillMissingComplianceMergeData,
+  MESSAGE_ENVIRONMENTS,
+  messageEnvironment,
+  PENDING_UNSUBSCRIBE_MERGE_VALUE,
+  POSTAL_ADDRESS_MERGE_TAG,
+  UNSUBSCRIBE_MERGE_TAG,
+  type MessageEnvironment,
+} from "./compliance-tags.js"
+export {
   buildUnsubscribeUrl,
   signUnsubscribeToken,
   UnsubscribeTokenError,

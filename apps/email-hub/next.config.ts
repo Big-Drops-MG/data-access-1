@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@workspace/ui", "@workspace/shared"],
   serverExternalPackages: [
     "@workspace/db",
+    "@workspace/emails",
     "@workspace/logger",
     "bullmq",
     "ioredis",

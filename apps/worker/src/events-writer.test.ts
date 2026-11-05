@@ -29,6 +29,7 @@ const context: EnrichedMessageContext = {
   sendingDomain: "mail.example.com",
   senderFromEmail: "news@mail.example.com",
   recipientEmail: "person@inbox.example",
+  messageEnvironment: "test",
 }
 
 describe("processEventsJob", () => {
@@ -83,6 +84,7 @@ describe("processEventsJob", () => {
         sns_message_id: "sns-1",
         job_id: "sns-1",
         message_id: context.messageId,
+        environment: "test",
         inserted_count: 1,
         lag_ms: 2_500,
       }),
