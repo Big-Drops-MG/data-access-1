@@ -43,6 +43,7 @@ async function handlePatch(
     id,
     {
       version: body.version,
+      name: body.name,
       templateVersionId: body.template_version_id,
       senderId: body.sender_id,
       categoryId: body.category_id,

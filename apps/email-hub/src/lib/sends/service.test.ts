@@ -60,6 +60,8 @@ function query(result: unknown) {
     "orderBy",
     "limit",
     "innerJoin",
+    "leftJoin",
+    "groupBy",
     "insert",
     "values",
     "returning",
@@ -127,6 +129,7 @@ function senderRow(
 
 function sendRow(
   overrides: Partial<{
+    name: string
     status:
       | "draft"
       | "scheduled"
@@ -146,6 +149,7 @@ function sendRow(
 ) {
   return {
     id: sendId,
+    name: overrides.name ?? "October relationship update",
     emailType: overrides.emailType ?? "thank_you",
     templateVersionId: overrides.templateVersionId ?? templateVersionId,
     senderId: overrides.senderId ?? senderId,
@@ -161,6 +165,10 @@ function sendRow(
     createdAt: at,
     updatedAt: at,
   }
+}
+
+function displayEnrichmentEmpty() {
+  return [[], [], [], []] as const
 }
 
 function references(template = templateJoin()) {
@@ -199,11 +207,14 @@ describe("sends service", () => {
       sendRow(),
       { ...sendRow(), id: "019a0000-0000-7000-8000-0000000000a1" },
     ]
-    const db = { select: vi.fn(() => query(rows)) }
-    const page = await listSends({ limit: 1 }, db as never as Database)
+    const pageDb = {
+      select: selectQueue([rows.slice(0, 2), ...displayEnrichmentEmpty()]),
+    }
+    const page = await listSends({ limit: 1 }, pageDb as never as Database)
     expect(page.data).toHaveLength(1)
     expect(page.data[0]).toMatchObject({
       id: sendId,
+      name: "October relationship update",
       status: "draft",
       template_version_id: templateVersionId,
       sender_id: senderId,
@@ -212,6 +223,9 @@ describe("sends service", () => {
     })
     expect(page.next_cursor).toBe(sendId)
 
+    const filteredDb = {
+      select: selectQueue([rows, ...displayEnrichmentEmpty()]),
+    }
     const filtered = await listSends(
       {
         limit: 10,
@@ -223,18 +237,21 @@ describe("sends service", () => {
         categoryId,
         templateVersionId,
       },
-      db as never as Database
+      filteredDb as never as Database
     )
     expect(filtered.data).toHaveLength(2)
     expect(filtered.next_cursor).toBeNull()
   })
 
   it("reads a send and 404s when it is missing", async () => {
-    const db = { select: vi.fn(() => query([sendRow()])) }
+    const db = {
+      select: selectQueue([[sendRow()], ...displayEnrichmentEmpty(), [], []]),
+    }
     await expect(
       getSend(sendId, db as never as Database)
     ).resolves.toMatchObject({
       id: sendId,
+      name: "October relationship update",
       scheduled_for: "2026-11-05T12:30:00.000Z",
     })
     const missing = { select: vi.fn(() => query([])) }
@@ -257,6 +274,7 @@ describe("sends service", () => {
     const db = dbWith(tx)
     const result = await createSend(
       {
+        name: "October relationship update",
         templateVersionId,
         senderId,
         categoryId,
@@ -268,6 +286,7 @@ describe("sends service", () => {
     )
 
     expect(result).toMatchObject({
+      name: "October relationship update",
       status: "draft",
       version: 1,
       template_version_id: templateVersionId,
@@ -388,6 +407,7 @@ describe("sends service", () => {
       await expect(
         createSend(
           {
+            name: "October relationship update",
             templateVersionId,
             senderId,
             categoryId,
@@ -813,6 +833,7 @@ describe("sends service", () => {
     await expect(
       createSend(
         {
+          name: "October relationship update",
           templateVersionId,
           senderId,
           categoryId,
@@ -835,6 +856,7 @@ describe("sends service", () => {
     await expect(
       createSend(
         {
+          name: "October relationship update",
           templateVersionId,
           senderId,
           categoryId,
