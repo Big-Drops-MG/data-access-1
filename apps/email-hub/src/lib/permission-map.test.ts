@@ -140,6 +140,23 @@ describe("minRoleForStaffApi", () => {
     ).toBeNull()
   })
 
+  it("maps send staff routes (viewer read, operator write)", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/sends")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/sends")).toBe("operator")
+    expect(minRoleForStaffApi("GET", `/api/sends/${id}`)).toBe("viewer")
+    expect(minRoleForStaffApi("PATCH", `/api/sends/${id}`)).toBe("operator")
+    expect(minRoleForStaffApi("DELETE", `/api/sends/${id}`)).toBe("operator")
+    expect(minRoleForStaffApi("POST", `/api/sends/${id}/schedule`)).toBe(
+      "operator"
+    )
+    expect(minRoleForStaffApi("POST", `/api/sends/${id}/cancel`)).toBe(
+      "operator"
+    )
+    expect(minRoleForStaffApi("GET", `/api/sends/${id}/schedule`)).toBeNull()
+    expect(minRoleForStaffApi("DELETE", "/api/sends")).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
