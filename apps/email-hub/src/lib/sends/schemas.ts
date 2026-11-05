@@ -34,8 +34,11 @@ export const sendListQuerySchema = paginationSchema
   })
   .strict()
 
+export const sendNameSchema = z.string().trim().min(1).max(200)
+
 export const createSendBodySchema = z
   .object({
+    name: sendNameSchema,
     template_version_id: uuidSchema,
     sender_id: uuidSchema,
     category_id: uuidSchema,
@@ -47,6 +50,7 @@ export const createSendBodySchema = z
 export const updateSendBodySchema = z
   .object({
     version: z.number().int().positive(),
+    name: sendNameSchema.optional(),
     template_version_id: uuidSchema.optional(),
     sender_id: uuidSchema.optional(),
     category_id: uuidSchema.optional(),
@@ -56,6 +60,7 @@ export const updateSendBodySchema = z
   .strict()
   .refine(
     (body) =>
+      body.name !== undefined ||
       body.template_version_id !== undefined ||
       body.sender_id !== undefined ||
       body.category_id !== undefined ||
@@ -63,7 +68,7 @@ export const updateSendBodySchema = z
       body.scheduled_for !== undefined,
     {
       message:
-        "At least one of template_version_id, sender_id, category_id, offer_id, or scheduled_for is required",
+        "At least one of name, template_version_id, sender_id, category_id, offer_id, or scheduled_for is required",
     }
   )
 

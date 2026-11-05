@@ -155,6 +155,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const names = columns.rows.map((row) => row.column_name)
     expect(names).toEqual(
       expect.arrayContaining([
+        "name",
         "template_version_id",
         "sender_id",
         "category_id",
@@ -188,6 +189,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const fx = await fixture()
     const created = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -210,6 +212,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     await expect(
       createSend(
         {
+          name: "Test send",
           templateVersionId: fx.versionAId,
           senderId: fx.inactiveSenderId,
           categoryId: fx.categoryId,
@@ -222,6 +225,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     await expect(
       createSend(
         {
+          name: "Test send",
           templateVersionId: fx.versionAId,
           senderId: fx.badDomainSenderId,
           categoryId: fx.categoryId,
@@ -241,6 +245,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     await expect(
       createSend(
         {
+          name: "Test send",
           templateVersionId: fx.versionAId,
           senderId: fx.senderId,
           categoryId: fx.otherCategoryId,
@@ -276,6 +281,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const fx = await fixture()
     const created = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -303,6 +309,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const fx = await fixture()
     const tooSoon = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -322,6 +329,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
 
     const created = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -398,6 +406,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const fx = await fixture()
     const created = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -432,6 +441,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const fx = await fixture()
     const created = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.draftVersionId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -456,6 +466,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
 
     const linked = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,
@@ -485,6 +496,7 @@ describe.skipIf(!databaseUrl)("sends service (int)", () => {
     const fx = await fixture()
     const created = await createSend(
       {
+        name: "Test send",
         templateVersionId: fx.versionAId,
         senderId: fx.senderId,
         categoryId: fx.categoryId,

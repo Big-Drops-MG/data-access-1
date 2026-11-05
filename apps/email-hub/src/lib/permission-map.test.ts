@@ -49,6 +49,8 @@ describe("minRoleForStaffApi", () => {
 
   it("maps templates staff routes (viewer read, operator write)", () => {
     expect(minRoleForStaffApi("GET", "/api/email-categories")).toBe("viewer")
+    expect(minRoleForStaffApi("GET", "/api/offers")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/offers")).toBeNull()
     expect(minRoleForStaffApi("GET", "/api/templates")).toBe("viewer")
     expect(minRoleForStaffApi("POST", "/api/templates")).toBe("operator")
     expect(minRoleForStaffApi("POST", "/api/templates/preview")).toBe(

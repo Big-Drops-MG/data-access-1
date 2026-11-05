@@ -36,6 +36,7 @@ async function handlePost(request: Request): Promise<Response> {
 
   const created = await createSend(
     {
+      name: body.name,
       templateVersionId: body.template_version_id,
       senderId: body.sender_id,
       categoryId: body.category_id,

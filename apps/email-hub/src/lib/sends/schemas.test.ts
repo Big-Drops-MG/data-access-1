@@ -15,6 +15,7 @@ describe("createSendBodySchema", () => {
   it("accepts a send with a null offer", () => {
     expect(
       createSendBodySchema.parse({
+        name: "October relationship update",
         template_version_id: id,
         sender_id: id,
         category_id: id,
@@ -31,6 +32,7 @@ describe("createSendBodySchema", () => {
   it("TIME-08 rejects an invalid timestamp", () => {
     expect(
       createSendBodySchema.safeParse({
+        name: "October relationship update",
         template_version_id: id,
         sender_id: id,
         category_id: id,
@@ -42,6 +44,7 @@ describe("createSendBodySchema", () => {
   it("TIME-09 rejects a missing scheduled time", () => {
     expect(
       createSendBodySchema.safeParse({
+        name: "October relationship update",
         template_version_id: id,
         sender_id: id,
         category_id: id,
@@ -52,6 +55,7 @@ describe("createSendBodySchema", () => {
   it("TIME-10 rejects a numeric offset and keeps a Z timestamp", () => {
     expect(
       createSendBodySchema.safeParse({
+        name: "October relationship update",
         template_version_id: id,
         sender_id: id,
         category_id: id,
@@ -60,6 +64,7 @@ describe("createSendBodySchema", () => {
     ).toBe(false)
     expect(
       createSendBodySchema.safeParse({
+        name: "October relationship update",
         template_version_id: id,
         sender_id: id,
         category_id: id,
