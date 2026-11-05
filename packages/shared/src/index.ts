@@ -64,6 +64,27 @@ export {
   type SendEmailJobData,
 } from "./send-email-queue.js"
 export {
+  DISPATCH_QUEUE_NAME,
+  DISPATCH_SEND_JOB_NAME,
+  DISPATCH_SEND_JOB_OPTIONS,
+  SCHEDULE_PROMOTER_JOB_NAME,
+  SEND_LATE_ALERT_TYPE,
+  SEND_LATE_THRESHOLD_MS,
+  createEnqueueDispatchSend,
+  enqueueDispatchSendJob,
+  isDuplicateBullmqJob,
+  isSendLate,
+  sendLateAlertDedupeKey,
+  type DispatchSendJobData,
+} from "./dispatch-queue.js"
+export {
+  DISPATCH_RECIPIENT_PAGE_SIZE,
+  loadDispatchRecipientPage,
+  type DispatchRecipientPage,
+  type LoadDispatchRecipientPageInput,
+} from "./dispatch-recipients.js"
+export { openSendLateAlert } from "./send-late-alert.js"
+export {
   EVENTS_JOB_NAME,
   EVENTS_JOB_OPTIONS,
   EVENTS_QUEUE_NAME,
