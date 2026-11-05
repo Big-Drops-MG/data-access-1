@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   assertBullBoardMutationAllowed,
   classifyBullBoardMutation,
-} from "./bull-board-guards.js"
+} from "./bull-board-guards"
 
 describe("classifyBullBoardMutation", () => {
   it("ignores reads", () => {

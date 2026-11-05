@@ -16,8 +16,8 @@ import {
   assertBullBoardMutationAllowed,
   auditActionForMutation,
   classifyBullBoardMutation,
-} from "./bull-board-guards.js"
-import { ADMIN_QUEUE_NAMES } from "./names.js"
+} from "./bull-board-guards"
+import { ADMIN_QUEUE_NAMES } from "./names"
 
 export const BULL_BOARD_BASE_PATH = "/admin/queues"
 
