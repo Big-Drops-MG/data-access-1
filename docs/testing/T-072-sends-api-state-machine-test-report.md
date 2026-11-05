@@ -18,7 +18,7 @@ SD#9.5 was not available and was not fetched. The lifecycle below is the one in 
 
 - OS: Windows 10. Package manager: pnpm. Test runner: Vitest 3.2.7.
 - Unit project: `email-hub`. Integration config: `vitest.int.config.ts`.
-- Integration tests used the repository harness, which clones a database from `apps/email-hub/.env` and applies migrations, including `0012_send_draft_and_category.sql`. No production database was targeted. No unrestricted `DELETE` or `TRUNCATE` was run. No email was sent. Redis was not flushed.
+- Integration tests used the repository harness, which clones a database from `apps/email-hub/.env` and applies migrations, including `0013_send_draft_and_category.sql`. No production database was targeted. No unrestricted `DELETE` or `TRUNCATE` was run. No email was sent. Redis was not flushed.
 - A separate `SELECT current_database()` was not executed. Column and enum checks ran inside the integration test through `information_schema` and `pg_enum`.
 - Live HTTP calls against a signed-in staff server were not executed. Route tests mock the session and the service. Service integration tests call the service with a real database.
 
@@ -39,7 +39,7 @@ SD#9.5 was not available and was not fetched. The lifecycle below is the one in 
 - `packages/db/src/schema/index.ts`
 - `packages/db/src/index.ts`
 - `packages/db/drizzle/0003_recipients_sending_feedback.sql` (`send_guard_update`)
-- `packages/db/drizzle/0012_send_draft_and_category.sql`
+- `packages/db/drizzle/0013_send_draft_and_category.sql`
 - `packages/shared/src/postgres-errors.ts`
 - `docs/implementation/T-072-sends-api-state-machine.md`
 - Tests listed in section 19.

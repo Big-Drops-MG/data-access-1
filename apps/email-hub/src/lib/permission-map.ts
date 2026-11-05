@@ -18,6 +18,7 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "PATCH /api/templates/*": "operator",
   "POST /api/templates/*/versions": "operator",
   "POST /api/templates/*/publish": "operator",
+  "POST /api/templates/*/test-send": "operator",
   "GET /api/senders": "viewer",
   "POST /api/senders": "operator",
   "GET /api/senders/*": "viewer",

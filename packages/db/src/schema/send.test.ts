@@ -58,7 +58,7 @@ describe("send schema", () => {
 
   it("migration adds draft and category without deleting rows", () => {
     const sql = readFileSync(
-      path.join(migrationDir, "0012_send_draft_and_category.sql"),
+      path.join(migrationDir, "0013_send_draft_and_category.sql"),
       "utf8"
     )
     expect(sql).toContain("ADD VALUE 'draft' BEFORE 'scheduled'")
@@ -70,7 +70,7 @@ describe("send schema", () => {
 
   it("migration locks configuration after the send leaves draft", () => {
     const sql = readFileSync(
-      path.join(migrationDir, "0013_send_editable_while_draft.sql"),
+      path.join(migrationDir, "0014_send_editable_while_draft.sql"),
       "utf8"
     )
     expect(sql).toContain("OLD.status = 'draft'")

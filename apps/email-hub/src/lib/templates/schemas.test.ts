@@ -5,6 +5,7 @@ import {
   createTemplateVersionBodySchema,
   publishTemplateBodySchema,
   templateListQuerySchema,
+  testSendTemplateBodySchema,
   updateTemplateBodySchema,
 } from "./schemas"
 
@@ -61,5 +62,32 @@ describe("template schemas", () => {
         version_id: "019a0000-0000-7000-8000-0000000000bb",
       }).success
     ).toBe(true)
+  })
+
+  it("accepts a test-send body and rejects recipient or environment", () => {
+    const versionId = "019a0000-0000-7000-8000-0000000000bb"
+    expect(
+      testSendTemplateBodySchema.safeParse({ version_id: versionId }).success
+    ).toBe(true)
+    expect(
+      testSendTemplateBodySchema.safeParse({
+        version_id: versionId,
+        offer_id: null,
+        idempotency_key: "once",
+        merge_data: { first_name: "Ada" },
+      }).success
+    ).toBe(true)
+    expect(
+      testSendTemplateBodySchema.safeParse({
+        version_id: versionId,
+        to: "other@example.com",
+      }).success
+    ).toBe(false)
+    expect(
+      testSendTemplateBodySchema.safeParse({
+        version_id: versionId,
+        environment: "test",
+      }).success
+    ).toBe(false)
   })
 })

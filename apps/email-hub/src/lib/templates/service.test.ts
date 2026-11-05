@@ -4,6 +4,7 @@ import type * as SharedModule from "@workspace/shared"
 
 const writeAudit = vi.hoisted(() => vi.fn())
 const getDb = vi.hoisted(() => vi.fn())
+const renderEmailTemplate = vi.hoisted(() => vi.fn())
 
 vi.mock("@workspace/shared", async (importOriginal) => {
   const actual = (await importOriginal()) as typeof SharedModule
@@ -14,6 +15,18 @@ vi.mock("@workspace/shared", async (importOriginal) => {
 })
 
 vi.mock("@workspace/db/client", () => ({ getDb }))
+
+vi.mock("@workspace/emails/render", () => ({
+  renderEmailTemplate,
+  TemplateRenderError: class TemplateRenderError extends Error {
+    readonly code: string
+    constructor(code: string, message: string) {
+      super(message)
+      this.name = "TemplateRenderError"
+      this.code = code
+    }
+  },
+}))
 
 import {
   createTemplate,
@@ -82,6 +95,7 @@ function query(result: unknown) {
     "returning",
     "update",
     "set",
+    "for",
   ]) {
     q[method] = vi.fn(self)
   }
@@ -97,6 +111,13 @@ describe("templates service", () => {
     writeAudit.mockReset()
     writeAudit.mockResolvedValue({})
     getDb.mockReset()
+    renderEmailTemplate.mockReset()
+    renderEmailTemplate.mockResolvedValue({
+      html: "Hello",
+      text: "Hello",
+      subject: "Hi",
+      unsubscribeUrl: "https://example.com/publish-check/footer",
+    })
   })
 
   it("lists templates with cursor pagination", async () => {
@@ -285,7 +306,8 @@ describe("templates service", () => {
       select: vi.fn(() => {
         selectCall += 1
         if (selectCall === 1) return query([before])
-        return query([version])
+        if (selectCall === 2) return query([version])
+        return query([{ kind: "transactional" }])
       }),
       update: vi.fn(() => query([after])),
     }

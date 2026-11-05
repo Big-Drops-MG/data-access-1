@@ -25,6 +25,21 @@ describe("send-email request_id propagation", () => {
     )
   })
 
+  it("stores a test environment on the job payload", async () => {
+    const add = vi.fn(async () => undefined)
+    const messageId = "01900000-0000-7000-8000-000000000011"
+    await enqueueSendEmailJob({ add }, messageId, "req-from-api", "test")
+    expect(add).toHaveBeenCalledWith(
+      SEND_EMAIL_JOB_NAME,
+      {
+        message_id: messageId,
+        request_id: "req-from-api",
+        environment: "test",
+      },
+      expect.objectContaining({ jobId: messageId })
+    )
+  })
+
   it("copies the active request context when the caller omits request id", async () => {
     const add = vi.fn(async () => undefined)
     await runWithRequestContext("req-context", async () => {

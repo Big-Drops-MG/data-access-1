@@ -75,7 +75,7 @@ Create returns `201`. Every other success returns `200`. List shape is `{ "data"
 
 `send` already stored `template_version_id`, `sender_id`, optional `offer_id`, `scheduled_for`, `status`, `version`, `dispatch_started_at`, `completed_at`, and `created_by`.
 
-Migration `packages/db/drizzle/0012_send_draft_and_category.sql` (not executed by this task):
+Migration `packages/db/drizzle/0013_send_draft_and_category.sql` (not executed by this task):
 
 - Adds enum value `draft` before `scheduled`.
 - Adds `category_id` (not null, FK to `email_category`, `ON DELETE RESTRICT`) and index `send_category_id_idx`.
@@ -108,7 +108,7 @@ The update is conditional on `id`, `version`, and the status read in the transac
 
 Only `draft` accepts changes to `template_version_id`, `sender_id`, `category_id`, `offer_id`, `scheduled_for`, and the derived `email_type`. `PATCH` on any other status returns `409` with message `Send configuration is locked`. The same fields are not accepted by schedule or cancel. Delete is not a substitute for cancel: only a `draft` with no `message.send_id` row can be deleted. A draft that already has a message returns `409`.
 
-Migration `0013_send_editable_while_draft.sql` replaces `send_guard_update`. The function from `0003` allowed those column changes only while the old status was `scheduled`, which blocked every draft update after `draft` was added. The replacement allows a full update while the old status is `draft`, and raises `send can only be edited while status is draft` when a later status changes `email_type`, `template_version_id`, `sender_id`, `category_id`, `offer_id`, `scheduled_for`, `created_by`, `created_at`, or `id`. Status, version, and dispatch timestamps stay writable, so schedule and cancel still commit. The trigger is renamed to `send_only_while_draft`. A `P0001` with that message is mapped to `409` `Send configuration is locked`. Other `P0001` errors, including audit and template-version immutability, stay unmapped.
+Migration `0014_send_editable_while_draft.sql` replaces `send_guard_update`. The function from `0003` allowed those column changes only while the old status was `scheduled`, which blocked every draft update after `draft` was added. The replacement allows a full update while the old status is `draft`, and raises `send can only be edited while status is draft` when a later status changes `email_type`, `template_version_id`, `sender_id`, `category_id`, `offer_id`, `scheduled_for`, `created_by`, `created_at`, or `id`. Status, version, and dispatch timestamps stay writable, so schedule and cancel still commit. The trigger is renamed to `send_only_while_draft`. A `P0001` with that message is mapped to `409` `Send configuration is locked`. Other `P0001` errors, including audit and template-version immutability, stay unmapped.
 
 ## Template version lock
 
@@ -209,7 +209,7 @@ There is no `workspace_id` field on the send.
 
 ## Limitations
 
-- Migration `0012_send_draft_and_category.sql` is not applied.
+- Migration `0013_send_draft_and_category.sql` is not applied.
 - No tests were run.
 - Cancelling a `scheduled` send cannot recall mail, and it cannot see a queue job that this API never creates.
 - A send left in `queued` or `dispatching` by a future worker cannot be cancelled or edited here.
