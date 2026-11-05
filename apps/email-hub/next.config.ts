@@ -6,11 +6,17 @@ const nextConfig: NextConfig = {
     "@workspace/db",
     "@workspace/emails",
     "@workspace/logger",
+    "@bull-board/api",
+    "@bull-board/ui",
+    "@bull-board/hono",
     "bullmq",
     "ioredis",
     "pg",
     "pino",
   ],
+  outputFileTracingIncludes: {
+    "/admin/queues/*": ["./node_modules/@bull-board/ui/dist/**/*"],
+  },
   output: "standalone",
   images: {
     remotePatterns: [
