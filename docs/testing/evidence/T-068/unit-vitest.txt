@@ -1,0 +1,42 @@
+﻿ RUN  v3.2.7 D:/Big Drops/data-access-1/apps/email-hub
+
+pnpm.exe : Sourcemap for "D:/Big Drops/data-access-1/packages/shared/dist/e2e-runtime.js" points to missing source 
+files
+At C:\Users\Admin\AppData\Roaming\npm\pnpm.ps1:14 char:3
++   & "$basedir/node_modules/pnpm/pnpm.exe"   $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Sourcemap for "...ng source files:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ âœ“ |email-hub| src/lib/suppressions/schemas.test.ts (6 tests) 34ms
+ âœ“ |email-hub| src/lib/permission-map.test.ts (12 tests) 26ms
+{"level":"info","time":"2026-11-05T18:54:19.665Z","service":"emailhub-web","environment":"test","request_id":"b15e64d1-690e-4891-b865-b78cadafe6db","event":"http.request","method":"GET","path":"/api/suppressions","status":200,"duration_ms":78,"msg":"HTTP request"}
+{"level":"info","time":"2026-11-05T18:54:19.739Z","service":"emailhub-web","environment":"test","request_id":"53655702-cae7-4ea8-8bf3-a74c3492085a","event":"http.request","method":"GET","path":"/api/suppressions","status":200,"duration_ms":3,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.773Z","service":"emailhub-web","environment":"test","request_id":"78072eb4-a266-430c-b652-95b1f999b89f","event":"http.request","method":"GET","path":"/api/suppressions","status":401,"duration_ms":25,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.789Z","service":"emailhub-web","environment":"test","request_id":"007d4571-df71-4ee9-843a-04b5033c8c33","event":"http.request","method":"GET","path":"/api/suppressions","status":401,"duration_ms":3,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.806Z","service":"emailhub-web","environment":"test","request_id":"0c1d49f7-bd00-44a8-8d7a-a8608c8072fd","event":"http.request","method":"GET","path":"/api/suppressions","status":422,"duration_ms":10,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.820Z","service":"emailhub-web","environment":"test","request_id":"c5ebf5af-3a85-4d5b-ac49-09c5bc58cfed","event":"http.request","method":"GET","path":"/api/suppressions","status":422,"duration_ms":10,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.853Z","service":"emailhub-web","environment":"test","request_id":"3dcdf333-d390-4e4c-bd32-a4ca106307c1","event":"http.request","method":"POST","path":"/api/suppressions","status":403,"duration_ms":13,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.859Z","service":"emailhub-web","environment":"test","request_id":"04444e9b-e674-41a8-80cb-1367afb50b0f","event":"http.request","method":"POST","path":"/api/suppressions","status":401,"duration_ms":1,"msg":"HTTP request"}
+{"level":"info","time":"2026-11-05T18:54:19.875Z","service":"emailhub-web","environment":"test","request_id":"req-1","event":"http.request","method":"POST","path":"/api/suppressions","status":201,"duration_ms":4,"msg":"HTTP request"}
+{"level":"info","time":"2026-11-05T18:54:19.893Z","service":"emailhub-web","environment":"test","request_id":"b2cc9f89-182e-4f2c-a56b-94eddd02e256","event":"http.request","method":"POST","path":"/api/suppressions","status":200,"duration_ms":2,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.912Z","service":"emailhub-web","environment":"test","request_id":"a2c0b1ed-7f20-48d3-8cea-c4ecf7cf622d","event":"http.request","method":"POST","path":"/api/suppressions","status":400,"duration_ms":3,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.919Z","service":"emailhub-web","environment":"test","request_id":"9e5626be-9fbc-4623-ad2a-072686fcb542","event":"http.request","method":"POST","path":"/api/suppressions","status":422,"duration_ms":2,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.923Z","service":"emailhub-web","environment":"test","request_id":"ae600c30-57c4-4b39-9a7f-3bfb95ed31c9","event":"http.request","method":"POST","path":"/api/suppressions","status":422,"duration_ms":1,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.928Z","service":"emailhub-web","environment":"test","request_id":"7e8a88a0-2e5d-4d06-bb5e-09fd5d0c25e1","event":"http.request","method":"POST","path":"/api/suppressions","status":422,"duration_ms":2,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.936Z","service":"emailhub-web","environment":"test","request_id":"95823676-39f1-4d75-99ed-af59661a34be","event":"http.request","method":"POST","path":"/api/suppressions","status":422,"duration_ms":3,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:19.941Z","service":"emailhub-web","environment":"test","request_id":"3656ad5a-a338-4ed6-a4e2-958574c6df79","event":"http.request","method":"POST","path":"/api/suppressions","status":422,"duration_ms":2,"msg":"HTTP request"}
+ âœ“ |email-hub| src/app/api/suppressions/route.test.ts (8 tests) 374ms
+{"level":"warn","time":"2026-11-05T18:54:20.434Z","service":"emailhub-web","environment":"test","request_id":"req-remove","event":"http.request","method":"POST","path":"/api/suppressions/019a0000-0000-7000-8000-0000000000aa/remove","status":403,"duration_ms":84,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:20.577Z","service":"emailhub-web","environment":"test","request_id":"req-remove","event":"http.request","method":"POST","path":"/api/suppressions/019a0000-0000-7000-8000-0000000000aa/remove","status":403,"duration_ms":1,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:20.584Z","service":"emailhub-web","environment":"test","request_id":"req-remove","event":"http.request","method":"POST","path":"/api/suppressions/019a0000-0000-7000-8000-0000000000aa/remove","status":401,"duration_ms":2,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:20.593Z","service":"emailhub-web","environment":"test","request_id":"6d6f9355-0065-4fc6-aaf3-3fd758b74f02","event":"http.request","method":"POST","path":"/api/suppressions/019a0000-0000-7000-8000-0000000000aa/remove","status":401,"duration_ms":1,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:20.605Z","service":"emailhub-web","environment":"test","request_id":"336524d2-5e0d-4a73-b731-f7ea1f688719","event":"http.request","method":"POST","path":"/api/suppressions/not-a-uuid/remove","status":422,"duration_ms":5,"msg":"HTTP request"}
+{"level":"info","time":"2026-11-05T18:54:20.623Z","service":"emailhub-web","environment":"test","request_id":"req-remove","event":"http.request","method":"POST","path":"/api/suppressions/019a0000-0000-7000-8000-0000000000aa/remove","status":200,"duration_ms":13,"msg":"HTTP request"}
+{"level":"warn","time":"2026-11-05T18:54:20.639Z","service":"emailhub-web","environment":"test","request_id":"req-remove","event":"http.request","method":"POST","path":"/api/suppressions/019a0000-0000-7000-8000-0000000000aa/remove","status":404,"duration_ms":1,"msg":"HTTP request"}
+ âœ“ |email-hub| src/app/api/suppressions/[id]/remove/route.test.ts (4 tests) 322ms
+
+ Test Files  4 passed (4)
+      Tests  30 passed (30)
+   Start at  00:23:53
+   Duration  27.23s (transform 12.17s, setup 0ms, collect 53.54s, tests 755ms, environment 3ms, prepare 8.18s)

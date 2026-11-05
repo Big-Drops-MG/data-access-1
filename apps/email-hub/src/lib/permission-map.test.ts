@@ -161,6 +161,20 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("DELETE", "/api/sends")).toBeNull()
   })
 
+  it("maps suppression routes (viewer read, operator add, admin remove)", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/suppressions")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/suppressions")).toBe("operator")
+    expect(minRoleForStaffApi("POST", `/api/suppressions/${id}/remove`)).toBe(
+      "admin"
+    )
+    expect(
+      minRoleForStaffApi("GET", `/api/suppressions/${id}/remove`)
+    ).toBeNull()
+    expect(minRoleForStaffApi("DELETE", `/api/suppressions/${id}`)).toBeNull()
+    expect(minRoleForStaffApi("POST", "/api/suppressions/remove")).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
