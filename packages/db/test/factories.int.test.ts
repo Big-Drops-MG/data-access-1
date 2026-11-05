@@ -162,6 +162,7 @@ const scratchSchema = [
   "CREATE TYPE recipient_tier AS ENUM ('standard', 'premium')",
   "CREATE TYPE recipient_status AS ENUM ('active', 'bounced')",
   "CREATE TYPE message_status AS ENUM ('queued', 'sent', 'delivered', 'bounced', 'complained', 'skipped', 'failed')",
+  "CREATE TYPE message_environment AS ENUM ('production', 'test')",
   "CREATE TYPE message_skip_reason AS ENUM ('recipient_bounced', 'suppressed', 'opted_out', 'not_premium', 'collision', 'frequency_cap', 'no_route')",
   "CREATE TYPE audit_actor_type AS ENUM ('user', 'api_client', 'system')",
   `CREATE TABLE "user" (
@@ -264,6 +265,7 @@ const scratchSchema = [
      template_version_id uuid REFERENCES template_version (id),
      sender_id uuid REFERENCES sender (id),
      idempotency_key text NOT NULL UNIQUE,
+     environment message_environment NOT NULL DEFAULT 'production',
      merge_data jsonb NOT NULL DEFAULT '{}'::jsonb,
      status message_status NOT NULL,
      skip_reason message_skip_reason,
