@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 
 import { loadServerEnv, verifyUnsubscribeToken } from "@workspace/shared"
 
@@ -14,15 +15,20 @@ export default async function UnsubscribePage({
   params,
 }: UnsubscribePageProps) {
   const { token } = await params
-  const secret = loadServerEnv("web").UNSUBSCRIBE_TOKEN_SECRET
-  const messageId = secret ? verifyUnsubscribeToken(secret, token) : null
-  let detail = "This unsubscribe link is not valid."
-  if (secret === undefined) {
-    detail = "This unsubscribe link cannot be checked."
-  } else if (messageId !== null) {
-    detail =
-      "This unsubscribe link is valid. Confirming it does not change email preferences yet."
+  const env = loadServerEnv("web")
+  const verification = verifyUnsubscribeToken(
+    [env.UNSUBSCRIBE_TOKEN_SECRET, env.UNSUBSCRIBE_TOKEN_SECRET_PREVIOUS],
+    token
+  )
+
+  if (verification.status === "invalid") {
+    notFound()
   }
+
+  const detail =
+    verification.status === "expired"
+      ? "This unsubscribe link has expired."
+      : "This unsubscribe link is valid. Confirming it does not change email preferences yet."
 
   return (
     <section className="w-full max-w-md space-y-2 text-center">

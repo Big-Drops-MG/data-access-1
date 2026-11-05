@@ -99,7 +99,10 @@ async function main(): Promise<void> {
   })
   const token = unsubscribeUrl.slice(`${TEST_ORIGIN}/unsubscribe/`.length)
   record(
-    verifyUnsubscribeToken(TEST_SECRET, token) === MESSAGE_ID,
+    (() => {
+      const verified = verifyUnsubscribeToken(TEST_SECRET, token)
+      return verified.status === "valid" && verified.messageId === MESSAGE_ID
+    })(),
     "signed unsubscribe URL verifies"
   )
 
