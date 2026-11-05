@@ -31,6 +31,7 @@ function sendRow(overrides: Partial<Send> = {}): Send {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    name: overrides.name ?? "Test send",
   }
 }
 
