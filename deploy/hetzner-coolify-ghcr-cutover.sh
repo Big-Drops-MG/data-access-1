@@ -111,7 +111,7 @@ patch_app_image() {
     -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -d "{\"key\":\"APP_IMAGE\",\"value\":\"${image}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
+    -d "{\"key\":\"APP_IMAGE\",\"value\":\"${image}\",\"is_preview\":false,\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
   echo
   curl -fsS -X PATCH "${API}/applications/${uuid}" \
     -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
