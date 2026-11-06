@@ -15,7 +15,9 @@ const nextConfig: NextConfig = {
     "pino",
   ],
   outputFileTracingIncludes: {
-    "/admin/queues/*": ["./node_modules/@bull-board/ui/dist/**/*"],
+    "/admin/queues": ["./node_modules/@bull-board/ui/**/*"],
+    "/admin/queues/[...path]": ["./node_modules/@bull-board/ui/**/*"],
+    "/admin/queues/[[...path]]": ["./node_modules/@bull-board/ui/**/*"],
   },
   output: "standalone",
   images: {
