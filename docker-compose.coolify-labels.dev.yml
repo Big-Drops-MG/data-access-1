@@ -1,0 +1,53 @@
+# Coolify Terminal ownership labels for Hetzner Dev (EmailHub_App-Dev).
+# Used with docker-compose.yml + docker-compose.dev-server.yml +
+# docker-compose.hetzner-dev.yml for hybrid cutover / rollback.
+services:
+  caddy:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=caddy
+  web:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=web
+  worker:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=worker
+  postgres:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=postgres
+  clickhouse:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=clickhouse
+  redis:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=redis
+  mailpit:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=on2w1x687uds8rjrd87gmroe
+      - coolify.applicationId=2
+      - coolify.type=application
+      - coolify.name=mailpit
