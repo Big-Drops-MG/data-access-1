@@ -27,7 +27,8 @@
     "AWS_SECRET_ACCESS_KEY",
     "SNS_TOPIC_ARN",
     "E2E",
-    "UNSUBSCRIBE_TOKEN_SECRET"
+    "UNSUBSCRIBE_TOKEN_SECRET",
+    "CATALOG_SEED_ACTOR_EMAIL"
   ],
   "tasks": {
     "build": {

@@ -1,9 +1,5 @@
 import type { AppRole } from "@/lib/permissions"
 
-/**
- * Staff API permission map (SD#4 rule 3).
- * Missing entries deny. Patterns use `*` for a single path segment.
- */
 export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "POST /api/admin/users/*/two-factor/reset": "admin",
   "GET /api/domains": "viewer",
@@ -41,6 +37,8 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "GET /api/suppressions": "viewer",
   "POST /api/suppressions": "operator",
   "POST /api/suppressions/*/remove": "admin",
+  "GET /api/recipients": "viewer",
+  "GET /api/recipients/*": "viewer",
 }
 
 function normalizePath(pathname: string): string {
@@ -61,9 +59,6 @@ function patternMatches(patternPath: string, pathname: string): boolean {
   )
 }
 
-/**
- * Minimum role for a staff API route. `null` means deny (not in the map).
- */
 export function minRoleForStaffApi(
   method: string,
   pathname: string
@@ -89,7 +84,6 @@ export function minRoleForStaffApi(
   return null
 }
 
-/** HTTP methods that mutate state and require Operator+ when mapped as writes. */
 export function isWriteMethod(method: string): boolean {
   const normalized = method.toUpperCase()
   return (
