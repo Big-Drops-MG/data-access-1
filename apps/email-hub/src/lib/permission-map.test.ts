@@ -177,6 +177,15 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("POST", "/api/suppressions/remove")).toBeNull()
   })
 
+  it("maps recipients staff routes as viewer read-only", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/recipients")).toBe("viewer")
+    expect(minRoleForStaffApi("GET", `/api/recipients/${id}`)).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/recipients")).toBeNull()
+    expect(minRoleForStaffApi("POST", "/api/recipients/import")).toBeNull()
+    expect(minRoleForStaffApi("PATCH", `/api/recipients/${id}`)).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()

@@ -1,19 +1,14 @@
 import { createHash } from "node:crypto"
 
-import { and, eq, isNull } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 import type { Database } from "./client.js"
 import {
   assertApplicationDatabaseUrl,
   databaseUrlIdentity,
 } from "./connection-policy.js"
-import {
-  emailCategory,
-  frequencyRule,
-  offer,
-  recipient,
-  user,
-} from "./schema/index.js"
+import { loadEmailCatalog, seedEmailCatalog } from "./email-catalog-seed.js"
+import { offer, recipient, user } from "./schema/index.js"
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"])
 
@@ -24,31 +19,28 @@ export const DEV_USER = {
   status: "active",
 } as const
 
-export const DEV_CATEGORIES = [
-  {
-    key: "thank_you",
-    name: "Thank you",
-    description: "Post-purchase thank you",
-    kind: "transactional",
-  },
-  {
-    key: "feedback_request",
-    name: "Feedback request",
-    description: "Ask the recipient for feedback",
-    kind: "transactional",
-  },
-  {
-    key: "engagement",
-    name: "Engagement",
-    description: "Relationship engagement",
-    kind: "relationship",
-  },
-] as const
+const catalog = loadEmailCatalog()
 
-export const DEV_FREQUENCY_RULES = [
-  { kind: "cap", maxCount: 3, windowDays: 7 },
-  { kind: "collision", blocksWithType: "thank_you", minGapHours: 24 },
-] as const
+export const DEV_CATEGORIES = catalog.categories.map((category) => ({
+  key: category.key,
+  name: category.name,
+  description: category.description ?? undefined,
+  kind: category.kind,
+}))
+
+export const DEV_FREQUENCY_RULES = catalog.frequency_rules.map((rule) =>
+  rule.kind === "cap"
+    ? {
+        kind: "cap" as const,
+        maxCount: rule.max_count,
+        windowDays: rule.window_days,
+      }
+    : {
+        kind: "collision" as const,
+        blocksWithType: rule.blocks_with_type,
+        minGapHours: rule.min_gap_hours,
+      }
+)
 
 export const DEV_OFFER = {
   name: "Sample offer",
@@ -85,14 +77,15 @@ export function assertDevSeedTarget(connectionString: string): void {
 
 export async function seedDev(db: Database): Promise<DevSeedResult> {
   const userId = await ensureUser(db)
-  await ensureCategories(db, userId)
-  await ensureFrequencyRules(db, userId)
+  const catalogResult = await seedEmailCatalog(db, {
+    updatedByUserId: userId,
+  })
   await ensureOffer(db)
   await ensureRecipients(db)
 
   return {
-    categories: DEV_CATEGORIES.length,
-    frequencyRules: DEV_FREQUENCY_RULES.length,
+    categories: catalogResult.categories,
+    frequencyRules: catalogResult.frequencyRules,
     offers: 1,
     recipients: DEV_RECIPIENTS.length,
   }
@@ -124,60 +117,6 @@ async function ensureUser(db: Database): Promise<string> {
   }
 
   return existing.id
-}
-
-async function ensureCategories(db: Database, userId: string): Promise<void> {
-  for (const category of DEV_CATEGORIES) {
-    await db
-      .insert(emailCategory)
-      .values({
-        key: category.key,
-        name: category.name,
-        description: category.description,
-        kind: category.kind,
-        createdBy: userId,
-      })
-      .onConflictDoNothing({ target: emailCategory.key })
-  }
-}
-
-async function ensureFrequencyRules(
-  db: Database,
-  userId: string
-): Promise<void> {
-  for (const rule of DEV_FREQUENCY_RULES) {
-    const [existing] = await db
-      .select({ id: frequencyRule.id })
-      .from(frequencyRule)
-      .where(
-        and(eq(frequencyRule.kind, rule.kind), isNull(frequencyRule.categoryId))
-      )
-
-    if (existing) {
-      continue
-    }
-
-    await db.insert(frequencyRule).values({
-      kind: rule.kind,
-      updatedBy: userId,
-      ...frequencyRuleValues(rule),
-    })
-  }
-}
-
-function frequencyRuleValues(
-  rule: (typeof DEV_FREQUENCY_RULES)[number]
-):
-  | { maxCount: number; windowDays: number }
-  | { blocksWithType: "thank_you"; minGapHours: number } {
-  if (rule.kind === "cap") {
-    return { maxCount: rule.maxCount, windowDays: rule.windowDays }
-  }
-
-  return {
-    blocksWithType: rule.blocksWithType,
-    minGapHours: rule.minGapHours,
-  }
 }
 
 async function ensureOffer(db: Database): Promise<void> {
