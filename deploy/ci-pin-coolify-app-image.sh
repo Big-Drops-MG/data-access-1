@@ -1,7 +1,9 @@
 #!/bin/bash
-# Pin Coolify APP_IMAGE on Hetzner via Coolify DB + .env.compose, then POST deploy.
-# Coolify 4.6 /applications/{uuid}/envs returns HTTP 500 on this host; compose
-# start uses /opt/*/coolify-up.sh which reads .env.compose APP_IMAGE.
+# Pin Coolify APP_IMAGE on Hetzner, then POST deploy.
+# coolify-up.sh reads plaintext APP_IMAGE from .env.compose.
+# Coolify DB values must stay Laravel-encrypted (model encrypt/decrypt). Writing
+# plaintext into environment_variables breaks GET/PATCH /applications/{uuid}/envs
+# with DecryptException → HTTP 500.
 #
 # Usage: ci-pin-coolify-app-image.sh <app-uuid> <app-image> <env-compose-path>
 # Env: HETZNER_SSH_HOST, HETZNER_SSH_USER, HETZNER_SSH_KEY, COOLIFY_TOKEN
@@ -38,17 +40,6 @@ $(printf 'IMAGE_NAME=%q\n' "$IMAGE_NAME")
 $(printf 'IMAGE_TAG=%q\n' "$IMAGE_TAG")
 $(printf 'COOLIFY_TOKEN=%q\n' "$COOLIFY_TOKEN")
 API=http://127.0.0.1:8000/api/v1
-CID=\$(docker ps --filter name=coolify-db --format '{{.ID}}' | head -1)
-test -n "\$CID"
-docker exec "\$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -c \
-  "UPDATE environment_variables e
-   SET value='\${APP_IMAGE}', updated_at=NOW()
-   FROM applications a
-   WHERE e.resourceable_id = a.id
-     AND e.resourceable_type LIKE '%Application%'
-     AND a.uuid = '\${APP_UUID}'
-     AND e.key = 'APP_IMAGE'
-     AND a.deleted_at IS NULL;"
 test -f "\$ENV_COMPOSE"
 python3 - "\$ENV_COMPOSE" "\$APP_IMAGE" <<'PY'
 from pathlib import Path
@@ -61,6 +52,13 @@ lines = [
 path.write_text("\\n".join(lines) + "\\n")
 print("updated", path, "APP_IMAGE", image)
 PY
+# Coolify API encrypts via EnvironmentVariable setter — never raw-SQL plaintext.
+curl -fsS -X PATCH "\${API}/applications/\${APP_UUID}/envs" \\
+  -H "Authorization: Bearer \${COOLIFY_TOKEN}" \\
+  -H "Accept: application/json" \\
+  -H "Content-Type: application/json" \\
+  -d "{\"key\":\"APP_IMAGE\",\"value\":\"\${APP_IMAGE}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
+echo
 if ! curl -fsS -X PATCH "\${API}/applications/\${APP_UUID}" \\
   -H "Authorization: Bearer \${COOLIFY_TOKEN}" \\
   -H "Accept: application/json" \\

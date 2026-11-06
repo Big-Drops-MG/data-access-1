@@ -3,9 +3,9 @@
 # Prod waits for GitHub Environment "production" approval.
 #
 # Coolify on Hetzner listens on 127.0.0.1:8000 only. Deploy jobs SSH to the
-# host to pin APP_IMAGE (Coolify DB + .env.compose) and POST /api/v1/deploy.
-# The Coolify /applications/{uuid}/envs API returns 500 on this host, so CI
-# does not use it; coolify-up.sh reads APP_IMAGE from .env.compose.
+# host (deploy/ci-pin-coolify-app-image.sh): plaintext APP_IMAGE in .env.compose
+# for coolify-up.sh, PATCH /applications/{uuid}/envs (encrypted in Coolify DB),
+# then POST /api/v1/deploy. Never write plaintext into Coolify environment_variables.
 name: Deploy
 
 on:

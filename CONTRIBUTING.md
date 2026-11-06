@@ -207,7 +207,7 @@ Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps
 `.github/workflows/deploy.yml` runs on push to `main` (SD#13.6 / T-035):
 
 1. Build and push multi-arch `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`) for `linux/amd64` + `linux/arm64`; fail if the amd64 image exceeds 400 MiB.
-2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`), then SSH to the droplet (`deploy/ci-pin-coolify-app-image.sh`) to pin `APP_IMAGE` in Coolify DB + `.env.compose` and `POST` deploy with `force=true`. (Coolify `/applications/{uuid}/envs` returns 500 on Hetzner; compose start reads `.env.compose`.)
+2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`), then SSH to the droplet (`deploy/ci-pin-coolify-app-image.sh`) to write plaintext `APP_IMAGE` in `.env.compose`, PATCH Coolify `/envs` (Laravel-encrypted), and `POST` deploy with `force=true`. Do not raw-SQL plaintext into Coolify `environment_variables` — that breaks `/envs` with `DecryptException`.
 3. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
 
 Create GitHub Environments **`development`** and **`production`**. Configure these repository secrets (and environment secrets where noted):

@@ -105,16 +105,14 @@ patch_app_image() {
   local image="${IMAGE_REPO}:${tag}"
   local envfile="$3"
   echo "=== APP_IMAGE ${uuid} -> ${image} ==="
-  # Coolify /applications/{uuid}/envs returns HTTP 500 on this host; pin via DB.
-  docker exec "$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -c \
-    "UPDATE environment_variables e
-     SET value='${image}', updated_at=NOW()
-     FROM applications a
-     WHERE e.resourceable_id = a.id
-       AND e.resourceable_type LIKE '%Application%'
-       AND a.uuid = '${uuid}'
-       AND e.key = 'APP_IMAGE'
-       AND a.deleted_at IS NULL;"
+  # Must go through Coolify API so value is Laravel-encrypted. Raw SQL plaintext
+  # makes GET/PATCH /envs throw DecryptException (HTTP 500).
+  curl -fsS -X PATCH "${API}/applications/${uuid}/envs" \
+    -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    -d "{\"key\":\"APP_IMAGE\",\"value\":\"${image}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
+  echo
   curl -fsS -X PATCH "${API}/applications/${uuid}" \
     -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
     -H "Accept: application/json" \
