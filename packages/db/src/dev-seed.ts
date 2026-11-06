@@ -79,6 +79,7 @@ export async function seedDev(db: Database): Promise<DevSeedResult> {
   const userId = await ensureUser(db)
   const catalogResult = await seedEmailCatalog(db, {
     updatedByUserId: userId,
+    reconcile: false,
   })
   await ensureOffer(db)
   await ensureRecipients(db)

@@ -166,9 +166,15 @@ export function loadEmailCatalog(path = CATALOG_PATH): EmailCatalog {
 
 export async function seedEmailCatalog(
   db: Database,
-  input: { updatedByUserId: string; catalogPath?: string }
+  input: {
+    updatedByUserId: string
+    catalogPath?: string
+    /** When false, insert missing rows only (dev seed). Default true for catalog CLI. */
+    reconcile?: boolean
+  }
 ): Promise<EmailCatalogSeedResult> {
   const catalog = loadEmailCatalog(input.catalogPath)
+  const reconcile = input.reconcile !== false
   const categoryIds = new Map<string, string>()
 
   for (const category of catalog.categories) {
@@ -200,16 +206,18 @@ export async function seedEmailCatalog(
       throw new Error(`Category ${category.key} missing after upsert`)
     }
 
-    await db
-      .update(emailCategory)
-      .set({
-        name: category.name,
-        description: category.description,
-        kind: category.kind,
-        defaultOptedIn: category.default_opted_in,
-        updatedAt: new Date(),
-      })
-      .where(eq(emailCategory.id, existing.id))
+    if (reconcile) {
+      await db
+        .update(emailCategory)
+        .set({
+          name: category.name,
+          description: category.description,
+          kind: category.kind,
+          defaultOptedIn: category.default_opted_in,
+          updatedAt: new Date(),
+        })
+        .where(eq(emailCategory.id, existing.id))
+    }
 
     categoryIds.set(existing.key, existing.id)
   }
@@ -249,15 +257,15 @@ export async function seedEmailCatalog(
             .limit(1)
 
     if (rule.kind === "cap") {
-      if (
-        existing &&
-        existing.kind === "cap" &&
-        existing.maxCount === rule.max_count &&
-        existing.windowDays === rule.window_days
-      ) {
-        continue
-      }
       if (existing) {
+        if (
+          !reconcile ||
+          (existing.kind === "cap" &&
+            existing.maxCount === rule.max_count &&
+            existing.windowDays === rule.window_days)
+        ) {
+          continue
+        }
         await db
           .update(frequencyRule)
           .set({
@@ -283,15 +291,15 @@ export async function seedEmailCatalog(
       continue
     }
 
-    if (
-      existing &&
-      existing.kind === "collision" &&
-      existing.blocksWithType === rule.blocks_with_type &&
-      existing.minGapHours === rule.min_gap_hours
-    ) {
-      continue
-    }
     if (existing) {
+      if (
+        !reconcile ||
+        (existing.kind === "collision" &&
+          existing.blocksWithType === rule.blocks_with_type &&
+          existing.minGapHours === rule.min_gap_hours)
+      ) {
+        continue
+      }
       await db
         .update(frequencyRule)
         .set({
