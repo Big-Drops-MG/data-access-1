@@ -186,6 +186,15 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("PATCH", `/api/recipients/${id}`)).toBeNull()
   })
 
+  it("maps reports staff routes as viewer read-only", () => {
+    expect(minRoleForStaffApi("GET", "/api/reports/sending")).toBe("viewer")
+    expect(minRoleForStaffApi("GET", "/api/reports/link-clicks")).toBe("viewer")
+    expect(minRoleForStaffApi("GET", "/api/reports/provider-metrics")).toBe(
+      "viewer"
+    )
+    expect(minRoleForStaffApi("POST", "/api/reports/sending")).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
