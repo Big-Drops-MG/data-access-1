@@ -1,0 +1,47 @@
+# Coolify Terminal ownership labels for Hetzner Prod (EmailHub_App-Prod).
+# Used with docker-compose.yml + docker-compose.hetzner.yml when stacks are
+# still started outside Coolify Deploy. Coolify-managed deploys inject their
+# own labels; keep this file for rollback / hybrid cutover.
+services:
+  caddy:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=3pb3hedu9l107fy64pwk0zhd
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=caddy
+  web:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=3pb3hedu9l107fy64pwk0zhd
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=web
+  worker:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=3pb3hedu9l107fy64pwk0zhd
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=worker
+  postgres:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=3pb3hedu9l107fy64pwk0zhd
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=postgres
+  clickhouse:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=3pb3hedu9l107fy64pwk0zhd
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=clickhouse
+  redis:
+    labels:
+      - coolify.managed=true
+      - coolify.applicationUuid=3pb3hedu9l107fy64pwk0zhd
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=redis
