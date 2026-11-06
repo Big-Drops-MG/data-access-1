@@ -105,6 +105,8 @@ patch_app_image() {
   local image="${IMAGE_REPO}:${tag}"
   local envfile="$3"
   echo "=== APP_IMAGE ${uuid} -> ${image} ==="
+  # Must go through Coolify API so value is Laravel-encrypted. Raw SQL plaintext
+  # makes GET/PATCH /envs throw DecryptException (HTTP 500).
   curl -fsS -X PATCH "${API}/applications/${uuid}/envs" \
     -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
     -H "Accept: application/json" \
@@ -115,7 +117,8 @@ patch_app_image() {
     -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -d "{\"docker_registry_image_name\":\"${IMAGE_REPO}\",\"docker_registry_image_tag\":\"${tag}\"}"
+    -d "{\"docker_registry_image_name\":\"${IMAGE_REPO}\",\"docker_registry_image_tag\":\"${tag}\"}" \
+    || echo "warn: application registry PATCH failed (non-fatal)"
   echo
   if [[ -f "$envfile" ]]; then
     python3 - "$envfile" "$image" <<'PY'
