@@ -207,18 +207,16 @@ Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps
 `.github/workflows/deploy.yml` runs on push to `main` (SD#13.6 / T-035):
 
 1. Build and push multi-arch `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`) for `linux/amd64` + `linux/arm64`; fail if the amd64 image exceeds 400 MiB.
-2. Open an SSH tunnel to the droplet Coolify API (`127.0.0.1:8000`).
-3. Dev: migrate (`pnpm --filter @workspace/db db:migrate`), PATCH Coolify `APP_IMAGE` + registry fields to the git SHA tag, then `POST` deploy with `force=true`.
-4. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
+2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`), then SSH to the droplet (`deploy/ci-pin-coolify-app-image.sh`) to write plaintext `APP_IMAGE` in `.env.compose`, PATCH Coolify `/envs` (Laravel-encrypted), and `POST` deploy with `force=true`. Do not raw-SQL plaintext into Coolify `environment_variables` — that breaks `/envs` with `DecryptException`.
+3. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
 
 Create GitHub Environments **`development`** and **`production`**. Configure these repository secrets (and environment secrets where noted):
 
 | Secret                                                                      | Purpose                                                                                    |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `COOLIFY_BASE_URL`                                                          | Coolify API origin after tunnel (usually `http://127.0.0.1:8000`)                          |
-| `COOLIFY_TOKEN`                                                             | Coolify API token                                                                          |
+| `COOLIFY_TOKEN`                                                             | Coolify API token (used on-host via SSH for deploy POST)                                   |
 | `COOLIFY_DEV_APP_UUID` / `COOLIFY_PROD_APP_UUID`                            | Application UUIDs in Coolify                                                               |
-| `HETZNER_SSH_HOST`                                                          | Droplet host/IP for the Coolify API tunnel                                                 |
+| `HETZNER_SSH_HOST`                                                          | Droplet host/IP for migrate tunnels + Coolify APP_IMAGE pin / deploy                       |
 | `HETZNER_SSH_USER`                                                          | SSH user (usually `root`)                                                                  |
 | `HETZNER_SSH_KEY`                                                           | Private key PEM for that user (deploy-only key preferred)                                  |
 | `GHCR_PULL_TOKEN`                                                           | PAT with `read:packages` for `docker login ghcr.io` on the droplet (Coolify compose pulls) |
@@ -229,7 +227,7 @@ Compose apps use `APP_IMAGE=ghcr.io/<owner>/<repo>:<sha>`. Migrate jobs open an 
 
 Hetzner notes:
 
-- Coolify API is localhost-only; the workflow tunnels with `HETZNER_SSH_*`.
+- Coolify API is localhost-only; Deploy SSHs with `HETZNER_SSH_*` and calls it on the host.
 - Droplet is **arm64** — multi-arch GHCR images are required.
 - On the host, `docker login ghcr.io` with `GHCR_PULL_TOKEN` (`read:packages`) so Coolify compose can pull private images.
 - This org has **deploy keys disabled**. Prefer a Coolify GitHub App, or keep compose start scripts under `/opt/emailhub(-dev)/coolify-up.sh` (current Hetzner cutover) so Deploy does not depend on cloning. Do not embed PATs in `git_repository` URLs.
