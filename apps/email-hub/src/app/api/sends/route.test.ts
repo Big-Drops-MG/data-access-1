@@ -25,6 +25,7 @@ const id = "019a0000-0000-7000-8000-000000000010"
 
 function createBody(scheduledFor = "2026-11-05T18:00:00.000Z") {
   return {
+    name: "October relationship update",
     template_version_id: id,
     sender_id: id,
     category_id: id,
@@ -101,6 +102,7 @@ describe("GET/POST /api/sends", () => {
     expect(response.status).toBe(201)
     expect(createSend).toHaveBeenCalledWith(
       {
+        name: "October relationship update",
         templateVersionId: id,
         senderId: id,
         categoryId: id,

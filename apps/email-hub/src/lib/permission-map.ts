@@ -13,6 +13,7 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "PATCH /api/domains/*": "admin",
   "DELETE /api/domains/*": "admin",
   "GET /api/email-categories": "viewer",
+  "GET /api/offers": "viewer",
   "GET /api/templates": "viewer",
   "POST /api/templates": "operator",
   "POST /api/templates/preview": "operator",
@@ -37,6 +38,9 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "DELETE /api/sends/*": "operator",
   "POST /api/sends/*/schedule": "operator",
   "POST /api/sends/*/cancel": "operator",
+  "GET /api/suppressions": "viewer",
+  "POST /api/suppressions": "operator",
+  "POST /api/suppressions/*/remove": "admin",
 }
 
 function normalizePath(pathname: string): string {

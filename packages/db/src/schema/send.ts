@@ -5,6 +5,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core"
@@ -32,6 +33,7 @@ export const send = pgTable(
   "send",
   {
     id: uuidv7PrimaryKey(),
+    name: text("name").notNull(),
     emailType: emailType("email_type").notNull(),
     templateVersionId: uuid("template_version_id")
       .notNull()

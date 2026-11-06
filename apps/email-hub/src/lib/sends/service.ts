@@ -1,6 +1,7 @@
-import { and, desc, eq, lt, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, lt, sql, type SQL } from "drizzle-orm"
 
 import {
+  auditLog,
   domain,
   emailCategory,
   message,
@@ -19,7 +20,15 @@ import {
 import { getContextLogger } from "@workspace/logger"
 import { AppError, writeAudit } from "@workspace/shared"
 
-import { sendConflictDetails, serializeSend, type SendJson } from "./serialize"
+import {
+  EMPTY_SEND_COUNTS,
+  sendConflictDetails,
+  serializeSend,
+  type SendActivityJson,
+  type SendCountsJson,
+  type SendDisplayFields,
+  type SendJson,
+} from "./serialize"
 import {
   assertScheduleLeadTime,
   assertSendEditable,
@@ -47,6 +56,7 @@ export type ListSendsInput = {
 }
 
 export type SendConfigInput = {
+  name: string
   templateVersionId: string
   senderId: string
   categoryId: string
@@ -56,6 +66,7 @@ export type SendConfigInput = {
 
 export type UpdateSendInput = {
   version: number
+  name?: string
   templateVersionId?: string
   senderId?: string
   categoryId?: string
@@ -316,6 +327,224 @@ async function buildConfig(
   }
 }
 
+function emptyCounts(): SendCountsJson {
+  return { ...EMPTY_SEND_COUNTS }
+}
+
+function applyCountBucket(
+  counts: SendCountsJson,
+  status: string,
+  skipReason: string | null,
+  n: number
+): void {
+  counts.total += n
+  switch (status) {
+    case "delivered":
+      counts.delivered += n
+      counts.processed += n
+      break
+    case "sent":
+    case "sending":
+      counts.sent += n
+      counts.processed += n
+      break
+    case "queued":
+      counts.queued += n
+      counts.processed += n
+      break
+    case "bounced":
+      counts.hard_bounce += n
+      counts.processed += n
+      break
+    case "failed":
+      counts.soft_bounce += n
+      counts.processed += n
+      break
+    case "skipped":
+      counts.skipped += n
+      counts.processed += n
+      if (skipReason === "suppressed") {
+        counts.skipped_suppressed += n
+      } else if (skipReason === "opted_out") {
+        counts.skipped_opted_out += n
+      } else if (skipReason === "frequency_cap") {
+        counts.skipped_frequency_cap += n
+      }
+      break
+    case "complained":
+      counts.hard_bounce += n
+      counts.processed += n
+      break
+    default:
+      counts.processed += n
+      break
+  }
+}
+
+async function loadCountsBySendIds(
+  db: Db,
+  sendIds: string[]
+): Promise<Map<string, SendCountsJson>> {
+  const map = new Map<string, SendCountsJson>()
+  if (sendIds.length === 0) {
+    return map
+  }
+  const rows = await db
+    .select({
+      sendId: message.sendId,
+      status: message.status,
+      skipReason: message.skipReason,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(message)
+    .where(inArray(message.sendId, sendIds))
+    .groupBy(message.sendId, message.status, message.skipReason)
+
+  for (const row of rows) {
+    if (!row.sendId) {
+      continue
+    }
+    const counts = map.get(row.sendId) ?? emptyCounts()
+    applyCountBucket(counts, row.status, row.skipReason, Number(row.count) || 0)
+    map.set(row.sendId, counts)
+  }
+  return map
+}
+
+async function loadDisplayBySendIds(
+  db: Db,
+  rows: Send[]
+): Promise<Map<string, SendDisplayFields>> {
+  const map = new Map<string, SendDisplayFields>()
+  if (rows.length === 0) {
+    return map
+  }
+
+  const versionIds = [...new Set(rows.map((row) => row.templateVersionId))]
+  const senderIds = [...new Set(rows.map((row) => row.senderId))]
+  const categoryIds = [...new Set(rows.map((row) => row.categoryId))]
+  const offerIds = [
+    ...new Set(
+      rows
+        .map((row) => row.offerId)
+        .filter((id): id is string => typeof id === "string")
+    ),
+  ]
+
+  const versions = await db
+    .select({
+      id: templateVersion.id,
+      versionNo: templateVersion.versionNo,
+      templateName: template.name,
+    })
+    .from(templateVersion)
+    .innerJoin(template, eq(template.id, templateVersion.templateId))
+    .where(inArray(templateVersion.id, versionIds))
+  const senders = await db
+    .select({
+      id: sender.id,
+      fromName: sender.fromName,
+      fromEmail: sender.fromEmail,
+    })
+    .from(sender)
+    .where(inArray(sender.id, senderIds))
+  const categories = await db
+    .select({ id: emailCategory.id, name: emailCategory.name })
+    .from(emailCategory)
+    .where(inArray(emailCategory.id, categoryIds))
+  const offers =
+    offerIds.length === 0
+      ? ([] as { id: string; name: string; externalRef: string }[])
+      : await db
+          .select({
+            id: offer.id,
+            name: offer.name,
+            externalRef: offer.externalRef,
+          })
+          .from(offer)
+          .where(inArray(offer.id, offerIds))
+  const countsById = await loadCountsBySendIds(
+    db,
+    rows.map((row) => row.id)
+  )
+
+  const versionMap = new Map(versions.map((row) => [row.id, row]))
+  const senderMap = new Map(senders.map((row) => [row.id, row]))
+  const categoryMap = new Map(categories.map((row) => [row.id, row]))
+  const offerMap = new Map(offers.map((row) => [row.id, row]))
+
+  for (const row of rows) {
+    const version = versionMap.get(row.templateVersionId)
+    const senderRow = senderMap.get(row.senderId)
+    const category = categoryMap.get(row.categoryId)
+    const offerRow = row.offerId ? offerMap.get(row.offerId) : undefined
+    map.set(row.id, {
+      templateName: version?.templateName ?? null,
+      templateVersionNo: version?.versionNo ?? null,
+      senderFromName: senderRow?.fromName ?? null,
+      senderFromEmail: senderRow?.fromEmail ?? null,
+      categoryName: category?.name ?? null,
+      offerName: offerRow?.name ?? null,
+      offerExternalRef: offerRow?.externalRef ?? null,
+      counts: countsById.get(row.id) ?? emptyCounts(),
+    })
+  }
+  return map
+}
+
+async function loadSendActivity(
+  db: Db,
+  sendId: string
+): Promise<SendActivityJson[]> {
+  const rows = await db
+    .select({
+      action: auditLog.action,
+      createdAt: auditLog.createdAt,
+      after: auditLog.after,
+    })
+    .from(auditLog)
+    .where(and(eq(auditLog.entityType, "send"), eq(auditLog.entityId, sendId)))
+    .orderBy(asc(auditLog.createdAt))
+    .limit(50)
+
+  return rows.map((row) => {
+    const after =
+      row.after && typeof row.after === "object"
+        ? (row.after as Record<string, unknown>)
+        : null
+    const status =
+      after && typeof after.status === "string" ? after.status : null
+    let label = row.action
+    if (row.action === "send.create") {
+      label = "Draft created"
+    } else if (row.action === "send.update") {
+      label = "Draft updated"
+    } else if (row.action === "send.schedule") {
+      label = "Scheduled"
+    } else if (row.action === "send.cancel") {
+      label = "Cancelled"
+    } else if (row.action === "send.delete") {
+      label = "Deleted"
+    }
+    return {
+      at: row.createdAt.toISOString(),
+      label,
+      detail: status ? `Status · ${status}` : null,
+    }
+  })
+}
+
+function serializeWithDisplay(
+  row: Send,
+  display?: SendDisplayFields,
+  activity: SendActivityJson[] = []
+): SendJson {
+  return serializeSend(row, {
+    ...display,
+    activity,
+  })
+}
+
 function logSendEvent(
   event:
     | "sends.created"
@@ -393,9 +622,10 @@ export async function listSends(
 
   const page = rows.slice(0, input.limit)
   const next = rows.length > input.limit ? (page.at(-1)?.id ?? null) : null
+  const displayById = await loadDisplayBySendIds(db, page)
 
   return {
-    data: page.map(serializeSend),
+    data: page.map((row) => serializeWithDisplay(row, displayById.get(row.id))),
     next_cursor: next,
   }
 }
@@ -405,7 +635,9 @@ export async function getSend(
   db: Database = getDb()
 ): Promise<SendJson> {
   const row = await requireSend(db, id)
-  return serializeSend(row)
+  const displayById = await loadDisplayBySendIds(db, [row])
+  const activity = await loadSendActivity(db, id)
+  return serializeWithDisplay(row, displayById.get(row.id), activity)
 }
 
 export async function createSend(
@@ -420,6 +652,7 @@ export async function createSend(
     const [row] = await tx
       .insert(send)
       .values({
+        name: input.name.trim(),
         emailType: config.emailType,
         templateVersionId: config.templateVersionId,
         senderId: config.senderId,
@@ -484,6 +717,7 @@ export async function updateSend(
     const [row] = await tx
       .update(send)
       .set({
+        name: input.name?.trim() ?? before.name,
         emailType: next.emailType,
         templateVersionId: next.templateVersionId,
         senderId: next.senderId,

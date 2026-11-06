@@ -43,6 +43,8 @@ type EtDateTimePickerProps = {
   dateLabel?: string
   timeLabel?: string
   disabled?: boolean
+  /** Show the resolved UTC ISO string under the fields (useful on /ui-kit). */
+  showUtcPreview?: boolean
   className?: string
   "data-testid"?: string
 }
@@ -130,12 +132,14 @@ export function EtDateTimePicker({
   dateLabel = "Date (ET)",
   timeLabel = "Time (ET)",
   disabled = false,
+  showUtcPreview = true,
   className,
   "data-testid": testId = "et-datetime-picker",
 }: EtDateTimePickerProps) {
   const dateId = useId()
   const hourId = useId()
   const minuteId = useId()
+  const timeLabelId = useId()
   const validValue = toValidDate(value)
   const valueMs = validValue?.getTime() ?? null
 
@@ -200,11 +204,19 @@ export function EtDateTimePicker({
     applyWall(dateValue, `${nextHour}:${nextMinute}`)
   }
 
+  const fieldLabelClass = "block text-sm font-medium leading-none text-fg"
+  const controlClass =
+    "h-12 rounded-lg border border-border-strong bg-surface text-[15px] leading-none shadow-none"
+  const timeSelectTriggerClass =
+    "h-8 w-[4.5rem] shrink-0 items-center justify-between gap-1 border-0 bg-transparent px-2 py-0 text-[15px] shadow-none focus-visible:ring-0"
+  const timeSelectContentClass =
+    "z-[60] max-h-64 w-[var(--anchor-width)] min-w-[var(--anchor-width)]"
+
   return (
-    <div className={cn("space-y-2", className)} data-testid={testId}>
-      <div className="flex flex-wrap gap-4">
-        <div className="space-y-1.5">
-          <label htmlFor={dateId} className="text-sm font-medium text-fg">
+    <div className={cn("space-y-4", className)} data-testid={testId}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+        <div className="flex w-fit max-w-full flex-col gap-2">
+          <label htmlFor={dateId} className={fieldLabelClass}>
             {dateLabel}
           </label>
           <Popover open={dateOpen} onOpenChange={setDateOpen} modal={false}>
@@ -217,12 +229,15 @@ export function EtDateTimePicker({
                   disabled={disabled}
                   data-empty={!selectedDate}
                   data-testid={`${testId}-date`}
-                  className="h-9 min-w-[12rem] justify-start gap-2 border-border-strong bg-surface px-3 font-normal text-fg data-[empty=true]:text-fg-muted"
+                  className={cn(
+                    controlClass,
+                    "w-[12.5rem] justify-start gap-2 px-3.5 font-normal text-fg data-[empty=true]:text-fg-muted"
+                  )}
                 />
               }
             >
               <CalendarIcon
-                className="size-4 text-fg-muted"
+                className="size-4 shrink-0 text-fg-muted"
                 strokeWidth={1.75}
               />
               {selectedDate ? formatEtDateLabel(dateValue) : "Pick a date"}
@@ -250,9 +265,19 @@ export function EtDateTimePicker({
           </Popover>
         </div>
 
-        <fieldset className="space-y-1.5 border-0 p-0">
-          <legend className="text-sm font-medium text-fg">{timeLabel}</legend>
-          <div className="flex items-center gap-2">
+        <div className="flex w-fit max-w-full flex-col gap-2">
+          <span id={timeLabelId} className={fieldLabelClass}>
+            {timeLabel}
+          </span>
+          <div
+            role="group"
+            aria-labelledby={timeLabelId}
+            className={cn(
+              "inline-flex w-fit items-center gap-1 px-3",
+              controlClass,
+              disabled && "pointer-events-none opacity-50"
+            )}
+          >
             <ClockIcon
               className="size-4 shrink-0 text-fg-muted"
               strokeWidth={1.75}
@@ -271,13 +296,19 @@ export function EtDateTimePicker({
               <SelectTrigger
                 id={hourId}
                 size="default"
-                className="h-9 min-w-[4.5rem] border-border-strong bg-surface"
+                className={timeSelectTriggerClass}
                 data-testid={`${testId}-hour`}
                 aria-label="Hour (ET)"
               >
                 <SelectValue placeholder="HH" />
               </SelectTrigger>
-              <SelectContent className="z-[60] max-h-64 min-w-[4.5rem]">
+              <SelectContent
+                align="start"
+                side="bottom"
+                sideOffset={6}
+                alignItemWithTrigger={false}
+                className={timeSelectContentClass}
+              >
                 {HOURS.map((option) => (
                   <SelectItem key={option} value={option}>
                     {option}
@@ -285,7 +316,10 @@ export function EtDateTimePicker({
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-fg-muted" aria-hidden>
+            <span
+              className="shrink-0 self-center text-[15px] leading-none text-fg-muted"
+              aria-hidden
+            >
               :
             </span>
             <Select
@@ -301,13 +335,19 @@ export function EtDateTimePicker({
               <SelectTrigger
                 id={minuteId}
                 size="default"
-                className="h-9 min-w-[4.5rem] border-border-strong bg-surface"
+                className={timeSelectTriggerClass}
                 data-testid={`${testId}-minute`}
                 aria-label="Minute (ET)"
               >
                 <SelectValue placeholder="MM" />
               </SelectTrigger>
-              <SelectContent className="z-[60] max-h-64 min-w-[4.5rem]">
+              <SelectContent
+                align="start"
+                side="bottom"
+                sideOffset={6}
+                alignItemWithTrigger={false}
+                className={timeSelectContentClass}
+              >
                 {MINUTES.map((option) => (
                   <SelectItem key={option} value={option}>
                     {option}
@@ -316,7 +356,7 @@ export function EtDateTimePicker({
               </SelectContent>
             </Select>
           </div>
-        </fieldset>
+        </div>
       </div>
 
       {error ? (
@@ -329,7 +369,7 @@ export function EtDateTimePicker({
         </p>
       ) : null}
 
-      {validValue && !error ? (
+      {showUtcPreview && validValue && !error ? (
         <p className="text-sm text-fg-muted">
           UTC for API:{" "}
           <span className="font-mono text-caption text-fg">

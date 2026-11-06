@@ -49,6 +49,8 @@ describe("minRoleForStaffApi", () => {
 
   it("maps templates staff routes (viewer read, operator write)", () => {
     expect(minRoleForStaffApi("GET", "/api/email-categories")).toBe("viewer")
+    expect(minRoleForStaffApi("GET", "/api/offers")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/offers")).toBeNull()
     expect(minRoleForStaffApi("GET", "/api/templates")).toBe("viewer")
     expect(minRoleForStaffApi("POST", "/api/templates")).toBe("operator")
     expect(minRoleForStaffApi("POST", "/api/templates/preview")).toBe(
@@ -159,6 +161,20 @@ describe("minRoleForStaffApi", () => {
     )
     expect(minRoleForStaffApi("GET", `/api/sends/${id}/schedule`)).toBeNull()
     expect(minRoleForStaffApi("DELETE", "/api/sends")).toBeNull()
+  })
+
+  it("maps suppression routes (viewer read, operator add, admin remove)", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/suppressions")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/suppressions")).toBe("operator")
+    expect(minRoleForStaffApi("POST", `/api/suppressions/${id}/remove`)).toBe(
+      "admin"
+    )
+    expect(
+      minRoleForStaffApi("GET", `/api/suppressions/${id}/remove`)
+    ).toBeNull()
+    expect(minRoleForStaffApi("DELETE", `/api/suppressions/${id}`)).toBeNull()
+    expect(minRoleForStaffApi("POST", "/api/suppressions/remove")).toBeNull()
   })
 
   it("denies unmapped routes by default", () => {

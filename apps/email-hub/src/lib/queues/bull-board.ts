@@ -7,6 +7,8 @@ import { BULLMQ_PREFIX, loadServerEnv, writeAudit } from "@workspace/shared"
 import { Queue } from "bullmq"
 import { Hono, type Context, type Next } from "hono"
 import { Redis } from "ioredis"
+import { createRequire } from "node:module"
+import path from "node:path"
 
 import type { SessionUser } from "@/lib/auth"
 import { getSession } from "@/lib/auth"
@@ -20,6 +22,16 @@ import {
 import { ADMIN_QUEUE_NAMES } from "./names"
 
 export const BULL_BOARD_BASE_PATH = "/admin/queues"
+
+function resolveBullBoardUiBasePath(): string {
+  const fallback = path.join(process.cwd(), "node_modules", "@bull-board", "ui")
+  try {
+    const nodeRequire = createRequire(path.join(process.cwd(), "package.json"))
+    return path.dirname(nodeRequire.resolve("@bull-board/ui/package.json"))
+  } catch {
+    return fallback
+  }
+}
 
 type BoardState = {
   app: Hono
@@ -75,6 +87,9 @@ function createBoardState(): BoardState {
   createBullBoard({
     queues: adapters,
     serverAdapter,
+    options: {
+      uiBasePath: resolveBullBoardUiBasePath(),
+    },
   })
 
   const board = new Hono()
