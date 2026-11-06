@@ -2,9 +2,10 @@
 # Dev deploys automatically on push to main.
 # Prod waits for GitHub Environment "production" approval.
 #
-# Coolify on Hetzner listens on 127.0.0.1:8000 only. Deploy jobs open an SSH
-# tunnel (HETZNER_SSH_*) then call the API at COOLIFY_BASE_URL (usually
-# http://127.0.0.1:8000). Compose apps pin APP_IMAGE to the GHCR tag.
+# Coolify on Hetzner listens on 127.0.0.1:8000 only. Deploy jobs SSH to the
+# host to pin APP_IMAGE (Coolify DB + .env.compose) and POST /api/v1/deploy.
+# The Coolify /applications/{uuid}/envs API returns 500 on this host, so CI
+# does not use it; coolify-up.sh reads APP_IMAGE from .env.compose.
 name: Deploy
 
 on:
@@ -144,70 +145,30 @@ jobs:
     timeout-minutes: 15
     environment: development
     steps:
-      - name: Open SSH tunnel to Coolify API
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Pin Coolify Dev APP_IMAGE and deploy
         env:
           HETZNER_SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
           HETZNER_SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
           HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$HETZNER_SSH_HOST"
-          test -n "$HETZNER_SSH_USER"
-          test -n "$HETZNER_SSH_KEY"
-          mkdir -p ~/.ssh
-          printf '%s\n' "$HETZNER_SSH_KEY" > ~/.ssh/hetzner_deploy
-          chmod 600 ~/.ssh/hetzner_deploy
-          ssh -fN -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=accept-new \
-            -i ~/.ssh/hetzner_deploy \
-            -L 8000:127.0.0.1:8000 \
-            "${HETZNER_SSH_USER}@${HETZNER_SSH_HOST}"
-          for i in $(seq 1 30); do
-            if curl -fsS "http://127.0.0.1:8000/api/v1/version" >/dev/null 2>&1 \
-              || curl -fsS -o /dev/null -w '' "http://127.0.0.1:8000/" >/dev/null 2>&1; then
-              echo "Coolify tunnel ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Coolify tunnel did not become ready" >&2
-          exit 1
-
-      - name: Pin Coolify Dev APP_IMAGE and deploy
-        env:
-          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_DEV_APP_UUID: ${{ secrets.COOLIFY_DEV_APP_UUID }}
           IMAGE_NAME: ${{ needs.build.outputs.image }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
-          test -n "$COOLIFY_BASE_URL"
+          test -n "$HETZNER_SSH_HOST"
+          test -n "$HETZNER_SSH_USER"
+          test -n "$HETZNER_SSH_KEY"
           test -n "$COOLIFY_TOKEN"
           test -n "$COOLIFY_DEV_APP_UUID"
-          APP_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-          curl --fail --silent --show-error \
-            -X PATCH \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{\"docker_registry_image_name\":\"${IMAGE_NAME}\",\"docker_registry_image_tag\":\"${IMAGE_TAG}\"}" \
-            "${COOLIFY_BASE_URL%/}/api/v1/applications/${COOLIFY_DEV_APP_UUID}"
-          echo
-          curl --fail --silent --show-error \
-            -X PATCH \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{\"key\":\"APP_IMAGE\",\"value\":\"${APP_IMAGE}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}" \
-            "${COOLIFY_BASE_URL%/}/api/v1/applications/${COOLIFY_DEV_APP_UUID}/envs"
-          echo
-          curl --fail --silent --show-error \
-            -X POST \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            -H "Accept: application/json" \
-            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_DEV_APP_UUID}&force=true"
-          echo
-          echo "Requested Dev deploy for ${APP_IMAGE}"
+          chmod +x deploy/ci-pin-coolify-app-image.sh
+          bash deploy/ci-pin-coolify-app-image.sh \
+            "$COOLIFY_DEV_APP_UUID" \
+            "${IMAGE_NAME}:${IMAGE_TAG}" \
+            /opt/emailhub-dev/.env.compose
 
   migrate-prod:
     name: Migrate Prod databases
@@ -270,67 +231,27 @@ jobs:
     timeout-minutes: 15
     environment: production
     steps:
-      - name: Open SSH tunnel to Coolify API
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Pin Coolify Prod APP_IMAGE and deploy
         env:
           HETZNER_SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
           HETZNER_SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
           HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$HETZNER_SSH_HOST"
-          test -n "$HETZNER_SSH_USER"
-          test -n "$HETZNER_SSH_KEY"
-          mkdir -p ~/.ssh
-          printf '%s\n' "$HETZNER_SSH_KEY" > ~/.ssh/hetzner_deploy
-          chmod 600 ~/.ssh/hetzner_deploy
-          ssh -fN -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=accept-new \
-            -i ~/.ssh/hetzner_deploy \
-            -L 8000:127.0.0.1:8000 \
-            "${HETZNER_SSH_USER}@${HETZNER_SSH_HOST}"
-          for i in $(seq 1 30); do
-            if curl -fsS "http://127.0.0.1:8000/api/v1/version" >/dev/null 2>&1 \
-              || curl -fsS -o /dev/null -w '' "http://127.0.0.1:8000/" >/dev/null 2>&1; then
-              echo "Coolify tunnel ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Coolify tunnel did not become ready" >&2
-          exit 1
-
-      - name: Pin Coolify Prod APP_IMAGE and deploy
-        env:
-          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_PROD_APP_UUID }}
           IMAGE_NAME: ${{ needs.build.outputs.image }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
-          test -n "$COOLIFY_BASE_URL"
+          test -n "$HETZNER_SSH_HOST"
+          test -n "$HETZNER_SSH_USER"
+          test -n "$HETZNER_SSH_KEY"
           test -n "$COOLIFY_TOKEN"
           test -n "$COOLIFY_PROD_APP_UUID"
-          APP_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-          curl --fail --silent --show-error \
-            -X PATCH \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{\"docker_registry_image_name\":\"${IMAGE_NAME}\",\"docker_registry_image_tag\":\"${IMAGE_TAG}\"}" \
-            "${COOLIFY_BASE_URL%/}/api/v1/applications/${COOLIFY_PROD_APP_UUID}"
-          echo
-          curl --fail --silent --show-error \
-            -X PATCH \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{\"key\":\"APP_IMAGE\",\"value\":\"${APP_IMAGE}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}" \
-            "${COOLIFY_BASE_URL%/}/api/v1/applications/${COOLIFY_PROD_APP_UUID}/envs"
-          echo
-          curl --fail --silent --show-error \
-            -X POST \
-            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-            -H "Accept: application/json" \
-            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_PROD_APP_UUID}&force=true"
-          echo
-          echo "Requested Prod deploy for ${APP_IMAGE}"
+          chmod +x deploy/ci-pin-coolify-app-image.sh
+          bash deploy/ci-pin-coolify-app-image.sh \
+            "$COOLIFY_PROD_APP_UUID" \
+            "${IMAGE_NAME}:${IMAGE_TAG}" \
+            /opt/emailhub/.env.compose

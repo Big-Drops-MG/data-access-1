@@ -105,17 +105,22 @@ patch_app_image() {
   local image="${IMAGE_REPO}:${tag}"
   local envfile="$3"
   echo "=== APP_IMAGE ${uuid} -> ${image} ==="
-  curl -fsS -X PATCH "${API}/applications/${uuid}/envs" \
-    -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json" \
-    -d "{\"key\":\"APP_IMAGE\",\"value\":\"${image}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
-  echo
+  # Coolify /applications/{uuid}/envs returns HTTP 500 on this host; pin via DB.
+  docker exec "$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -c \
+    "UPDATE environment_variables e
+     SET value='${image}', updated_at=NOW()
+     FROM applications a
+     WHERE e.resourceable_id = a.id
+       AND e.resourceable_type LIKE '%Application%'
+       AND a.uuid = '${uuid}'
+       AND e.key = 'APP_IMAGE'
+       AND a.deleted_at IS NULL;"
   curl -fsS -X PATCH "${API}/applications/${uuid}" \
     -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -d "{\"docker_registry_image_name\":\"${IMAGE_REPO}\",\"docker_registry_image_tag\":\"${tag}\"}"
+    -d "{\"docker_registry_image_name\":\"${IMAGE_REPO}\",\"docker_registry_image_tag\":\"${tag}\"}" \
+    || echo "warn: application registry PATCH failed (non-fatal)"
   echo
   if [[ -f "$envfile" ]]; then
     python3 - "$envfile" "$image" <<'PY'
