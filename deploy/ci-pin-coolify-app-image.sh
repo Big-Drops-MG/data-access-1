@@ -57,8 +57,10 @@ curl -fsS -X PATCH "\${API}/applications/\${APP_UUID}/envs" \\
   -H "Authorization: Bearer \${COOLIFY_TOKEN}" \\
   -H "Accept: application/json" \\
   -H "Content-Type: application/json" \\
-  -d "{\"key\":\"APP_IMAGE\",\"value\":\"\${APP_IMAGE}\",\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
+  -d "{\"key\":\"APP_IMAGE\",\"value\":\"\${APP_IMAGE}\",\"is_preview\":false,\"is_literal\":true,\"is_runtime\":true,\"is_buildtime\":true}"
 echo
+# Coolify PATCH looks up by key in preview vs non-preview sets (default is_preview=false).
+# A row with is_preview=true yields HTTP 404 "Environment variable not found."
 if ! curl -fsS -X PATCH "\${API}/applications/\${APP_UUID}" \\
   -H "Authorization: Bearer \${COOLIFY_TOKEN}" \\
   -H "Accept: application/json" \\
