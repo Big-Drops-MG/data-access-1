@@ -93,6 +93,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Open SSH tunnels to Hetzner Dev Postgres + ClickHouse
+        env:
+          HETZNER_SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
+          HETZNER_SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+        run: bash deploy/ci-tunnel-hetzner-dbs.sh emailhub-dev-postgres-1 emailhub-dev-clickhouse-1
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -211,6 +218,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Open SSH tunnels to Hetzner Prod Postgres + ClickHouse
+        env:
+          HETZNER_SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
+          HETZNER_SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+        run: bash deploy/ci-tunnel-hetzner-dbs.sh emailhub-postgres-1 emailhub-clickhouse-1
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6

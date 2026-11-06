@@ -222,10 +222,10 @@ Create GitHub Environments **`development`** and **`production`**. Configure the
 | `HETZNER_SSH_USER`                                                          | SSH user (usually `root`)                                                                  |
 | `HETZNER_SSH_KEY`                                                           | Private key PEM for that user (deploy-only key preferred)                                  |
 | `GHCR_PULL_TOKEN`                                                           | PAT with `read:packages` for `docker login ghcr.io` on the droplet (Coolify compose pulls) |
-| `DEV_DATABASE_URL` / `DEV_DATABASE_MIGRATION_URL` / `DEV_CLICKHOUSE_URL`    | Dev migrate (Environment `development`)                                                    |
-| `PROD_DATABASE_URL` / `PROD_DATABASE_MIGRATION_URL` / `PROD_CLICKHOUSE_URL` | Prod migrate (Environment `production`)                                                    |
+| `DEV_DATABASE_URL` / `DEV_DATABASE_MIGRATION_URL` / `DEV_CLICKHOUSE_URL`    | Dev migrate (Environment `development`) — `127.0.0.1:15432` / `:18123` via SSH tunnel      |
+| `PROD_DATABASE_URL` / `PROD_DATABASE_MIGRATION_URL` / `PROD_CLICKHOUSE_URL` | Prod migrate (Environment `production`) — same localhost tunnel ports                      |
 
-Compose apps use `APP_IMAGE=ghcr.io/<owner>/<repo>:<sha>`. Migrate URLs must be reachable from GitHub-hosted runners (SSH tunnel, allowlisted network, or similar) — do not publish DB ports on the droplet firewall.
+Compose apps use `APP_IMAGE=ghcr.io/<owner>/<repo>:<sha>`. Migrate jobs open an SSH tunnel to droplet container IPs (`deploy/ci-tunnel-hetzner-dbs.sh`) and expect migrate secrets to use `127.0.0.1:15432` (Postgres) and `127.0.0.1:18123` (ClickHouse). Do not publish DB ports on the droplet firewall.
 
 Hetzner notes:
 
