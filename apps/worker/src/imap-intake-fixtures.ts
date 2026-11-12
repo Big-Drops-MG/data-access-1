@@ -1,16 +1,23 @@
 /** Minimal ARF (multipart/report; feedback-report) for FakeImapServer tests. */
 export function buildArfMessage(input: {
-  reportMessageId: string
+  reportMessageId?: string
   originalMessageId: string
   recipientEmail: string
   feedbackType?: string
+  from?: string
+  userAgent?: string
 }): string {
   const boundary = "BOUNDARY_ARF_TEST"
-  return [
-    `From: fbl@outlook.com`,
+  const headers = [
+    `From: ${input.from ?? "fbl@outlook.com"}`,
     `To: reporting-tool@dataaccess.net`,
     `Subject: FW: Complaint`,
-    `Message-ID: <${input.reportMessageId}>`,
+  ]
+  if (input.reportMessageId) {
+    headers.push(`Message-ID: <${input.reportMessageId}>`)
+  }
+  return [
+    ...headers,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/report; report-type=feedback-report; boundary="${boundary}"`,
     ``,
@@ -23,7 +30,7 @@ export function buildArfMessage(input: {
     `Content-Type: message/feedback-report`,
     ``,
     `Feedback-Type: ${input.feedbackType ?? "abuse"}`,
-    `User-Agent: Microsoft JMRP`,
+    `User-Agent: ${input.userAgent ?? "Microsoft JMRP"}`,
     `Version: 1`,
     `Original-Mail-Message-ID: <${input.originalMessageId}>`,
     `Original-Rcpt-To: ${input.recipientEmail}`,
@@ -49,8 +56,22 @@ export function buildDsnMessage(input: {
   originalMessageId: string
   recipientEmail: string
   action?: string
+  includeOriginalMessageIdInDsn?: boolean
+  includeSesHeader?: boolean
 }): string {
   const boundary = "BOUNDARY_DSN_TEST"
+  const includeOriginal =
+    input.includeOriginalMessageIdInDsn !== false
+      ? [`Original-Message-ID: <${input.originalMessageId}>`]
+      : []
+  const originalHeaders = [
+    `From: news@mail.example.com`,
+    `To: ${input.recipientEmail}`,
+    `Message-ID: <${input.originalMessageId}>`,
+  ]
+  if (input.includeSesHeader) {
+    originalHeaders.push(`X-SES-Message-ID: ${input.originalMessageId}`)
+  }
   return [
     `From: MAILER-DAEMON@mx.example.com`,
     `To: reporting-tool@dataaccess.net`,
@@ -71,14 +92,12 @@ export function buildDsnMessage(input: {
     `Action: ${input.action ?? "failed"}`,
     `Status: 5.1.1`,
     `Final-Recipient: rfc822; ${input.recipientEmail}`,
-    `Original-Message-ID: <${input.originalMessageId}>`,
+    ...includeOriginal,
     ``,
     `--${boundary}`,
     `Content-Type: message/rfc822`,
     ``,
-    `From: news@mail.example.com`,
-    `To: ${input.recipientEmail}`,
-    `Message-ID: <${input.originalMessageId}>`,
+    ...originalHeaders,
     `Subject: Hello`,
     ``,
     `Body`,

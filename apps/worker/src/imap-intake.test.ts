@@ -231,4 +231,96 @@ describe("processImapIntakeJob with FakeImapServer", () => {
     expect(db.insert).toHaveBeenCalledTimes(1)
     expect(server.processedUids()).toEqual([1])
   })
+
+  it("matches by recipient email when SES id is unknown (no feedback item)", async () => {
+    const server = new FakeImapServer()
+    server.seedUnseen(
+      buildArfMessage({
+        reportMessageId: "arf-rcpt@outlook.com",
+        originalMessageId: "unknown@email.amazonses.com",
+        recipientEmail: "ada@example.com",
+      })
+    )
+
+    const db = {
+      select: vi.fn((fields: Record<string, unknown>) => {
+        // Recipient lookup selects only recipientId; message match selects both.
+        if ("recipientId" in fields && !("messageId" in fields)) {
+          return query([{ recipientId }])
+        }
+        return query([])
+      }),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn(() => ({
+            returning: vi.fn(async () => [{ id: reportId }]),
+          })),
+        })),
+      })),
+    }
+
+    const result = await processImapIntakeJob({
+      mailbox: server,
+      db: db as never,
+    })
+
+    expect(result).toMatchObject({
+      processed: 1,
+      reports: 1,
+      feedbackItems: 0,
+    })
+    expect(db.insert).toHaveBeenCalledTimes(1)
+  })
+
+  it("reuses existing feedback on dedupe conflict and skips duplicate report", async () => {
+    const server = new FakeImapServer()
+    server.seedUnseen(
+      buildArfMessage({
+        reportMessageId: "arf-dup@outlook.com",
+        originalMessageId: sesMessageId,
+        recipientEmail: "ada@example.com",
+      })
+    )
+
+    let insertCalls = 0
+    const db = {
+      select: vi.fn(() => {
+        // first: message match; later: existing feedback lookup
+        return query([{ messageId, recipientId, id: feedbackId }])
+      }),
+      insert: vi.fn(() => {
+        insertCalls += 1
+        return {
+          values: vi.fn(() => ({
+            onConflictDoNothing: vi.fn(() => ({
+              returning: vi.fn(async () => {
+                // feedback conflict then report conflict
+                return []
+              }),
+            })),
+          })),
+        }
+      }),
+    }
+
+    const result = await processImapIntakeJob({
+      mailbox: server,
+      db: db as never,
+    })
+
+    expect(result).toMatchObject({
+      processed: 1,
+      reports: 0,
+      feedbackItems: 1,
+    })
+    expect(insertCalls).toBe(2)
+    expect(server.processedUids()).toEqual([1])
+  })
+
+  it("skips when IMAP env is only partially configured", async () => {
+    const result = await processImapIntakeJob({
+      env: { IMAP_HOST: "imap.example.com", IMAP_USER: "u" },
+    })
+    expect(result.fetched).toBe(0)
+  })
 })
