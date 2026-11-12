@@ -2,11 +2,8 @@ import { UnrecoverableError } from "bullmq"
 
 import { getDb, type Database } from "@workspace/db/client"
 import { getContextLogger } from "@workspace/logger"
-import {
-  ingestRecipientCsvFile,
-  writeAudit,
-  type CsvIngestJobData,
-} from "@workspace/shared"
+import { writeAudit, type CsvIngestJobData } from "@workspace/shared"
+import { ingestRecipientCsvFile } from "@workspace/shared/recipient-csv-ingest"
 
 export type ProcessCsvIngestDeps = {
   db?: Database

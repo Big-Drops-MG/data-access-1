@@ -1,4 +1,4 @@
-import { formatEtDateTime } from "@workspace/shared"
+import { formatEtDateTime } from "@workspace/shared/client"
 
 import type { DnsRecordItem, DomainSetupStepItem } from "@/features/domains/api"
 import { dnsCheckGroup, type DnsCheckGroup } from "@/lib/domains/dns-rollup"

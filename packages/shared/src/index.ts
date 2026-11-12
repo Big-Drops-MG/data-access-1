@@ -109,21 +109,6 @@ export {
   type CsvIngestJobData,
 } from "./intake-queue.js"
 export {
-  DEFAULT_RECIPIENT_IMPORTS_DIR,
-  RECIPIENT_IMPORT_CHUNK_SIZE,
-  RECIPIENT_IMPORT_MAX_BYTES,
-  assertCsvHasEmailColumn,
-  collapseImportRows,
-  ingestRecipientCsvFile,
-  ingestRecipientRows,
-  normalizeImportEmail,
-  recipientImportsDir,
-  resolveEmailColumnIndex,
-  upsertRecipientBatch,
-  type RecipientImportCounts,
-  type RecipientImportRow,
-} from "./recipient-csv-ingest.js"
-export {
   SES_ACCOUNT_PAUSED_ALERT_TYPE,
   SES_ACCOUNT_PAUSED_DEDUPE_KEY,
   claimQueuedMessage,

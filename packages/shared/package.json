@@ -11,6 +11,10 @@
     "./client": {
       "types": "./src/client.ts",
       "default": "./dist/client.js"
+    },
+    "./recipient-csv-ingest": {
+      "types": "./src/recipient-csv-ingest.ts",
+      "default": "./dist/recipient-csv-ingest.js"
     }
   },
   "files": [

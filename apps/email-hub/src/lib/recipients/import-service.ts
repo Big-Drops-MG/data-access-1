@@ -2,13 +2,12 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { getRequestId } from "@workspace/logger"
+import { AppError, enqueueCsvIngestJob } from "@workspace/shared"
 import {
-  AppError,
   RECIPIENT_IMPORT_MAX_BYTES,
   assertCsvHasEmailColumn,
-  enqueueCsvIngestJob,
   recipientImportsDir,
-} from "@workspace/shared"
+} from "@workspace/shared/recipient-csv-ingest"
 import { v7 as uuidv7 } from "uuid"
 
 import { getIntakeQueue } from "@/lib/intake-queue"
