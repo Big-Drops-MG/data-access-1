@@ -231,6 +231,7 @@ Hetzner notes:
 - Droplet is **arm64** — multi-arch GHCR images are required.
 - On the host, `docker login ghcr.io` with `GHCR_PULL_TOKEN` (`read:packages`) so Coolify compose can pull private images.
 - This org has **deploy keys disabled**. Prefer a Coolify GitHub App, or keep compose start scripts under `/opt/emailhub(-dev)/coolify-up.sh` (current Hetzner cutover) so Deploy does not depend on cloning. Do not embed PATs in `git_repository` URLs.
+- Never SQL-insert a PEM into Coolify `private_keys` — Coolify encrypts with `APP_KEY`; plaintext rows cause `DecryptException: The payload is invalid` on Deploy. Fix with `deploy/hetzner-fix-coolify-git-key-decrypt.sh` on the droplet (detaches `private_key_id`, keeps `coolify-up`). Add keys only via Coolify UI if ever required.
 - Server helper: `deploy/hetzner-coolify-ghcr-cutover.sh` (set `APPLY_OWNERSHIP=1` only after GHCR tags exist and pulls work).
 
 ### Droplet harden (T-009)
