@@ -8,7 +8,6 @@ import { toast } from "sonner"
 
 import { EtDateTime } from "@/components/app/et-datetime"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
-import { PageHeader } from "@/components/app/page-header"
 import { StatusBadge } from "@/components/app/status-badge"
 import {
   claimFeedback,
@@ -16,6 +15,7 @@ import {
   fetchFeedback,
   fetchFeedbackClassifications,
   type FeedbackDecisionValue,
+  type FeedbackListItem,
 } from "@/features/feedback/api"
 import {
   claimExpiresInMs,
@@ -30,9 +30,13 @@ import {
   waitingMs,
 } from "@/features/feedback/feedback-status"
 import {
+  feedbackCardBodyClass,
+  feedbackCardClass,
+  feedbackCardHeaderClass,
+  feedbackDecisionOptionClass,
+  feedbackDecisionPanelClass,
   feedbackOutlineControl,
   feedbackPrimaryControl,
-  feedbackSectionClass,
   feedbackSelectContentClass,
   feedbackSelectItemClass,
   feedbackSelectTriggerClass,
@@ -86,11 +90,50 @@ function MetaRow({
   children: React.ReactNode
 }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[9rem_1fr] sm:gap-4">
-      <dt className="text-[13px] text-fg-muted">{label}</dt>
-      <dd className="min-w-0 text-[14px] text-fg">{children}</dd>
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border/70 py-3 last:border-b-0">
+      <dt className="pt-0.5 text-[13px] text-fg-muted">{label}</dt>
+      <dd className="min-w-0 text-[14px] leading-snug text-fg">{children}</dd>
     </div>
   )
+}
+
+function DetailCard({
+  title,
+  headingId,
+  children,
+}: {
+  title: string
+  headingId: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className={feedbackCardClass} aria-labelledby={headingId}>
+      <h2 id={headingId} className={feedbackCardHeaderClass}>
+        {title}
+      </h2>
+      <dl className={feedbackCardBodyClass}>{children}</dl>
+    </section>
+  )
+}
+
+function statusBadgeLabel(
+  item: FeedbackListItem,
+  claimedByYou: boolean
+): string {
+  if (item.status === "in_review") {
+    return claimedByYou ? "In review · you" : "In review · claimed"
+  }
+  if (item.status === "resolved") {
+    return `${feedbackDecisionLabel(item.decision)}`
+  }
+  return "Pending"
+}
+
+function shortRecipientRef(recipientId: string | null): string | null {
+  if (!recipientId) {
+    return null
+  }
+  return `rcp_${recipientId.replace(/-/g, "").slice(0, 6)}`
 }
 
 export function FeedbackDetailPage({
@@ -104,6 +147,7 @@ export function FeedbackDetailPage({
     string | undefined
   >(undefined)
   const [decision, setDecision] = useState<FeedbackDecisionValue>("suppress")
+  const [note, setNote] = useState("")
   const [suppressNotice, setSuppressNotice] = useState(false)
   const [, setTick] = useState(0)
 
@@ -137,6 +181,7 @@ export function FeedbackDetailPage({
     : false
   const claimMs = item ? claimExpiresInMs(item) : null
   const canDecide = canWrite && item?.status === "in_review" && claimedByYou
+  const recipientRef = shortRecipientRef(item?.recipient_id ?? null)
 
   const claimMutation = useMutation({
     mutationFn: () => claimFeedback(feedbackId),
@@ -184,7 +229,7 @@ export function FeedbackDetailPage({
     const waiting = formatWaiting(waitingMs(item))
     return (
       <>
-        {feedbackSourceLabel(item)} · {feedbackTypeLabel(item).toLowerCase()} ·
+        {feedbackSourceLabel(item)} {feedbackTypeLabel(item).toLowerCase()} ·
         received <EtDateTime value={item.created_at} className="inline" /> ·
         waiting {waiting}
       </>
@@ -217,39 +262,59 @@ export function FeedbackDetailPage({
     )
   }
 
+  const shortId = shortFeedbackId(item.id)
+  const badgeStatus = feedbackStatusToBadge(item.status)
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        breadcrumbs={[
-          { label: "Feedback", href: "/feedback" },
-          { label: shortFeedbackId(item.id) },
-        ]}
-        title={shortFeedbackId(item.id)}
-        titleBadge={
-          <span className="inline-flex flex-wrap items-center gap-2">
-            <StatusBadge status={feedbackStatusToBadge(item.status)} />
-            {item.status === "in_review" && claimedByYou ? (
-              <span className="text-[14px] text-fg-muted">· you</span>
-            ) : null}
-            {item.status === "resolved" ? (
-              <span className="text-[14px] text-fg-muted">
-                · {feedbackDecisionLabel(item.decision)}
+      <header className="space-y-2" data-testid="page-header">
+        <nav aria-label="Breadcrumb">
+          <ol className="flex flex-wrap items-center gap-1.5 text-sm text-fg-muted">
+            <li className="flex items-center gap-1.5">
+              <Link href="/feedback" className="text-link hover:underline">
+                Feedback
+              </Link>
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span aria-hidden className="text-fg-subtle">
+                /
               </span>
-            ) : null}
-          </span>
-        }
-        meta={subtitle}
-        actions={
-          item.status === "in_review" && claimedByYou && claimMs != null ? (
+              <span className="font-medium text-fg" aria-current="page">
+                {shortId}
+              </span>
+            </li>
+          </ol>
+        </nav>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <h1 className="text-h2 font-semibold tracking-tight text-fg">
+            {shortId}
+          </h1>
+          <StatusBadge
+            variant={
+              badgeStatus === "pending"
+                ? "warn"
+                : badgeStatus === "decided"
+                  ? "ok"
+                  : "info"
+            }
+          >
+            {statusBadgeLabel(item, claimedByYou)}
+          </StatusBadge>
+        </div>
+
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="text-[14px] text-fg-muted">{subtitle}</p>
+          {item.status === "in_review" && claimedByYou && claimMs != null ? (
             <p
-              className="text-[13px] text-fg-muted"
+              className="shrink-0 text-[13px] text-fg-subtle"
               data-testid="feedback-claim-expiry"
             >
               Your claim expires in {formatClaimRemaining(claimMs)}
             </p>
-          ) : undefined
-        }
-      />
+          ) : null}
+        </div>
+      </header>
 
       {suppressNotice ? (
         <aside
@@ -260,112 +325,98 @@ export function FeedbackDetailPage({
           Global complaint suppression created for{" "}
           <span className="font-mono">{item.email ?? "recipient"}</span>
           {" · "}
-          <Link href="/suppression" className="underline underline-offset-2">
+          <Link
+            href="/suppression"
+            className="text-link underline-offset-2 hover:underline"
+          >
             Open suppression
           </Link>
         </aside>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-6">
-          <section
-            className={feedbackSectionClass}
-            aria-labelledby="feedback-message"
-          >
-            <h2
-              id="feedback-message"
-              className="text-base font-semibold text-fg"
-            >
-              Message
-            </h2>
-            <dl className="space-y-3">
-              <MetaRow label="Recipient">
-                {item.email ? (
-                  <span className="font-mono">{item.email}</span>
-                ) : (
-                  "—"
-                )}
-                {item.recipient_id ? (
-                  <>
-                    {" "}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-4">
+          <DetailCard title="Message" headingId="feedback-message">
+            <MetaRow label="Recipient">
+              {item.email ? (
+                <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <Link
+                    href={
+                      item.recipient_id
+                        ? `/recipients?q=${encodeURIComponent(item.recipient_id)}`
+                        : "/recipients"
+                    }
+                    className="font-mono text-link hover:underline"
+                  >
+                    {item.email}
+                  </Link>
+                  {recipientRef ? (
                     <Link
-                      href={`/recipients?q=${encodeURIComponent(item.recipient_id)}`}
-                      className="font-mono text-[12px] text-fg-muted underline-offset-2 hover:underline"
+                      href={`/recipients?q=${encodeURIComponent(item.recipient_id!)}`}
+                      className="font-mono text-[12px] text-link hover:underline"
                     >
-                      {item.recipient_id.slice(0, 8)}
+                      {recipientRef}
                     </Link>
-                  </>
-                ) : null}
-              </MetaRow>
-              <MetaRow label="Message id">
-                {item.message_id ? (
-                  <span className="font-mono text-[13px]">
-                    {item.message_id}
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </MetaRow>
-              <MetaRow label="Type">{feedbackTypeLabel(item)}</MetaRow>
-            </dl>
-          </section>
+                  ) : null}
+                </span>
+              ) : (
+                "—"
+              )}
+            </MetaRow>
+            <MetaRow label="Template">—</MetaRow>
+            <MetaRow label="Sender">—</MetaRow>
+            <MetaRow label="Offer">
+              <span className="inline-flex rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-[12px] text-fg-muted">
+                —
+              </span>
+            </MetaRow>
+            <MetaRow label="Sent">
+              <EtDateTime value={item.created_at} />
+            </MetaRow>
+            <MetaRow label="SES message id">
+              {item.message_id ? (
+                <span className="font-mono text-[13px] break-all text-fg-muted">
+                  {item.message_id}
+                </span>
+              ) : (
+                "—"
+              )}
+            </MetaRow>
+          </DetailCard>
 
-          <section
-            className={feedbackSectionClass}
-            aria-labelledby="feedback-report"
-          >
-            <h2
-              id="feedback-report"
-              className="text-base font-semibold text-fg"
-            >
-              Report
-            </h2>
-            <dl className="space-y-3 font-mono text-[13px]">
-              <MetaRow label="Source">{feedbackSourceLabel(item)}</MetaRow>
-              <MetaRow label="Provider">{item.provider ?? "—"}</MetaRow>
-              <MetaRow label="Received">
-                <EtDateTime value={item.created_at} />
-              </MetaRow>
-            </dl>
-            <p className="text-[13px] text-fg-muted">
-              Parsed FBL headers appear here when the IMAP intake job attaches a
-              provider report.
-            </p>
-          </section>
+          <DetailCard title="Report" headingId="feedback-report">
+            <div className="py-3">
+              <pre
+                className="overflow-x-auto rounded-md bg-surface-2 px-4 py-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-fg-muted"
+                data-testid="feedback-report-raw"
+              >
+                {[
+                  `Source: ${feedbackSourceLabel(item)}`,
+                  `Provider: ${item.provider ?? "—"}`,
+                  `Type: ${feedbackTypeLabel(item)}`,
+                  `Received: ${item.created_at}`,
+                ].join("\n")}
+              </pre>
+            </div>
+          </DetailCard>
 
-          <section
-            className={feedbackSectionClass}
-            aria-labelledby="feedback-recipient-history"
+          <DetailCard
+            title="Recipient history"
+            headingId="feedback-recipient-history"
           >
-            <h2
-              id="feedback-recipient-history"
-              className="text-base font-semibold text-fg"
-            >
-              Recipient
-            </h2>
-            <dl className="space-y-3">
-              <MetaRow label="Email">
-                {item.email ? (
-                  <span className="font-mono">{item.email}</span>
-                ) : (
-                  "—"
-                )}
-              </MetaRow>
-              <MetaRow label="Recipient id">
-                {item.recipient_id ? (
-                  <span className="font-mono text-[13px]">
-                    {item.recipient_id}
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </MetaRow>
-            </dl>
-          </section>
+            <MetaRow label="Messages">—</MetaRow>
+            <MetaRow label="Opens">—</MetaRow>
+            <MetaRow label="Earlier complaints">—</MetaRow>
+            <MetaRow label="Signed up">—</MetaRow>
+          </DetailCard>
         </div>
 
-        <aside className={cn(feedbackSectionClass, "h-fit lg:sticky lg:top-6")}>
-          <h2 className="text-base font-semibold text-fg">Decision</h2>
+        <aside
+          className={cn(feedbackDecisionPanelClass, "h-fit lg:sticky lg:top-6")}
+        >
+          <h2 className="text-[16px] font-semibold tracking-tight text-fg">
+            Decision
+          </h2>
 
           {!canWrite ? (
             <p className="text-[14px] text-fg-muted">
@@ -397,61 +448,47 @@ export function FeedbackDetailPage({
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="space-y-2">
-                <label
-                  htmlFor="feedback-classification"
-                  className="text-[13px] font-medium text-fg"
+              <Select
+                value={classificationId || undefined}
+                onValueChange={(value) =>
+                  setClassificationOverride(value ?? undefined)
+                }
+                disabled={decideMutation.isPending}
+              >
+                <SelectTrigger
+                  id="feedback-classification"
+                  aria-label="Classification"
+                  className={feedbackSelectTriggerClass}
+                  data-testid="feedback-classification"
                 >
-                  Classification
-                </label>
-                <Select
-                  value={classificationId || undefined}
-                  onValueChange={(value) =>
-                    setClassificationOverride(value ?? undefined)
-                  }
-                  disabled={decideMutation.isPending}
-                >
-                  <SelectTrigger
-                    id="feedback-classification"
-                    className={feedbackSelectTriggerClass}
-                    data-testid="feedback-classification"
-                  >
-                    <SelectValue placeholder="Select classification" />
-                  </SelectTrigger>
-                  <SelectContent className={feedbackSelectContentClass}>
-                    {(classifications.data?.data ?? []).map((row) => (
-                      <SelectItem
-                        key={row.id}
-                        value={row.id}
-                        className={feedbackSelectItemClass}
-                      >
-                        {row.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {classifications.data?.data.length === 0 ? (
-                  <p className="text-[12px] text-fg-muted">
-                    No active classifications in the catalog yet.
-                  </p>
-                ) : null}
-              </div>
+                  <SelectValue placeholder="Select classification" />
+                </SelectTrigger>
+                <SelectContent className={feedbackSelectContentClass}>
+                  {(classifications.data?.data ?? []).map((row) => (
+                    <SelectItem
+                      key={row.id}
+                      value={row.id}
+                      className={feedbackSelectItemClass}
+                    >
+                      {row.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {classifications.data?.data.length === 0 ? (
+                <p className="text-[12px] text-fg-muted">
+                  No active classifications in the catalog yet.
+                </p>
+              ) : null}
 
-              <fieldset className="space-y-3">
-                <legend className="text-[13px] font-medium text-fg">
-                  Action
-                </legend>
+              <fieldset className="space-y-2.5">
+                <legend className="sr-only">Action</legend>
                 {DECISIONS.map((option) => {
                   const selected = decision === option.value
                   return (
                     <label
                       key={option.value}
-                      className={cn(
-                        "flex cursor-pointer gap-3 rounded-lg border p-3",
-                        selected
-                          ? "border-fg bg-surface-2"
-                          : "border-border hover:bg-surface-2/60"
-                      )}
+                      className={feedbackDecisionOptionClass(selected)}
                     >
                       <input
                         type="radio"
@@ -459,14 +496,14 @@ export function FeedbackDetailPage({
                         value={option.value}
                         checked={selected}
                         onChange={() => setDecision(option.value)}
-                        className="mt-1"
+                        className="mt-1 size-4 accent-[var(--accent)]"
                         data-testid={`feedback-decision-${option.value}`}
                       />
                       <span>
-                        <span className="block text-[14px] font-medium text-fg">
+                        <span className="block text-[14px] font-semibold text-fg">
                           {option.label}
                         </span>
-                        <span className="block text-[13px] text-fg-muted">
+                        <span className="mt-0.5 block text-[13px] leading-snug text-fg-muted">
                           {option.description}
                         </span>
                       </span>
@@ -475,7 +512,26 @@ export function FeedbackDetailPage({
                 })}
               </fieldset>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
+                <label
+                  htmlFor="feedback-note"
+                  className="text-[13px] font-medium text-fg"
+                >
+                  Note
+                </label>
+                <textarea
+                  id="feedback-note"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  rows={3}
+                  placeholder="Optional operator note"
+                  data-testid="feedback-note"
+                  className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 text-[14px] text-fg shadow-none outline-none placeholder:text-fg-subtle focus-visible:shadow-[0_0_0_3px_var(--ring)] disabled:opacity-50"
+                  disabled={decideMutation.isPending}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"
                   className={feedbackOutlineControl()}
