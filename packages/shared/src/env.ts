@@ -92,6 +92,10 @@ const baseEnvSchema = z
     /** Prior HMAC secret accepted during rotation (thank-you / feedback tokens). */
     UNSUBSCRIBE_TOKEN_SECRET_PREVIOUS: optionalString,
     BETTER_AUTH_URL: optionalString,
+    /** Intake mailbox for FBL / DSN reports (imap-intake). */
+    IMAP_HOST: optionalString,
+    IMAP_USER: optionalString,
+    IMAP_PASSWORD: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

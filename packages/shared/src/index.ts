@@ -99,6 +99,11 @@ export {
   type ParsedUserAgentEnvironment,
 } from "./events-queue.js"
 export {
+  IMAP_INTAKE_JOB_NAME,
+  IMAP_INTAKE_JOB_OPTIONS,
+  INTAKE_QUEUE_NAME,
+} from "./intake-queue.js"
+export {
   SES_ACCOUNT_PAUSED_ALERT_TYPE,
   SES_ACCOUNT_PAUSED_DEDUPE_KEY,
   claimQueuedMessage,
