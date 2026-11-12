@@ -1,7 +1,8 @@
 #!/bin/bash
 # Prepare Hetzner Coolify apps for GHCR-backed Deploy (T-035).
-# Default: clean git auth, deploy key, compose overlays, optional GHCR login.
-# APPLY_OWNERSHIP=1 disables systemd and POSTs Coolify Deploy (Dev then Prod).
+# Default: clean git URL, coolify-up overlays, optional GHCR login.
+# Never SQL-insert a Git PEM into Coolify private_keys (must be Laravel-encrypted
+# via UI). APPLY_OWNERSHIP=1 disables systemd and POSTs Coolify Deploy (Dev then Prod).
 set -euo pipefail
 
 COOLIFY_TOKEN="${COOLIFY_TOKEN:?COOLIFY_TOKEN required}"
@@ -14,33 +15,23 @@ APPLY_OWNERSHIP="${APPLY_OWNERSHIP:-0}"
 DEV_TAG="${DEV_TAG:-}"
 PROD_TAG="${PROD_TAG:-}"
 API="http://127.0.0.1:8000/api/v1"
-KEY_DIR=/data/coolify/ssh
-KEY_PATH="${KEY_DIR}/emailhub-github-deploy"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 CID=$(docker ps --filter name=coolify-db --format '{{.ID}}' | head -1)
 test -n "$CID"
 
-echo "=== ensure Coolify deploy key on disk ==="
-mkdir -p "$KEY_DIR"
-if [[ ! -f "$KEY_PATH" ]]; then
-  ssh-keygen -t ed25519 -f "$KEY_PATH" -N '' -C 'coolify-emailhub-deploy'
-fi
-PUB=$(cat "${KEY_PATH}.pub")
-FP=$(ssh-keygen -lf "$KEY_PATH" | awk '{print $2}')
-
-echo "=== upsert private_keys row ==="
-python3 "$SCRIPT_DIR/hetzner-upsert-coolify-deploy-key.py" "$KEY_PATH" "$FP" /tmp/upsert_pk.sql
-docker cp /tmp/upsert_pk.sql "$CID":/tmp/upsert_pk.sql
-docker exec "$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -f /tmp/upsert_pk.sql
-rm -f /tmp/upsert_pk.sql
-
-KEY_ID=$(docker exec "$CID" psql -U coolify -d coolify -tAc "SELECT id FROM private_keys WHERE name='emailhub-github-deploy' LIMIT 1")
-test -n "$KEY_ID"
+echo "=== detach Coolify git private keys (deploy uses coolify-up + GHCR) ==="
+# Org deploy keys are disabled; plaintext SQL keys cause DecryptException.
+docker exec "$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -c \
+  "UPDATE applications
+   SET private_key_id = NULL, updated_at = NOW()
+   WHERE deleted_at IS NULL
+     AND uuid IN ('${DEV_UUID}', '${PROD_UUID}');
+   DELETE FROM private_keys WHERE name = 'emailhub-github-deploy';"
 
 echo "=== point apps at clean HTTPS git URL + /opt coolify-up.sh ==="
-# Deploy keys are disabled on this GitHub org — keep a clean HTTPS URL (no PAT in URL).
-# Coolify start uses /opt/*/coolify-up.sh so Deploy does not need a git clone.
+# Keep a clean HTTPS URL (no PAT in URL). Coolify start uses /opt/*/coolify-up.sh
+# so Deploy does not need a git clone.
 install -m 0755 "$SCRIPT_DIR/coolify-up.prod.sh" /opt/emailhub/coolify-up.sh
 install -m 0755 "$SCRIPT_DIR/coolify-up.dev.sh" /opt/emailhub-dev/coolify-up.sh
 if [[ -f "$SCRIPT_DIR/../docker-compose.coolify-labels.prod.yml" ]]; then
@@ -53,7 +44,7 @@ fi
 docker exec "$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -c \
   "UPDATE applications
    SET git_repository = 'https://github.com/Big-Drops-MG/data-access-1.git',
-       private_key_id = ${KEY_ID},
+       private_key_id = NULL,
        docker_compose_location = '/docker-compose.yml',
        updated_at = NOW()
    WHERE deleted_at IS NULL;"
@@ -87,10 +78,6 @@ docker exec "$CID" psql -U coolify -d coolify -v ON_ERROR_STOP=1 -c \
      AND d.resourceable_id = e.resourceable_id
      AND d.key = e.key
      AND e.id < d.id;"
-
-echo "DEPLOY_PUBLIC_KEY<<EOF"
-echo "$PUB"
-echo "EOF"
 
 if [[ -n "$GHCR_PULL_TOKEN" ]]; then
   echo "=== docker login ghcr.io ==="
