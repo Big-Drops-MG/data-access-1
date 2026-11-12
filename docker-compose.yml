@@ -78,6 +78,9 @@ services:
       IMAP_USER: ${IMAP_USER:-}
       IMAP_PASSWORD: ${IMAP_PASSWORD:-}
       BLOCKLISTS: ${BLOCKLISTS:-}
+      RECIPIENT_IMPORTS_DIR: ${RECIPIENT_IMPORTS_DIR:-/data/imports}
+    volumes:
+      - /data/imports:/data/imports
     expose:
       - "3000"
     networks:
@@ -137,6 +140,7 @@ services:
       IMAP_USER: ${IMAP_USER:-}
       IMAP_PASSWORD: ${IMAP_PASSWORD:-}
       BLOCKLISTS: ${BLOCKLISTS:-}
+      RECIPIENT_IMPORTS_DIR: ${RECIPIENT_IMPORTS_DIR:-/data/imports}
     volumes:
       - /data/imports:/data/imports
     networks:

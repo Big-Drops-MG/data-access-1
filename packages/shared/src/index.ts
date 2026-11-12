@@ -99,6 +99,30 @@ export {
   type ParsedUserAgentEnvironment,
 } from "./events-queue.js"
 export {
+  CSV_INGEST_JOB_NAME,
+  CSV_INGEST_JOB_OPTIONS,
+  IMAP_INTAKE_JOB_NAME,
+  INTAKE_QUEUE_NAME,
+  csvIngestJobId,
+  enqueueCsvIngestJob,
+  type CsvIngestJobData,
+} from "./intake-queue.js"
+export {
+  DEFAULT_RECIPIENT_IMPORTS_DIR,
+  RECIPIENT_IMPORT_CHUNK_SIZE,
+  RECIPIENT_IMPORT_MAX_BYTES,
+  assertCsvHasEmailColumn,
+  collapseImportRows,
+  ingestRecipientCsvFile,
+  ingestRecipientRows,
+  normalizeImportEmail,
+  recipientImportsDir,
+  resolveEmailColumnIndex,
+  upsertRecipientBatch,
+  type RecipientImportCounts,
+  type RecipientImportRow,
+} from "./recipient-csv-ingest.js"
+export {
   SES_ACCOUNT_PAUSED_ALERT_TYPE,
   SES_ACCOUNT_PAUSED_DEDUPE_KEY,
   claimQueuedMessage,

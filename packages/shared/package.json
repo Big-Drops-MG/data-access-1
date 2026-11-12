@@ -33,9 +33,10 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@workspace/logger": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/logger": "workspace:*",
     "bullmq": "^5.81.5",
+    "csv-parse": "^7.0.3",
     "drizzle-orm": "^0.45.4",
     "zod": "^4.6.7"
   }
