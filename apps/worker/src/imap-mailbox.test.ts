@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+type FetchMsg = {
+  uid?: number
+  source?: Buffer | string
+}
+
 const connect = vi.hoisted(() => vi.fn(async () => undefined))
 const mailboxOpen = vi.hoisted(() => vi.fn(async () => undefined))
 const mailboxCreate = vi.hoisted(() => vi.fn(async () => undefined))
@@ -8,7 +13,7 @@ const messageMove = vi.hoisted(() => vi.fn(async () => undefined))
 const logout = vi.hoisted(() => vi.fn(async () => undefined))
 const close = vi.hoisted(() => vi.fn())
 const fetchImpl = vi.hoisted(() =>
-  vi.fn(async function* () {
+  vi.fn(async function* (): AsyncGenerator<FetchMsg> {
     /* empty */
   })
 )
