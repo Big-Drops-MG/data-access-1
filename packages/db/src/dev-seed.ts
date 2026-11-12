@@ -8,7 +8,12 @@ import {
   databaseUrlIdentity,
 } from "./connection-policy.js"
 import { loadEmailCatalog, seedEmailCatalog } from "./email-catalog-seed.js"
-import { offer, recipient, user } from "./schema/index.js"
+import {
+  feedbackClassification,
+  offer,
+  recipient,
+  user,
+} from "./schema/index.js"
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"])
 
@@ -54,11 +59,19 @@ export const DEV_RECIPIENTS = [
   { email: "casey@example.com", tier: "standard", externalUserId: "dev-casey" },
 ] as const
 
+export const DEV_FEEDBACK_CLASSIFICATIONS = [
+  { key: "didnt_sign_up", label: "Didn't sign up" },
+  { key: "spam", label: "Spam / unwanted" },
+  { key: "too_frequent", label: "Too frequent" },
+  { key: "other", label: "Other" },
+] as const
+
 export type DevSeedResult = {
   categories: number
   frequencyRules: number
   offers: number
   recipients: number
+  feedbackClassifications: number
 }
 
 export function hashNormalisedEmail(email: string): string {
@@ -83,12 +96,14 @@ export async function seedDev(db: Database): Promise<DevSeedResult> {
   })
   await ensureOffer(db)
   await ensureRecipients(db)
+  await ensureFeedbackClassifications(db, userId)
 
   return {
     categories: catalogResult.categories,
     frequencyRules: catalogResult.frequencyRules,
     offers: 1,
     recipients: DEV_RECIPIENTS.length,
+    feedbackClassifications: DEV_FEEDBACK_CLASSIFICATIONS.length,
   }
 }
 
@@ -142,5 +157,22 @@ async function ensureRecipients(db: Database): Promise<void> {
         tier: row.tier,
       })
       .onConflictDoNothing({ target: recipient.email })
+  }
+}
+
+async function ensureFeedbackClassifications(
+  db: Database,
+  createdBy: string
+): Promise<void> {
+  for (const row of DEV_FEEDBACK_CLASSIFICATIONS) {
+    await db
+      .insert(feedbackClassification)
+      .values({
+        key: row.key,
+        label: row.label,
+        active: true,
+        createdBy,
+      })
+      .onConflictDoNothing({ target: feedbackClassification.key })
   }
 }

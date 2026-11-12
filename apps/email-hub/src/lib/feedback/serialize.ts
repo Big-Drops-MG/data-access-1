@@ -30,6 +30,12 @@ export type FeedbackDisplayFields = {
   classificationLabel?: string | null
 }
 
+export type FeedbackClassificationJson = {
+  id: string
+  key: string
+  label: string
+}
+
 export function serializeFeedback(
   row: FeedbackItem,
   display: FeedbackDisplayFields = {}

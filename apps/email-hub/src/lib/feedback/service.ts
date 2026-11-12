@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, lt, sql, type SQL } from "drizzle-orm"
 
 import {
   feedbackClassification,
@@ -15,7 +15,11 @@ import {
 import { getContextLogger } from "@workspace/logger"
 import { AppError, isUniqueViolation, writeAudit } from "@workspace/shared"
 
-import { serializeFeedback, type FeedbackJson } from "./serialize"
+import {
+  serializeFeedback,
+  type FeedbackClassificationJson,
+  type FeedbackJson,
+} from "./serialize"
 
 type Db = Database | DatabaseTransaction
 
@@ -133,6 +137,21 @@ function throwClaimConflict(row: FeedbackItem): never {
       message: "Feedback item is claimed by another reviewer",
     },
   ])
+}
+
+export async function listFeedbackClassifications(
+  db: Database = getDb()
+): Promise<{ data: FeedbackClassificationJson[] }> {
+  const rows = await db
+    .select({
+      id: feedbackClassification.id,
+      key: feedbackClassification.key,
+      label: feedbackClassification.label,
+    })
+    .from(feedbackClassification)
+    .where(eq(feedbackClassification.active, true))
+    .orderBy(asc(feedbackClassification.label))
+  return { data: rows }
 }
 
 export async function listFeedback(
