@@ -62,6 +62,44 @@ export function prepareBootstrapAdminUser<T extends { email: string }>(
   }
 }
 
+/** Bootstrap allowlist hit, or null so the caller can apply an invitation. */
+export function tryPrepareBootstrapAdminUser<T extends { email: string }>(
+  newUser: T,
+  adminEmails: ReadonlySet<string>
+) {
+  const email = normaliseEmail(newUser.email)
+  if (
+    !isAllowedSsoEmailDomain(email) ||
+    !isBootstrapAdminEmail(email, adminEmails)
+  ) {
+    return null
+  }
+  return prepareBootstrapAdminUser(newUser, adminEmails)
+}
+
+/** First Google sign-in for a live invitation. No password is set. */
+export function prepareInvitedUser<T extends { email: string }>(
+  newUser: T,
+  role: string
+) {
+  const email = normaliseEmail(newUser.email)
+  if (!isAllowedSsoEmailDomain(email)) {
+    rejectSignIn()
+  }
+  if (role !== "admin" && role !== "operator" && role !== "viewer") {
+    rejectSignIn()
+  }
+  return {
+    data: {
+      ...newUser,
+      email,
+      role,
+      status: "active" as const,
+      emailVerified: true,
+    },
+  }
+}
+
 /** Session create: user must exist, be active, and on the SSO domain. */
 export function assertActiveStaffForSession(
   row: { status: string; email: string } | undefined

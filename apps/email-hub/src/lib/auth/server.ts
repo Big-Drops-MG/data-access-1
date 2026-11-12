@@ -6,11 +6,18 @@ import { nextCookies } from "better-auth/next-js"
 import { eq } from "drizzle-orm"
 import { v7 as uuidv7 } from "uuid"
 
+import {
+  consumeInvitation,
+  readLiveInvitationRole,
+} from "@/lib/users/invitation-store"
+
 import { ALLOWED_SSO_EMAIL_DOMAIN, parseAdminEmails } from "./admin-emails"
 import {
   assertActiveStaffForSession,
   mapGoogleProfileToUser,
   prepareBootstrapAdminUser,
+  prepareInvitedUser,
+  tryPrepareBootstrapAdminUser,
 } from "./auth-gates"
 import {
   SESSION_IDLE_SECONDS,
@@ -105,8 +112,34 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          before: async (newUser) =>
-            prepareBootstrapAdminUser(newUser, adminEmails),
+          before: async (newUser) => {
+            const bootstrap = tryPrepareBootstrapAdminUser(newUser, adminEmails)
+            if (bootstrap) {
+              return bootstrap
+            }
+            const invitedRole = await readLiveInvitationRole(
+              getDb(),
+              newUser.email
+            )
+            if (invitedRole) {
+              return prepareInvitedUser(newUser, invitedRole)
+            }
+            return prepareBootstrapAdminUser(newUser, adminEmails)
+          },
+          after: async (created) => {
+            const email =
+              created &&
+              typeof created === "object" &&
+              "email" in created &&
+              typeof created.email === "string"
+                ? created.email
+                : null
+            if (!email) {
+              return
+            }
+            // Runs after the user insert commits, so a failed sign-up keeps the invite.
+            await consumeInvitation(getDb(), email)
+          },
         },
       },
       session: {
