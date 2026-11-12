@@ -177,12 +177,14 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("POST", "/api/suppressions/remove")).toBeNull()
   })
 
-  it("maps recipients staff routes as viewer read-only", () => {
+  it("maps recipients staff routes (viewer read, operator import)", () => {
     const id = "019a0000-0000-7000-8000-000000000001"
     expect(minRoleForStaffApi("GET", "/api/recipients")).toBe("viewer")
     expect(minRoleForStaffApi("GET", `/api/recipients/${id}`)).toBe("viewer")
     expect(minRoleForStaffApi("POST", "/api/recipients")).toBeNull()
-    expect(minRoleForStaffApi("POST", "/api/recipients/import")).toBeNull()
+    expect(minRoleForStaffApi("POST", "/api/recipients/import")).toBe(
+      "operator"
+    )
     expect(minRoleForStaffApi("PATCH", `/api/recipients/${id}`)).toBeNull()
   })
 

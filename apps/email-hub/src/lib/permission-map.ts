@@ -39,6 +39,7 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "POST /api/suppressions/*/remove": "admin",
   "GET /api/recipients": "viewer",
   "GET /api/recipients/*": "viewer",
+  "POST /api/recipients/import": "operator",
   "GET /api/reports/*": "viewer",
   "GET /api/feedback": "viewer",
   "GET /api/feedback/*": "viewer",

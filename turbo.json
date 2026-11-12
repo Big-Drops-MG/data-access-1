@@ -28,7 +28,8 @@
     "SNS_TOPIC_ARN",
     "E2E",
     "UNSUBSCRIBE_TOKEN_SECRET",
-    "CATALOG_SEED_ACTOR_EMAIL"
+    "CATALOG_SEED_ACTOR_EMAIL",
+    "RECIPIENT_IMPORTS_DIR"
   ],
   "tasks": {
     "build": {

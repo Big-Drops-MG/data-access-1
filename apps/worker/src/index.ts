@@ -11,6 +11,7 @@ import {
   setFallbackLogger,
 } from "@workspace/logger"
 import {
+  CSV_INGEST_JOB_NAME,
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
   EVENTS_QUEUE_NAME,
@@ -28,6 +29,7 @@ import {
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
+  type CsvIngestJobData,
   type DispatchSendJobData,
   type EventsJobData,
   type SendEmailJobData,
@@ -35,6 +37,7 @@ import {
 import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
+import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
 import { processImapIntakeJob } from "./imap-intake.js"
@@ -44,6 +47,7 @@ import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
 
 const DISPATCH_WORKER_CONCURRENCY = 2
+const INTAKE_WORKER_CONCURRENCY = 1
 
 const logger = createLogger({ service: WORKER_SERVICE })
 setFallbackLogger(logger)
@@ -224,6 +228,10 @@ async function main(): Promise<void> {
       INTAKE_QUEUE_NAME,
       (job) =>
         withJobLogs(INTAKE_QUEUE_NAME, job, async () => {
+          if (job.name === CSV_INGEST_JOB_NAME) {
+            await processCsvIngestJob(job.data as CsvIngestJobData, { db })
+            return
+          }
           if (job.name === IMAP_INTAKE_JOB_NAME) {
             await processImapIntakeJob({ db, env })
             return
@@ -240,7 +248,7 @@ async function main(): Promise<void> {
       {
         connection,
         prefix: BULLMQ_PREFIX,
-        concurrency: 1,
+        concurrency: INTAKE_WORKER_CONCURRENCY,
       }
     )
   )
@@ -343,6 +351,7 @@ async function main(): Promise<void> {
       send_email_limiter: limiterLabel,
       events_concurrency: 10,
       dispatch_concurrency: DISPATCH_WORKER_CONCURRENCY,
+      intake_concurrency: INTAKE_WORKER_CONCURRENCY,
     },
     "Worker ready"
   )

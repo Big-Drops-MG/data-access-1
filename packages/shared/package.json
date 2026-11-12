@@ -11,6 +11,10 @@
     "./client": {
       "types": "./src/client.ts",
       "default": "./dist/client.js"
+    },
+    "./recipient-csv-ingest": {
+      "types": "./src/recipient-csv-ingest.ts",
+      "default": "./dist/recipient-csv-ingest.js"
     }
   },
   "files": [
@@ -33,9 +37,10 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@workspace/logger": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/logger": "workspace:*",
     "bullmq": "^5.81.5",
+    "csv-parse": "^7.0.3",
     "drizzle-orm": "^0.45.4",
     "zod": "^4.6.7"
   }
