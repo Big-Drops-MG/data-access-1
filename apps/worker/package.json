@@ -15,14 +15,17 @@
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
-    "@workspace/logger": "workspace:*",
     "@workspace/emails": "workspace:*",
+    "@workspace/logger": "workspace:*",
     "@workspace/shared": "workspace:*",
     "bullmq": "^5.66.4",
     "drizzle-orm": "^0.45.4",
-    "ioredis": "^5.9.2"
+    "imapflow": "^2.11.0",
+    "ioredis": "^5.9.2",
+    "mailparser": "^3.14.3"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^24",
     "@workspace/config": "workspace:*",
     "eslint": "^10",

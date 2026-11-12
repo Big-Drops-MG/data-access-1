@@ -14,6 +14,8 @@ import {
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
   EVENTS_QUEUE_NAME,
+  IMAP_INTAKE_JOB_NAME,
+  INTAKE_QUEUE_NAME,
   SCHEDULE_PROMOTER_JOB_NAME,
   claimQueuedMessage,
   createEnqueueSendEmail,
@@ -35,6 +37,7 @@ import { Redis } from "ioredis"
 
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
+import { processImapIntakeJob } from "./imap-intake.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
 import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
@@ -176,7 +179,7 @@ async function main(): Promise<void> {
     if (
       name === DISPATCH_QUEUE_NAME ||
       name === "monitoring" ||
-      name === "intake" ||
+      name === INTAKE_QUEUE_NAME ||
       name === "sync" ||
       name === "maintenance"
     ) {
@@ -206,13 +209,40 @@ async function main(): Promise<void> {
     (name) =>
       name !== SEND_EMAIL_QUEUE_NAME &&
       name !== EVENTS_QUEUE_NAME &&
-      name !== DISPATCH_QUEUE_NAME
+      name !== DISPATCH_QUEUE_NAME &&
+      name !== INTAKE_QUEUE_NAME
   ).map(
     (name) =>
       new Worker(name, (job) => processJob(name, job), {
         connection,
         prefix: BULLMQ_PREFIX,
       })
+  )
+
+  workers.push(
+    new Worker(
+      INTAKE_QUEUE_NAME,
+      (job) =>
+        withJobLogs(INTAKE_QUEUE_NAME, job, async () => {
+          if (job.name === IMAP_INTAKE_JOB_NAME) {
+            await processImapIntakeJob({ db, env })
+            return
+          }
+          logger.warn(
+            {
+              event: "intake.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown intake job"
+          )
+        }),
+      {
+        connection,
+        prefix: BULLMQ_PREFIX,
+        concurrency: 1,
+      }
+    )
   )
 
   workers.push(
