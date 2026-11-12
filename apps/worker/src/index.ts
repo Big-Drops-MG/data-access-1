@@ -40,6 +40,7 @@ import { Redis } from "ioredis"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
+import { processImapIntakeJob } from "./imap-intake.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
 import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
@@ -182,7 +183,7 @@ async function main(): Promise<void> {
     if (
       name === DISPATCH_QUEUE_NAME ||
       name === "monitoring" ||
-      name === "intake" ||
+      name === INTAKE_QUEUE_NAME ||
       name === "sync" ||
       name === "maintenance"
     ) {
@@ -232,14 +233,7 @@ async function main(): Promise<void> {
             return
           }
           if (job.name === IMAP_INTAKE_JOB_NAME) {
-            logger.warn(
-              {
-                event: "intake.imap_intake_not_wired",
-                job_name: job.name,
-                job_id: job.id,
-              },
-              "Ignoring imap-intake until T-079 is merged"
-            )
+            await processImapIntakeJob({ db, env })
             return
           }
           logger.warn(
