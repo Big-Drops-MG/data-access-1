@@ -195,6 +195,20 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("POST", "/api/reports/sending")).toBeNull()
   })
 
+  it("maps feedback routes (viewer read, operator claim/decide)", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/feedback")).toBe("viewer")
+    expect(minRoleForStaffApi("GET", `/api/feedback/${id}`)).toBe("viewer")
+    expect(minRoleForStaffApi("POST", `/api/feedback/${id}/claim`)).toBe(
+      "operator"
+    )
+    expect(minRoleForStaffApi("POST", `/api/feedback/${id}/decide`)).toBe(
+      "operator"
+    )
+    expect(minRoleForStaffApi("POST", "/api/feedback")).toBeNull()
+    expect(minRoleForStaffApi("PATCH", `/api/feedback/${id}`)).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
