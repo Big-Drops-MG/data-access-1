@@ -1,6 +1,9 @@
 import type { AppRole } from "@/lib/permissions"
 
 export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
+  "POST /api/admin/users/invitations": "admin",
+  "PATCH /api/admin/users/*": "admin",
+  "POST /api/admin/users/*/disable": "admin",
   "POST /api/admin/users/*/two-factor/reset": "admin",
   "GET /api/domains": "viewer",
   "POST /api/domains": "admin",

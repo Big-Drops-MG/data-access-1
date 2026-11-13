@@ -8,6 +8,8 @@ import {
   assertActiveStaffForSession,
   mapGoogleProfileToUser,
   prepareBootstrapAdminUser,
+  prepareInvitedUser,
+  tryPrepareBootstrapAdminUser,
 } from "./auth-gates"
 
 describe("mapGoogleProfileToUser", () => {
@@ -108,6 +110,53 @@ describe("prepareBootstrapAdminUser", () => {
       code: SIGN_IN_REJECTED_CODE,
       message: SIGN_IN_REJECTED_MESSAGE,
     })
+  })
+})
+
+describe("tryPrepareBootstrapAdminUser", () => {
+  const admins = parseAdminEmails("admin@bigdropsmarketing.com")
+
+  it("returns null for emails that are not on the bootstrap allowlist", () => {
+    expect(
+      tryPrepareBootstrapAdminUser(
+        { email: "new.user@bigdropsmarketing.com", name: "New" },
+        admins
+      )
+    ).toBeNull()
+  })
+})
+
+describe("prepareInvitedUser", () => {
+  it("activates an invited Workspace user with the invited role", () => {
+    expect(
+      prepareInvitedUser(
+        {
+          email: "New.User@BigDropsMarketing.com",
+          name: "New User",
+        },
+        "operator"
+      )
+    ).toEqual({
+      data: {
+        email: "new.user@bigdropsmarketing.com",
+        name: "New User",
+        role: "operator",
+        status: "active",
+        emailVerified: true,
+      },
+    })
+  })
+
+  it("rejects off-domain or unknown roles", () => {
+    expect(() =>
+      prepareInvitedUser({ email: "user@gmail.com", name: "X" }, "operator")
+    ).toThrow(APIError)
+    expect(() =>
+      prepareInvitedUser(
+        { email: "user@bigdropsmarketing.com", name: "X" },
+        "owner"
+      )
+    ).toThrow(APIError)
   })
 })
 
