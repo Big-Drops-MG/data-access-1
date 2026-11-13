@@ -227,6 +227,15 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("PATCH", `/api/feedback/${id}`)).toBeNull()
   })
 
+  it("maps alert routes to operator (admin included, viewer denied by rank)", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/alerts")).toBe("operator")
+    expect(minRoleForStaffApi("POST", `/api/alerts/${id}/ack`)).toBe("operator")
+    expect(minRoleForStaffApi("POST", "/api/alerts")).toBeNull()
+    expect(minRoleForStaffApi("GET", `/api/alerts/${id}`)).toBeNull()
+    expect(minRoleForStaffApi("GET", `/api/alerts/${id}/ack`)).toBeNull()
+  })
+
   it("denies unmapped routes by default", () => {
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()

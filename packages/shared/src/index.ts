@@ -13,6 +13,7 @@ export {
   insertQueuedMessage,
   loadRouteSendAssets,
   lockRecipientTx,
+  closeNoRouteAlert,
   noRouteAlertDedupeKey,
   openNoRouteAlert,
   requiredMergeTagNames,
@@ -83,7 +84,16 @@ export {
   type DispatchRecipientPage,
   type LoadDispatchRecipientPageInput,
 } from "./dispatch-recipients.js"
-export { openSendLateAlert } from "./send-late-alert.js"
+export { closeSendLateAlert, openSendLateAlert } from "./send-late-alert.js"
+export {
+  closeAlert,
+  openAlert,
+  type AlertSeverity,
+  type CloseAlertInput,
+  type CloseAlertResult,
+  type OpenAlertInput,
+  type OpenAlertResult,
+} from "./alerts.js"
 export {
   EVENTS_JOB_NAME,
   EVENTS_JOB_OPTIONS,
@@ -114,6 +124,7 @@ export {
   markMessageFailed,
   markMessageSent,
   releaseQueuedClaim,
+  closeSesAccountPausedAlert,
   openSesAccountPausedAlert,
   runSendEmailExclusive,
   skipQueuedMessageIfBlocked,

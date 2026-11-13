@@ -1,5 +1,4 @@
 import {
-  alert,
   emailRoute,
   message,
   recipient,
@@ -23,6 +22,7 @@ import {
 } from "@workspace/logger"
 import { and, eq, isNull, sql } from "drizzle-orm"
 
+import { closeAlert, openAlert, type CloseAlertResult } from "./alerts.js"
 import {
   fillMissingComplianceMergeData,
   messageEnvironment,
@@ -333,27 +333,25 @@ export async function openNoRouteAlert(
   offerId: string | null
 ): Promise<void> {
   const dedupeKey = noRouteAlertDedupeKey(emailType, offerId)
-  try {
-    await tx.insert(alert).values({
-      type: "no_route",
-      severity: "warning",
-      status: "open",
-      dedupeKey,
-      payload: { email_type: emailType, offer_id: offerId },
-    })
-  } catch (error) {
-    if (!isUniqueViolation(error)) {
-      throw error
-    }
-    await tx
-      .update(alert)
-      .set({
-        lastTriggeredAt: new Date(),
-        occurrenceCount: sql`${alert.occurrenceCount} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(alert.dedupeKey, dedupeKey), eq(alert.status, "open")))
-  }
+  await openAlert(tx, {
+    type: "no_route",
+    severity: "warning",
+    dedupeKey,
+    payload: { email_type: emailType, offer_id: offerId },
+  })
+}
+
+export async function closeNoRouteAlert(
+  tx: EmailHubTx,
+  emailType: TriggerEmailType,
+  offerId: string | null,
+  now?: Date
+): Promise<CloseAlertResult> {
+  return closeAlert(tx, {
+    type: "no_route",
+    dedupeKey: noRouteAlertDedupeKey(emailType, offerId),
+    now,
+  })
 }
 
 async function insertNoRouteSkippedMessage(
