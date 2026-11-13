@@ -1,0 +1,13 @@
+name = "emailhub-fbl-intake"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+# Set secrets/vars in Cloudflare dashboard or via wrangler:
+#   wrangler secret put FBL_WEBHOOK_SECRET
+#   wrangler vars put HUB_BASE_URL
+#
+# Email Routing: create address complaint@fbl.dataaccess1.net
+# Action: Send to Worker → emailhub-fbl-intake
+
+[vars]
+HUB_BASE_URL = "https://REPLACE_WITH_HUB_HOST"

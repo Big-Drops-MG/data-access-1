@@ -1,8 +1,4 @@
-import {
-  ET_TIME_ZONE,
-  IMAP_INTAKE_JOB_NAME,
-  INTAKE_QUEUE_NAME,
-} from "@workspace/shared"
+import { ET_TIME_ZONE } from "@workspace/shared"
 import type { JobsOptions, Queue } from "bullmq"
 
 import type { QueueName } from "./queues.js"
@@ -88,14 +84,6 @@ export const SCHEDULER_DEFINITIONS: readonly SchedulerDefinition[] = [
       backoff: { type: "fixed", delay: 60_000 },
       ...SCHEDULER_DEFAULT_JOB_OPTIONS,
     },
-  },
-  {
-    id: IMAP_INTAKE_JOB_NAME,
-    queue: INTAKE_QUEUE_NAME,
-    jobName: IMAP_INTAKE_JOB_NAME,
-    repeat: { every: 2 * 60_000 },
-    enabledInDev: true,
-    opts: { attempts: 1, ...SCHEDULER_DEFAULT_JOB_OPTIONS },
   },
   {
     id: "optizmo-sync",

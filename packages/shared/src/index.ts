@@ -101,8 +101,6 @@ export {
 export {
   CSV_INGEST_JOB_NAME,
   CSV_INGEST_JOB_OPTIONS,
-  IMAP_INTAKE_JOB_NAME,
-  IMAP_INTAKE_JOB_OPTIONS,
   INTAKE_QUEUE_NAME,
   csvIngestJobId,
   enqueueCsvIngestJob,
