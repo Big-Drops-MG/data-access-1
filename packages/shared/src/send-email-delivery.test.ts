@@ -63,6 +63,8 @@ function chain(step: Step) {
     "set",
     "returning",
     "values",
+    "onConflictDoNothing",
+    "orderBy",
   ]) {
     query[name] = vi.fn(self)
   }
@@ -250,53 +252,67 @@ describe("runSendEmailExclusive", () => {
   })
 })
 
+const pausedAlert = {
+  id: "01900000-0000-7000-8000-0000000000c1",
+  type: "ses_account_paused",
+  severity: "critical",
+  dedupeKey: "ses_account_paused",
+  status: "open",
+}
+
 describe("openSesAccountPausedAlert", () => {
   it("bumps an alert that is already open", async () => {
-    const db = fakeDb([{ value: [{ id: "alert-1" }] }])
+    const db = fakeDb([
+      { value: [] },
+      { value: [pausedAlert] },
+      { value: [{ ...pausedAlert, occurrenceCount: 2 }] },
+    ])
     await openSesAccountPausedAlert(db as never)
-    expect(db.insert).not.toHaveBeenCalled()
+    expect(db.insert).toHaveBeenCalledOnce()
+    expect(db.update).toHaveBeenCalledOnce()
   })
 
   it("inserts the alert when none is open", async () => {
-    const db = fakeDb([{ value: [] }, { value: undefined }])
+    const db = fakeDb([{ value: [pausedAlert] }])
     await openSesAccountPausedAlert(db as never)
     expect(db.insert).toHaveBeenCalledOnce()
+    expect(db.update).not.toHaveBeenCalled()
   })
 
-  it("bumps again when the insert hits the unique open alert", async () => {
+  it("bumps when the insert hits the unique open alert", async () => {
     const db = fakeDb([
-      { value: [] },
       { error: { code: "23505" } },
-      { value: undefined },
+      { value: [pausedAlert] },
+      { value: [{ ...pausedAlert, occurrenceCount: 2 }] },
     ])
     await openSesAccountPausedAlert(db as never)
-    expect(db.update).toHaveBeenCalledTimes(2)
+    expect(db.update).toHaveBeenCalledOnce()
   })
 
   it("treats a wrapped unique violation as the same alert", async () => {
     const db = fakeDb([
-      { value: [] },
       { error: { cause: { code: "23505" } } },
-      { value: undefined },
+      { value: [pausedAlert] },
+      { value: [{ ...pausedAlert, occurrenceCount: 2 }] },
     ])
     await openSesAccountPausedAlert(db as never)
-    expect(db.update).toHaveBeenCalledTimes(2)
+    expect(db.update).toHaveBeenCalledOnce()
   })
 
   it("rethrows a database error that is not a unique violation", async () => {
-    const db = fakeDb([{ value: [] }, { error: new Error("db down") }])
+    const db = fakeDb([{ error: new Error("db down") }])
     await expect(openSesAccountPausedAlert(db as never)).rejects.toThrow(
       "db down"
     )
   })
 
   it("rethrows a non-object failure", async () => {
-    const db = fakeDb([{ value: [] }, { error: "nope" }])
+    const db = fakeDb([{ error: "nope" }])
     await expect(openSesAccountPausedAlert(db as never)).rejects.toBe("nope")
   })
 
   it("rethrows when a wrapped error is not a unique violation", async () => {
-    const db = fakeDb([{ value: [] }, { error: { cause: null } }])
+    const db = fakeDb([{ error: { cause: null } }])
     await expect(openSesAccountPausedAlert(db as never)).rejects.toEqual({
       cause: null,
     })

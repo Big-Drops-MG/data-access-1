@@ -123,6 +123,7 @@ function createChain(result: SelectResult) {
     where: vi.fn(() => chain),
     limit: vi.fn(async () => result),
     values: vi.fn(() => chain),
+    onConflictDoNothing: vi.fn(() => chain),
     returning: vi.fn(async () => result),
     set: vi.fn(() => chain),
   }
@@ -509,7 +510,15 @@ describe("triggerEmail", () => {
     const insertAlert = createChain([])
     const insertMessage = createChain([skipped])
     insertAlert.values = vi.fn(() => insertAlert)
-    insertAlert.returning = vi.fn(async () => [])
+    insertAlert.onConflictDoNothing = vi.fn(() => insertAlert)
+    insertAlert.returning = vi.fn(async () => [
+      {
+        id: "01900000-0000-7000-8000-0000000000a1",
+        type: "no_route",
+        severity: "warning",
+        dedupeKey: "no_route:thank_you:01900000-0000-7000-8000-000000000020",
+      },
+    ])
     insertMessage.values = vi.fn(() => insertMessage)
 
     let selectCalls = 0
