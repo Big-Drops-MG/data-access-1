@@ -42,11 +42,11 @@
   },
   "dependencies": {
     "@workspace/logger": "workspace:*",
-    "@aws-sdk/client-sesv2": "^3.1158.0",
+    "@aws-sdk/client-sesv2": "^3.1165.0",
     "@babel/parser": "^8.0.10",
     "@react-email/components": "^1.0.12",
-    "@react-email/render": "^2.2.0",
-    "nodemailer": "^10.2.1",
+    "@react-email/render": "^2.3.0",
+    "nodemailer": "^10.5.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "zod": "^4.6.5"
