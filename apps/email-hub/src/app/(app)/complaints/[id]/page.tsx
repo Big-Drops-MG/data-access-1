@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth"
 import { hasAtLeastRole } from "@/lib/permissions"
 
 export const metadata: Metadata = {
-  title: "Feedback",
+  title: "Complaints",
 }
 
 type PageProps = {

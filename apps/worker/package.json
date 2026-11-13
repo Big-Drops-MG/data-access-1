@@ -20,12 +20,9 @@
     "@workspace/shared": "workspace:*",
     "bullmq": "^5.66.4",
     "drizzle-orm": "^0.45.4",
-    "imapflow": "^2.11.0",
-    "ioredis": "^5.9.2",
-    "mailparser": "^3.14.3"
+    "ioredis": "^5.9.2"
   },
   "devDependencies": {
-    "@types/mailparser": "^3.9.0",
     "@types/node": "^24",
     "@workspace/config": "workspace:*",
     "eslint": "^10",

@@ -5,7 +5,6 @@ import { isDuplicateBullmqJob } from "./dispatch-queue.js"
 
 export const INTAKE_QUEUE_NAME = "intake"
 export const CSV_INGEST_JOB_NAME = "csv-ingest"
-export const IMAP_INTAKE_JOB_NAME = "imap-intake"
 
 export type CsvIngestJobData = {
   upload_id: string
@@ -16,13 +15,6 @@ export type CsvIngestJobData = {
 
 /** csv-ingest: single attempt, no auto retry (SD#8.3). */
 export const CSV_INGEST_JOB_OPTIONS = {
-  attempts: 1,
-  removeOnComplete: { age: 86_400, count: 10_000 },
-  removeOnFail: { age: 1_209_600 },
-} satisfies JobsOptions
-
-/** Scheduler defaults for imap-intake (SD#8.3). */
-export const IMAP_INTAKE_JOB_OPTIONS = {
   attempts: 1,
   removeOnComplete: { age: 86_400, count: 10_000 },
   removeOnFail: { age: 1_209_600 },

@@ -28,7 +28,7 @@ export const APP_PRIMARY_TABS = [
   { title: "Suppression", href: "/suppression", documentTitle: "Suppression" },
   { title: "Domains", href: "/domains", documentTitle: "Domains" },
   { title: "Senders", href: "/senders", documentTitle: "Senders" },
-  { title: "Feedback", href: "/feedback", documentTitle: "Feedback" },
+  { title: "Complaints", href: "/complaints", documentTitle: "Complaints" },
   { title: "Alerts", href: "/alerts", documentTitle: "Alerts" },
   { title: "Reports", href: "/reports", documentTitle: "Reports" },
 ] as const satisfies readonly AppNavTab[]

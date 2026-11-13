@@ -1,11 +1,11 @@
-﻿import type { Metadata } from "next"
+import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { FeedbackPage } from "@/features/feedback/feedback-page"
 import { getSession } from "@/lib/auth"
 
 export const metadata: Metadata = {
-  title: "Feedback",
+  title: "Complaints",
 }
 
 export default async function Page() {

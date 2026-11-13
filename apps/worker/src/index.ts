@@ -15,7 +15,6 @@ import {
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
   EVENTS_QUEUE_NAME,
-  IMAP_INTAKE_JOB_NAME,
   INTAKE_QUEUE_NAME,
   SCHEDULE_PROMOTER_JOB_NAME,
   claimQueuedMessage,
@@ -40,7 +39,6 @@ import { Redis } from "ioredis"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
-import { processImapIntakeJob } from "./imap-intake.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
 import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
@@ -230,10 +228,6 @@ async function main(): Promise<void> {
         withJobLogs(INTAKE_QUEUE_NAME, job, async () => {
           if (job.name === CSV_INGEST_JOB_NAME) {
             await processCsvIngestJob(job.data as CsvIngestJobData, { db })
-            return
-          }
-          if (job.name === IMAP_INTAKE_JOB_NAME) {
-            await processImapIntakeJob({ db, env })
             return
           }
           logger.warn(

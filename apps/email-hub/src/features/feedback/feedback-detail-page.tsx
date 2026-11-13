@@ -271,8 +271,8 @@ export function FeedbackDetailPage({
         <nav aria-label="Breadcrumb">
           <ol className="flex flex-wrap items-center gap-1.5 text-sm text-fg-muted">
             <li className="flex items-center gap-1.5">
-              <Link href="/feedback" className="text-link hover:underline">
-                Feedback
+              <Link href="/complaints" className="text-link hover:underline">
+                Complaints
               </Link>
             </li>
             <li className="flex items-center gap-1.5">
@@ -536,7 +536,7 @@ export function FeedbackDetailPage({
                   type="button"
                   className={feedbackOutlineControl()}
                   data-testid="feedback-release"
-                  onClick={() => router.push("/feedback")}
+                  onClick={() => router.push("/complaints")}
                 >
                   Release
                 </button>

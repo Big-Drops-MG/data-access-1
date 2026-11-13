@@ -76,8 +76,8 @@ export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Feedback"
-        description="Complaints from provider feedback loops and replies from our feedback form. Nothing is suppressed until a person decides."
+        title="Complaints"
+        description="Provider feedback-loop and mailbox complaints. Nothing is suppressed until a person decides."
       />
 
       {stalePendingCount > 0 ? (
@@ -122,7 +122,7 @@ export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
         equalColumnWidths
         animateRows
         onRowClick={(row) => {
-          router.push(`/feedback/${encodeURIComponent(row.id)}`)
+          router.push(`/complaints/${encodeURIComponent(row.id)}`)
         }}
         toolbar={
           <FeedbackStatusTabs

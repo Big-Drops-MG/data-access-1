@@ -4,12 +4,12 @@ import {
   buildArfMessage,
   buildDsnMessage,
   buildUnrelatedMessage,
-} from "./imap-intake-fixtures.js"
+} from "./fixtures"
 import {
   contentHashFor,
   feedbackDedupeHashForReport,
   parseIntakeMail,
-} from "./imap-intake-parse.js"
+} from "./parse"
 
 describe("parseIntakeMail", () => {
   it("parses an ARF feedback report", async () => {

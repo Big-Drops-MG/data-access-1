@@ -94,10 +94,8 @@ const baseEnvSchema = z
     BETTER_AUTH_URL: optionalString,
     /** Directory for recipient CSV uploads (default /data/imports). */
     RECIPIENT_IMPORTS_DIR: optionalString,
-    /** Intake mailbox for FBL / DSN reports (imap-intake). */
-    IMAP_HOST: optionalString,
-    IMAP_USER: optionalString,
-    IMAP_PASSWORD: optionalString,
+    /** Shared secret for Cloudflare Email Worker → /api/ext/webhooks/fbl */
+    FBL_WEBHOOK_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

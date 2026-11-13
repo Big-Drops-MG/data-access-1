@@ -13,33 +13,22 @@ import {
   feedbackDedupeHashForReport,
   parseIntakeMail,
   type ParsedIntakeReport,
-} from "./imap-intake-parse.js"
-import {
-  createImapFlowMailbox,
-  type ImapMailbox,
-  type ImapMailboxConfig,
-} from "./imap-mailbox.js"
-
-export const IMAP_INTAKE_BATCH_SIZE = 100
+} from "@/lib/fbl/parse"
 
 type Db = Database | DatabaseTransaction
-
-export type ImapIntakeEnv = {
-  IMAP_HOST?: string
-  IMAP_USER?: string
-  IMAP_PASSWORD?: string
-}
-
-export type ProcessImapIntakeDeps = {
-  db?: Database
-  mailbox?: ImapMailbox
-  env?: ImapIntakeEnv
-  batchSize?: number
-}
 
 type MatchResult = {
   messageId: string | null
   recipientId: string | null
+}
+
+export type ProcessFblMailResult = {
+  kind: "ignored" | "processed"
+  reportCreated: boolean
+  feedbackCreated: boolean
+  feedbackItemId: string | null
+  matchedMessageId: string | null
+  provider: string | null
 }
 
 async function matchReport(
@@ -90,128 +79,6 @@ async function matchReport(
   return { messageId: null, recipientId: null }
 }
 
-function resolveMailbox(deps: ProcessImapIntakeDeps): ImapMailbox | null {
-  if (deps.mailbox) {
-    return deps.mailbox
-  }
-  const env = deps.env
-  if (!env?.IMAP_HOST || !env.IMAP_USER || !env.IMAP_PASSWORD) {
-    return null
-  }
-  const config: ImapMailboxConfig = {
-    host: env.IMAP_HOST,
-    user: env.IMAP_USER,
-    password: env.IMAP_PASSWORD,
-    port: 993,
-    secure: true,
-  }
-  return createImapFlowMailbox(config)
-}
-
-export async function processImapIntakeJob(
-  deps: ProcessImapIntakeDeps = {}
-): Promise<{
-  fetched: number
-  processed: number
-  skipped: number
-  reports: number
-  feedbackItems: number
-}> {
-  const logger = getContextLogger()
-  const mailbox = resolveMailbox(deps)
-  if (!mailbox) {
-    logger.info(
-      { event: "imap_intake.skipped_unconfigured" },
-      "IMAP intake skipped; credentials not configured"
-    )
-    return {
-      fetched: 0,
-      processed: 0,
-      skipped: 0,
-      reports: 0,
-      feedbackItems: 0,
-    }
-  }
-
-  const db = deps.db ?? getDb()
-  const batchSize = deps.batchSize ?? IMAP_INTAKE_BATCH_SIZE
-  let processed = 0
-  let skipped = 0
-  let reports = 0
-  let feedbackItems = 0
-
-  await mailbox.connect()
-  try {
-    const messages = await mailbox.fetchUnseen(batchSize)
-    const fetched = messages.length
-
-    for (const msg of messages) {
-      const parsed = await parseIntakeMail(msg.raw)
-      if (!parsed) {
-        skipped += 1
-        logger.info(
-          { event: "imap_intake.unrelated", mailbox_uid: msg.uid },
-          "Leaving unrelated mail in place"
-        )
-        continue
-      }
-
-      const match = await matchReport(db, parsed)
-      const createdFeedback =
-        match.messageId !== null
-          ? await insertMatchedFeedback(db, parsed, match)
-          : null
-
-      const inserted = await insertProviderReport(db, {
-        parsed,
-        mailboxUid: String(msg.uid),
-        raw: msg.raw.toString("utf8"),
-        feedbackItemId: createdFeedback,
-        matchedMessageId: match.messageId,
-        matchedRecipientId: match.recipientId,
-      })
-
-      if (inserted) {
-        reports += 1
-      }
-      if (createdFeedback) {
-        feedbackItems += 1
-      }
-
-      await mailbox.moveToProcessed(msg.uid)
-      processed += 1
-      logger.info(
-        {
-          event: "imap_intake.processed",
-          mailbox_uid: msg.uid,
-          kind: parsed.kind,
-          provider: parsed.provider,
-          matched: match.messageId !== null,
-          report_created: inserted,
-          feedback_created: createdFeedback !== null,
-        },
-        "IMAP report processed"
-      )
-    }
-
-    logger.info(
-      {
-        event: "imap_intake.completed",
-        fetched,
-        processed,
-        skipped,
-        reports,
-        feedback_items: feedbackItems,
-      },
-      "IMAP intake run finished"
-    )
-
-    return { fetched, processed, skipped, reports, feedbackItems }
-  } finally {
-    await mailbox.close()
-  }
-}
-
 async function insertMatchedFeedback(
   db: Db,
   parsed: ParsedIntakeReport,
@@ -253,7 +120,6 @@ async function insertProviderReport(
   db: Db,
   input: {
     parsed: ParsedIntakeReport
-    mailboxUid: string
     raw: string
     feedbackItemId: string | null
     matchedMessageId: string | null
@@ -265,7 +131,7 @@ async function insertProviderReport(
     .insert(providerReport)
     .values({
       provider: input.parsed.provider,
-      mailboxUid: input.mailboxUid,
+      mailboxUid: null,
       contentHash: input.parsed.contentHash,
       receivedAt: now,
       parsed: {
@@ -278,6 +144,7 @@ async function insertProviderReport(
         recipient_emails: input.parsed.recipientEmails,
         matched_message_id: input.matchedMessageId,
         matched_recipient_id: input.matchedRecipientId,
+        intake: "cloudflare_fbl",
       },
       rawContent: input.raw.slice(0, 64_000),
       status: "parsed",
@@ -288,4 +155,58 @@ async function insertProviderReport(
     .returning({ id: providerReport.id })
 
   return inserted.length > 0
+}
+
+/** Parse ARF/DSN raw MIME and persist provider_report + optional feedback_item. */
+export async function processFblRawMail(
+  raw: string,
+  db: Database = getDb()
+): Promise<ProcessFblMailResult> {
+  const logger = getContextLogger()
+  const parsed = await parseIntakeMail(raw)
+  if (!parsed) {
+    logger.info({ event: "fbl.webhook.ignored" }, "Non-report mail ignored")
+    return {
+      kind: "ignored",
+      reportCreated: false,
+      feedbackCreated: false,
+      feedbackItemId: null,
+      matchedMessageId: null,
+      provider: null,
+    }
+  }
+
+  const match = await matchReport(db, parsed)
+  const feedbackItemId =
+    match.messageId !== null
+      ? await insertMatchedFeedback(db, parsed, match)
+      : null
+  const reportCreated = await insertProviderReport(db, {
+    parsed,
+    raw,
+    feedbackItemId,
+    matchedMessageId: match.messageId,
+    matchedRecipientId: match.recipientId,
+  })
+
+  logger.info(
+    {
+      event: "fbl.webhook.processed",
+      kind: parsed.kind,
+      provider: parsed.provider,
+      matched: match.messageId !== null,
+      report_created: reportCreated,
+      feedback_created: feedbackItemId !== null,
+    },
+    "Cloudflare FBL report processed"
+  )
+
+  return {
+    kind: "processed",
+    reportCreated,
+    feedbackCreated: feedbackItemId !== null,
+    feedbackItemId,
+    matchedMessageId: match.messageId,
+    provider: parsed.provider,
+  }
 }
