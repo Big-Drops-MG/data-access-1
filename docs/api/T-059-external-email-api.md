@@ -12,11 +12,11 @@ Both routes use the existing machine HMAC headers:
 | `x-timestamp` | Unix time in seconds. Allowed skew is 5 minutes.                       |
 | `x-signature` | Hex HMAC-SHA256 of `timestamp.METHOD.path_with_query.sha256_hex(body)` |
 
-The signature is checked against the current secret, or the previous secret for 24 hours after rotation. The plaintext secret is not stored; verification decrypts the ciphertext held for that client.
+The signature is checked against the current secret, or the immediately previous secret until 24 hours after `rotated_at`. A later rotation drops any older secret at once. The plaintext secret is not stored; verification decrypts the ciphertext held for that client. A bad signature uses the same `401` body as an unknown client.
 
 A signed-in staff session cannot call these routes. A request with no machine headers is `401`. A staff session without machine headers is `403`.
 
-An unknown, revoked, or undecryptable key is `401` with `error.code` `unauthorized` and detail path `x-key-id`. An active key whose `expires_at` is in the past is `401` with detail message `API client expired`. A bad signature is `401`. A client IP outside a non-empty allowlist is `403`.
+An unknown, revoked, undecryptable, or badly signed key is `401` with `error.code` `unauthorized` and detail path `x-key-id`. An active key whose `expires_at` is in the past is `401` with detail message `API client expired`, after the signature matches. An empty IP allowlist allows any address. A non-empty allowlist is exact IPv4 or IPv6 (CIDR is not accepted). The client address is the `TRUSTED_PROXY_HOPS` entry from the right of `X-Forwarded-For` (default 1, the address Coolify/Traefik appends). A spoofed leftmost value is ignored. A client IP outside that allowlist is `403`.
 
 ## Scopes
 

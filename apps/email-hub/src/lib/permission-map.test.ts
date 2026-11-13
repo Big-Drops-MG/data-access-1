@@ -15,6 +15,24 @@ describe("minRoleForStaffApi", () => {
     expect(
       minRoleForStaffApi("POST", `/api/admin/users/${id}/two-factor/reset`)
     ).toBe("admin")
+    expect(minRoleForStaffApi("GET", "/api/admin/api-clients")).toBe("admin")
+    expect(minRoleForStaffApi("POST", "/api/admin/api-clients")).toBe("admin")
+    expect(minRoleForStaffApi("GET", `/api/admin/api-clients/${id}`)).toBe(
+      "admin"
+    )
+    expect(
+      minRoleForStaffApi("POST", `/api/admin/api-clients/${id}/rotate`)
+    ).toBe("admin")
+    expect(
+      minRoleForStaffApi("POST", `/api/admin/api-clients/${id}/disable`)
+    ).toBe("admin")
+    expect(
+      minRoleForStaffApi("PATCH", `/api/admin/api-clients/${id}/scopes`)
+    ).toBe("admin")
+    expect(
+      minRoleForStaffApi("PATCH", `/api/admin/api-clients/${id}/ip-allowlist`)
+    ).toBe("admin")
+    expect(minRoleForStaffApi("DELETE", "/api/admin/api-clients")).toBeNull()
     expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("GET", `/api/admin/users/${id}`)).toBeNull()
   })

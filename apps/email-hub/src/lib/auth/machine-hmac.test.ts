@@ -37,6 +37,8 @@ function signedRequest(input: {
   timestamp?: number
   keyId?: string
   signature?: string
+  forwardedFor?: string
+  extraHeaders?: Record<string, string>
 }): { request: Request; body: Buffer; timestamp: number } {
   const method = input.method ?? "POST"
   const path = input.path ?? "/api/ext/emails/send"
@@ -58,7 +60,8 @@ function signedRequest(input: {
       "x-key-id": input.keyId ?? KEY_ID,
       "x-timestamp": String(timestamp),
       "x-signature": signature,
-      "x-forwarded-for": "203.0.113.10",
+      "x-forwarded-for": input.forwardedFor ?? "203.0.113.10",
+      ...input.extraHeaders,
     },
     body,
   })
@@ -210,6 +213,91 @@ describe("authenticateMachineRequest", () => {
         now: () => now,
       })
     ).rejects.toMatchObject({ code: "unauthorized", status: 401 })
+  })
+
+  it("returns the same 401 for a bad signature as for an unknown client", async () => {
+    const { request, body } = signedRequest({ signature: "ab".repeat(32) })
+    await expect(
+      authenticateMachineRequest(request, body, {
+        requiredScope: "emails:send",
+        resolveClient: async () => activeClient(),
+        consumeRateLimit: async () => "ok",
+      })
+    ).rejects.toMatchObject({
+      code: "unauthorized",
+      status: 401,
+      details: [
+        { path: "x-key-id", message: "Unknown or disabled API client" },
+      ],
+    })
+  })
+
+  it("rejects a disabled client before either secret is accepted", async () => {
+    const now = new Date("2026-10-29T12:00:00.000Z")
+    const current = signedRequest({
+      timestamp: Math.floor(now.getTime() / 1000),
+    })
+    const previous = signedRequest({
+      secret: OLD_SECRET,
+      timestamp: Math.floor(now.getTime() / 1000),
+    })
+    const client = activeClient({
+      status: "revoked",
+      oldSecret: OLD_SECRET,
+      rotatedAt: new Date(now.getTime() - 60_000),
+    })
+    for (const signed of [current, previous]) {
+      await expect(
+        authenticateMachineRequest(signed.request, signed.body, {
+          requiredScope: "emails:send",
+          resolveClient: async () => client,
+          consumeRateLimit: async () => "ok",
+          now: () => now,
+        })
+      ).rejects.toMatchObject({ code: "unauthorized", status: 401 })
+    }
+  })
+
+  it("uses the proxy-appended IP and ignores a spoofed leftmost address", async () => {
+    const allowed = signedRequest({
+      forwardedFor: "198.51.100.1, 203.0.113.10",
+    })
+    const client = await authenticateMachineRequest(
+      allowed.request,
+      allowed.body,
+      {
+        requiredScope: "emails:send",
+        resolveClient: async () =>
+          activeClient({ ipAllowlist: ["203.0.113.10"] }),
+        consumeRateLimit: async () => "ok",
+      }
+    )
+    expect(client.id).toBe(KEY_ID)
+
+    const spoofed = signedRequest({
+      forwardedFor: "198.51.100.1, 203.0.113.10",
+      extraHeaders: { "x-real-ip": "198.51.100.1" },
+    })
+    await expect(
+      authenticateMachineRequest(spoofed.request, spoofed.body, {
+        requiredScope: "emails:send",
+        resolveClient: async () =>
+          activeClient({ ipAllowlist: ["198.51.100.1"] }),
+        consumeRateLimit: async () => "ok",
+      })
+    ).rejects.toMatchObject({ code: "forbidden", status: 403 })
+  })
+
+  it("matches a canonical IPv6 allowlist entry", async () => {
+    const { request, body } = signedRequest({
+      forwardedFor: "2001:0db8:0000:0000:0000:0000:0000:0001",
+    })
+    const client = await authenticateMachineRequest(request, body, {
+      requiredScope: "emails:send",
+      resolveClient: async () => activeClient({ ipAllowlist: ["2001:db8::1"] }),
+      consumeRateLimit: async () => "ok",
+    })
+    expect(client.id).toBe(KEY_ID)
   })
 
   it("returns 403 when the client IP is not allowlisted", async () => {
