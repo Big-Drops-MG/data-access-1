@@ -123,6 +123,7 @@ describe("fetchEverflowOfferById", () => {
       "https://api.eflow.team/v1/affiliates/offers/2049",
       expect.objectContaining({
         method: "GET",
+        cache: "no-store",
         headers: expect.objectContaining({
           "X-Eflow-API-Key": "test-key",
         }),

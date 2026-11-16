@@ -218,6 +218,28 @@ export function mapEverflowOfferPayload(
   }
 }
 
+function everflowFetchFailureMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const withCause = error as {
+      message?: unknown
+      cause?: { code?: unknown; message?: unknown }
+    }
+    const causeCode =
+      typeof withCause.cause?.code === "string" ? withCause.cause.code : null
+    const causeMessage =
+      typeof withCause.cause?.message === "string"
+        ? withCause.cause.message
+        : null
+    const message =
+      typeof withCause.message === "string" ? withCause.message : null
+    const detail = [message, causeCode, causeMessage].filter(Boolean).join(": ")
+    if (detail) {
+      return `Everflow request failed (${detail})`.slice(0, 240)
+    }
+  }
+  return "Everflow request failed"
+}
+
 export async function fetchEverflowOfferById(
   offerId: number,
   deps: EverflowClientDeps = {}
@@ -233,6 +255,8 @@ export async function fetchEverflowOfferById(
       `${baseUrl}/affiliates/offers/${offerId}`,
       {
         method: "GET",
+        // Authenticated third-party calls must never use Next fetch caching.
+        cache: "no-store",
         headers: {
           Accept: "application/json",
           "X-Eflow-API-Key": apiKey,
@@ -273,7 +297,7 @@ export async function fetchEverflowOfferById(
       ])
     }
     throw AppError.unavailable([
-      { path: "everflow", message: "Everflow request failed" },
+      { path: "everflow", message: everflowFetchFailureMessage(error) },
     ])
   } finally {
     clearTimeout(timeout)
