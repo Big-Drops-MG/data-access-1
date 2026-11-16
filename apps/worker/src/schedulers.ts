@@ -86,14 +86,6 @@ export const SCHEDULER_DEFINITIONS: readonly SchedulerDefinition[] = [
     },
   },
   {
-    id: "imap-intake",
-    queue: "intake",
-    jobName: "imap-intake",
-    repeat: { every: 2 * 60_000 },
-    enabledInDev: true,
-    opts: { attempts: 1, ...SCHEDULER_DEFAULT_JOB_OPTIONS },
-  },
-  {
     id: "optizmo-sync",
     queue: "sync",
     jobName: "optizmo-sync",

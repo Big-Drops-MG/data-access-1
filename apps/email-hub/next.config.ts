@@ -2,6 +2,20 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@workspace/ui", "@workspace/shared"],
+  async redirects() {
+    return [
+      {
+        source: "/feedback",
+        destination: "/complaints",
+        permanent: false,
+      },
+      {
+        source: "/feedback/:id",
+        destination: "/complaints/:id",
+        permanent: false,
+      },
+    ]
+  },
   serverExternalPackages: [
     "@workspace/db",
     "@workspace/emails",
@@ -11,6 +25,7 @@ const nextConfig: NextConfig = {
     "@bull-board/hono",
     "bullmq",
     "ioredis",
+    "mailparser",
     "pg",
     "pino",
   ],

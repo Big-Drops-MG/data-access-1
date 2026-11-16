@@ -73,6 +73,7 @@ describe.skipIf(migrationUrl.length === 0)("dev seed", () => {
       frequencyRules: 2,
       offers: 1,
       recipients: 3,
+      feedbackClassifications: 4,
     })
     expect(await counts(app)).toEqual(first)
 
@@ -192,6 +193,17 @@ const scratchSchema = [
      action text NOT NULL,
      entity_type text NOT NULL
    )`,
+  `CREATE TABLE feedback_classification (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     key text NOT NULL,
+     label text NOT NULL,
+     active boolean NOT NULL DEFAULT true,
+     created_by uuid REFERENCES "user" (id) ON DELETE SET NULL,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  "CREATE UNIQUE INDEX feedback_classification_key_unique ON feedback_classification (key)",
+  "CREATE INDEX feedback_classification_active_idx ON feedback_classification (active)",
 ]
 
 async function counts(client: Client): Promise<{
@@ -199,18 +211,21 @@ async function counts(client: Client): Promise<{
   frequencyRules: number
   offers: number
   recipients: number
+  feedbackClassifications: number
 }> {
   const result = await client.query<{
     categories: number
     frequency_rules: number
     offers: number
     recipients: number
+    feedback_classifications: number
   }>(
     `SELECT
        (SELECT count(*) FROM email_category) AS categories,
        (SELECT count(*) FROM frequency_rule) AS frequency_rules,
        (SELECT count(*) FROM offer) AS offers,
-       (SELECT count(*) FROM recipient) AS recipients`
+       (SELECT count(*) FROM recipient) AS recipients,
+       (SELECT count(*) FROM feedback_classification) AS feedback_classifications`
   )
   const row = result.rows[0]
   if (!row) {
@@ -222,6 +237,7 @@ async function counts(client: Client): Promise<{
     frequencyRules: Number(row.frequency_rules),
     offers: Number(row.offers),
     recipients: Number(row.recipients),
+    feedbackClassifications: Number(row.feedback_classifications),
   }
 }
 

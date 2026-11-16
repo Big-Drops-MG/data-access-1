@@ -91,7 +91,7 @@ Auth events already in the app, kept as the event name: `auth.login`, `auth.logi
 
 Censor value: `[REDACTED]`.
 
-Pino redacts configured paths up to four levels deep, including header paths. Covered names include password, confirmPassword, authorization, cookie, set-cookie, access and refresh tokens, session tokens, API keys and secrets, AWS access keys, database and cache URLs, SMTP and IMAP passwords, Better Auth and Google client secrets, app encryption key, unsubscribe token and URL, webhook secret, `secret`, `token`, private keys, connection strings, and email `html` / `text`.
+Pino redacts configured paths up to four levels deep, including header paths. Covered names include password, confirmPassword, authorization, cookie, set-cookie, access and refresh tokens, session tokens, API keys and secrets, AWS access keys, database and cache URLs, SMTP passwords and FBL webhook secrets, Better Auth and Google client secrets, app encryption key, unsubscribe token and URL, webhook secret, `secret`, `token`, private keys, connection strings, and email `html` / `text`.
 
 `serializeError` does not copy arbitrary error properties. It keeps `name`, a URL-scrubbed `message`, a short string or number `code`, and a scrubbed stack outside production. Stacks are omitted when `EMAILHUB_ENV=prod` or `NODE_ENV=production`. URL userinfo (`scheme://user:password@host`) is replaced with `scheme://[REDACTED]@host`.
 

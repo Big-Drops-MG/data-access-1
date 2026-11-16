@@ -23,7 +23,18 @@ describe("openSendLateAlert", () => {
   })
 
   it("inserts a send_late alert when overdue", async () => {
-    const values = vi.fn(async () => undefined)
+    const returning = vi.fn(async () => [
+      {
+        id: "01900000-0000-7000-8000-0000000005a1",
+        type: SEND_LATE_ALERT_TYPE,
+        severity: "warning",
+        dedupeKey: sendLateAlertDedupeKey(
+          "01900000-0000-7000-8000-000000000501"
+        ),
+      },
+    ])
+    const onConflictDoNothing = vi.fn(() => ({ returning }))
+    const values = vi.fn(() => ({ onConflictDoNothing }))
     const db = {
       insert: () => ({ values }),
       update: vi.fn(),

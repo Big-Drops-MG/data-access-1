@@ -1,6 +1,7 @@
 import {
   BULLMQ_PREFIX,
   EVENTS_QUEUE_NAME,
+  INTAKE_QUEUE_NAME,
   SEND_EMAIL_QUEUE_NAME,
 } from "@workspace/shared"
 
@@ -12,7 +13,7 @@ export const QUEUE_NAMES = [
   EVENTS_QUEUE_NAME,
   "sync",
   "monitoring",
-  "intake",
+  INTAKE_QUEUE_NAME,
   "maintenance",
 ] as const
 

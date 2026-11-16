@@ -1,11 +1,17 @@
 import type { AppRole } from "@/lib/permissions"
 
-/**
- * Staff API permission map (SD#4 rule 3).
- * Missing entries deny. Patterns use `*` for a single path segment.
- */
 export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
+  "POST /api/admin/users/invitations": "admin",
+  "PATCH /api/admin/users/*": "admin",
+  "POST /api/admin/users/*/disable": "admin",
   "POST /api/admin/users/*/two-factor/reset": "admin",
+  "GET /api/admin/api-clients": "admin",
+  "POST /api/admin/api-clients": "admin",
+  "GET /api/admin/api-clients/*": "admin",
+  "POST /api/admin/api-clients/*/rotate": "admin",
+  "POST /api/admin/api-clients/*/disable": "admin",
+  "PATCH /api/admin/api-clients/*/scopes": "admin",
+  "PATCH /api/admin/api-clients/*/ip-allowlist": "admin",
   "GET /api/domains": "viewer",
   "POST /api/domains": "admin",
   "GET /api/domains/*": "viewer",
@@ -41,6 +47,16 @@ export const STAFF_API_MIN_ROLE: Readonly<Record<string, AppRole>> = {
   "GET /api/suppressions": "viewer",
   "POST /api/suppressions": "operator",
   "POST /api/suppressions/*/remove": "admin",
+  "GET /api/recipients": "viewer",
+  "GET /api/recipients/*": "viewer",
+  "POST /api/recipients/import": "operator",
+  "GET /api/reports/*": "viewer",
+  "GET /api/feedback": "viewer",
+  "GET /api/feedback/*": "viewer",
+  "POST /api/feedback/*/claim": "operator",
+  "POST /api/feedback/*/decide": "operator",
+  "GET /api/alerts": "operator",
+  "POST /api/alerts/*/ack": "operator",
 }
 
 function normalizePath(pathname: string): string {
@@ -61,9 +77,6 @@ function patternMatches(patternPath: string, pathname: string): boolean {
   )
 }
 
-/**
- * Minimum role for a staff API route. `null` means deny (not in the map).
- */
 export function minRoleForStaffApi(
   method: string,
   pathname: string
@@ -89,7 +102,6 @@ export function minRoleForStaffApi(
   return null
 }
 
-/** HTTP methods that mutate state and require Operator+ when mapped as writes. */
 export function isWriteMethod(method: string): boolean {
   const normalized = method.toUpperCase()
   return (
