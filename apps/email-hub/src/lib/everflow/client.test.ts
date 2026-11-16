@@ -140,4 +140,27 @@ describe("fetchEverflowOfferById", () => {
       })
     ).rejects.toMatchObject({ code: "not_found" })
   })
+
+  it("treats empty EVERFLOW_API_BASE_URL as unset", async () => {
+    vi.stubEnv("EVERFLOW_API_BASE_URL", "")
+    const fetchImpl = vi.fn(async () =>
+      Response.json({
+        network_offer_id: 2049,
+        name: "Quotifii",
+        offer_status: "active",
+        relationship: {},
+      })
+    )
+
+    await fetchEverflowOfferById(2049, {
+      apiKey: "test-key",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.eflow.team/v1/affiliates/offers/2049",
+      expect.objectContaining({ method: "GET" })
+    )
+    vi.unstubAllEnvs()
+  })
 })

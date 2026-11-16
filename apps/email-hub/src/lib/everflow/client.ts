@@ -1,7 +1,64 @@
+import https from "node:https"
+import { URL } from "node:url"
+
 import { AppError } from "@workspace/shared"
 
 export const EVERFLOW_DEFAULT_BASE_URL = "https://api.eflow.team/v1"
 export const EVERFLOW_HTTP_TIMEOUT_MS = 10_000
+
+type EverflowHttpResponse = {
+  status: number
+  ok: boolean
+  json: () => Promise<unknown>
+}
+
+function everflowHttpsGet(
+  url: string,
+  headers: Record<string, string>,
+  signal: AbortSignal
+): Promise<EverflowHttpResponse> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const req = https.request(
+      {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname,
+        port: parsed.port || undefined,
+        path: `${parsed.pathname}${parsed.search}`,
+        method: "GET",
+        headers,
+        family: 4,
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on("data", (chunk: Buffer) => {
+          chunks.push(chunk)
+        })
+        res.on("end", () => {
+          const body = Buffer.concat(chunks)
+          const status = res.statusCode ?? 0
+          resolve({
+            status,
+            ok: status >= 200 && status < 300,
+            json: async () => JSON.parse(body.toString("utf8")) as unknown,
+          })
+        })
+      }
+    )
+
+    const onAbort = () => {
+      req.destroy()
+      reject(Object.assign(new Error("Aborted"), { name: "AbortError" }))
+    }
+    if (signal.aborted) {
+      onAbort()
+      return
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+    req.on("error", reject)
+    req.end()
+  })
+}
 
 export type EverflowOfferCreative = {
   network_offer_creative_id: number
@@ -82,11 +139,9 @@ function readApiKey(deps: EverflowClientDeps): string {
 }
 
 function readBaseUrl(deps: EverflowClientDeps): string {
-  const raw = (
-    deps.baseUrl ??
-    process.env.EVERFLOW_API_BASE_URL ??
-    EVERFLOW_DEFAULT_BASE_URL
-  ).trim()
+  const fromDeps = typeof deps.baseUrl === "string" ? deps.baseUrl.trim() : ""
+  const fromEnv = (process.env.EVERFLOW_API_BASE_URL ?? "").trim()
+  const raw = fromDeps || fromEnv || EVERFLOW_DEFAULT_BASE_URL
   return raw.replace(/\/+$/, "")
 }
 
@@ -246,24 +301,23 @@ export async function fetchEverflowOfferById(
 ): Promise<EverflowOfferDetail> {
   const apiKey = readApiKey(deps)
   const baseUrl = readBaseUrl(deps)
-  const fetchImpl = deps.fetchImpl ?? fetch
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), EVERFLOW_HTTP_TIMEOUT_MS)
+  const headers = {
+    Accept: "application/json",
+    "X-Eflow-API-Key": apiKey,
+  }
+  const url = `${baseUrl}/affiliates/offers/${offerId}`
 
   try {
-    const response = await fetchImpl(
-      `${baseUrl}/affiliates/offers/${offerId}`,
-      {
-        method: "GET",
-        // Authenticated third-party calls must never use Next fetch caching.
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "X-Eflow-API-Key": apiKey,
-        },
-        signal: controller.signal,
-      }
-    )
+    const response = deps.fetchImpl
+      ? await deps.fetchImpl(url, {
+          method: "GET",
+          cache: "no-store",
+          headers,
+          signal: controller.signal,
+        })
+      : await everflowHttpsGet(url, headers, controller.signal)
 
     if (response.status === 404) {
       throw AppError.notFound([
