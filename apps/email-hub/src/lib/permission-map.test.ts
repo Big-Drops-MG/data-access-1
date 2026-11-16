@@ -3,6 +3,40 @@ import { describe, expect, it } from "vitest"
 import { isWriteMethod, minRoleForStaffApi } from "@/lib/permission-map"
 
 describe("minRoleForStaffApi", () => {
+  it("returns admin for user management routes", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("POST", "/api/admin/users/invitations")).toBe(
+      "admin"
+    )
+    expect(minRoleForStaffApi("PATCH", `/api/admin/users/${id}`)).toBe("admin")
+    expect(minRoleForStaffApi("POST", `/api/admin/users/${id}/disable`)).toBe(
+      "admin"
+    )
+    expect(
+      minRoleForStaffApi("POST", `/api/admin/users/${id}/two-factor/reset`)
+    ).toBe("admin")
+    expect(minRoleForStaffApi("GET", "/api/admin/api-clients")).toBe("admin")
+    expect(minRoleForStaffApi("POST", "/api/admin/api-clients")).toBe("admin")
+    expect(minRoleForStaffApi("GET", `/api/admin/api-clients/${id}`)).toBe(
+      "admin"
+    )
+    expect(
+      minRoleForStaffApi("POST", `/api/admin/api-clients/${id}/rotate`)
+    ).toBe("admin")
+    expect(
+      minRoleForStaffApi("POST", `/api/admin/api-clients/${id}/disable`)
+    ).toBe("admin")
+    expect(
+      minRoleForStaffApi("PATCH", `/api/admin/api-clients/${id}/scopes`)
+    ).toBe("admin")
+    expect(
+      minRoleForStaffApi("PATCH", `/api/admin/api-clients/${id}/ip-allowlist`)
+    ).toBe("admin")
+    expect(minRoleForStaffApi("DELETE", "/api/admin/api-clients")).toBeNull()
+    expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
+    expect(minRoleForStaffApi("GET", `/api/admin/users/${id}`)).toBeNull()
+  })
+
   it("returns admin for the 2FA reset route", () => {
     expect(
       minRoleForStaffApi(
@@ -209,6 +243,15 @@ describe("minRoleForStaffApi", () => {
     )
     expect(minRoleForStaffApi("POST", "/api/feedback")).toBeNull()
     expect(minRoleForStaffApi("PATCH", `/api/feedback/${id}`)).toBeNull()
+  })
+
+  it("maps alert routes to operator (admin included, viewer denied by rank)", () => {
+    const id = "019a0000-0000-7000-8000-000000000001"
+    expect(minRoleForStaffApi("GET", "/api/alerts")).toBe("operator")
+    expect(minRoleForStaffApi("POST", `/api/alerts/${id}/ack`)).toBe("operator")
+    expect(minRoleForStaffApi("POST", "/api/alerts")).toBeNull()
+    expect(minRoleForStaffApi("GET", `/api/alerts/${id}`)).toBeNull()
+    expect(minRoleForStaffApi("GET", `/api/alerts/${id}/ack`)).toBeNull()
   })
 
   it("denies unmapped routes by default", () => {
