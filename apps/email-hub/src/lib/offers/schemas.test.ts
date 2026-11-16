@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { offerListQuerySchema } from "./schemas"
+import {
+  everflowOfferIdParamSchema,
+  importOfferBodySchema,
+  offerListQuerySchema,
+} from "./schemas"
 
 describe("offerListQuerySchema", () => {
   it("defaults limit and status", () => {
@@ -21,5 +25,30 @@ describe("offerListQuerySchema", () => {
 
   it("rejects unknown keys", () => {
     expect(() => offerListQuerySchema.parse({ bogus: "1" })).toThrow()
+  })
+})
+
+describe("importOfferBodySchema", () => {
+  it("accepts a positive Everflow offer id", () => {
+    expect(importOfferBodySchema.parse({ everflow_offer_id: 2049 })).toEqual({
+      everflow_offer_id: 2049,
+    })
+    expect(importOfferBodySchema.parse({ everflow_offer_id: "2049" })).toEqual({
+      everflow_offer_id: 2049,
+    })
+  })
+
+  it("rejects non-positive ids", () => {
+    expect(() =>
+      importOfferBodySchema.parse({ everflow_offer_id: 0 })
+    ).toThrow()
+  })
+})
+
+describe("everflowOfferIdParamSchema", () => {
+  it("parses path ids", () => {
+    expect(
+      everflowOfferIdParamSchema.parse({ everflow_offer_id: "2049" })
+    ).toEqual({ everflow_offer_id: 2049 })
   })
 })

@@ -10,7 +10,7 @@ import {
 } from "@/lib/app-nav"
 
 describe("APP_PRIMARY_TABS", () => {
-  it("ships eleven tabs in SD#12.3 order", () => {
+  it("ships primary tabs including Offers", () => {
     expect(APP_PRIMARY_TABS.map((tab) => tab.title)).toEqual([
       "Dashboard",
       "Sends",
@@ -18,15 +18,16 @@ describe("APP_PRIMARY_TABS", () => {
       "Email routes",
       "Recipients",
       "Suppression",
+      "Offers",
       "Domains",
       "Senders",
       "Complaints",
       "Alerts",
       "Reports",
     ])
-    expect(
-      APP_PRIMARY_TABS.find((tab) => tab.title === "Complaints")?.href
-    ).toBe("/complaints")
+    expect(APP_PRIMARY_TABS.find((tab) => tab.title === "Offers")?.href).toBe(
+      "/offers"
+    )
   })
 })
 

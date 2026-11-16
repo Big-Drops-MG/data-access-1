@@ -112,6 +112,8 @@ export type {
   NewSuppressionSyncRun,
   NewUser,
   Offer,
+  OfferCreativeJson,
+  OfferTrackingLinksJson,
   ProviderReport,
   Recipient,
   RecipientPreference,
