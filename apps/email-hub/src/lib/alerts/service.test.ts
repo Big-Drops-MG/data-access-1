@@ -252,6 +252,23 @@ describe("acknowledgeAlert", () => {
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
+  it("rejects an invalid acknowledger user id before updating", async () => {
+    const existing = alertRow()
+    const tx = {
+      select: vi.fn(() => query([existing])),
+      update: vi.fn(),
+    }
+    const db = {
+      transaction: async (fn: (trx: typeof tx) => Promise<unknown>) => fn(tx),
+    }
+
+    await expect(
+      acknowledgeAlert(alertId, { userId: "not-a-uuid" }, db as never)
+    ).rejects.toMatchObject({ code: "validation_failed", status: 422 })
+    expect(tx.update).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
   it("keeps the first actor when a concurrent acknowledgment loses", async () => {
     let stored = alertRow()
     let winner: string | null = null

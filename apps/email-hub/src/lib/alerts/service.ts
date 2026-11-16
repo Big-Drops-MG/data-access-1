@@ -6,7 +6,7 @@ import {
   type Database,
   type DatabaseTransaction,
 } from "@workspace/db/client"
-import { AppError, writeAudit } from "@workspace/shared"
+import { AppError, uuidSchema, writeAudit } from "@workspace/shared"
 
 import { serializeAlert, type AlertJson } from "./serialize"
 
@@ -15,6 +15,16 @@ type Db = Database | DatabaseTransaction
 export type AlertActor = {
   userId: string
   requestId?: string | null
+}
+
+function requireActorUserId(userId: string): string {
+  const parsed = uuidSchema.safeParse(userId)
+  if (!parsed.success) {
+    throw AppError.validationFailed([
+      { path: "userId", message: "Must be a uuid" },
+    ])
+  }
+  return parsed.data
 }
 
 export type ListAlertsInput = {
@@ -93,11 +103,6 @@ export async function listAlerts(
   }
 }
 
-/**
- * Record the first acknowledgment. A later call keeps the original actor.
- * Acknowledgment does not change status or resolved_at, including when the
- * alert is already resolved.
- */
 export async function acknowledgeAlert(
   id: string,
   actor: AlertActor,
@@ -112,11 +117,12 @@ export async function acknowledgeAlert(
       return serializeAlert(existing)
     }
 
+    const userId = requireActorUserId(actor.userId)
     const now = new Date()
     const [updated] = await tx
       .update(alert)
       .set({
-        acknowledgedBy: actor.userId,
+        acknowledgedBy: userId,
         acknowledgedAt: now,
         updatedAt: now,
       })
@@ -132,7 +138,7 @@ export async function acknowledgeAlert(
     }
 
     await writeAudit(tx, {
-      actor: { type: "user", id: actor.userId },
+      actor: { type: "user", id: userId },
       action: "alert.acknowledged",
       objectType: "alert",
       objectId: updated.id,
