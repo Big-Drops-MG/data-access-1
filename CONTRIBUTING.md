@@ -165,7 +165,7 @@ Schema changes ship only as Drizzle migrations under `packages/db`. Never edit a
    Or `cd packages/db` then `pnpm db:generate` / `pnpm db:migrate`.
    `db:migrate` applies the Postgres migrations, grants `emailhub_app` (insert and select only on `audit_log`), then the ClickHouse runner.
 
-   Dev catalog data is separate from migrate. `pnpm --filter @workspace/db db:seed` inserts categories, frequency rules, one offer, and sample recipients. It only runs when `DATABASE_URL` points at a loopback host.
+   Dev catalog data is separate from migrate. `pnpm --filter @workspace/db db:seed` inserts missing categories, frequency rules, one offer, and sample recipients from `packages/db/seed/email-catalog.v1.json` without overwriting local edits. It only runs when `DATABASE_URL` points at a loopback host. Non-dev environments can reconcile the same catalog with `pnpm --filter @workspace/db db:seed-catalog` (attributes rows to an active admin; optional `CATALOG_SEED_ACTOR_EMAIL`).
 
 4. Commit the SQL under `packages/db/drizzle/`, snapshots under `packages/db/drizzle/meta/`, and schema sources together.
 5. Migrations must stay backward compatible with the previous app version.
@@ -231,6 +231,7 @@ Hetzner notes:
 - Droplet is **arm64** — multi-arch GHCR images are required.
 - On the host, `docker login ghcr.io` with `GHCR_PULL_TOKEN` (`read:packages`) so Coolify compose can pull private images.
 - This org has **deploy keys disabled**. Prefer a Coolify GitHub App, or keep compose start scripts under `/opt/emailhub(-dev)/coolify-up.sh` (current Hetzner cutover) so Deploy does not depend on cloning. Do not embed PATs in `git_repository` URLs.
+- Never SQL-insert a PEM into Coolify `private_keys` — Coolify encrypts with `APP_KEY`; plaintext rows cause `DecryptException: The payload is invalid` on Deploy. Fix with `deploy/hetzner-fix-coolify-git-key-decrypt.sh` on the droplet (detaches `private_key_id`, keeps `coolify-up`). Add keys only via Coolify UI if ever required.
 - Server helper: `deploy/hetzner-coolify-ghcr-cutover.sh` (set `APPLY_OWNERSHIP=1` only after GHCR tags exist and pulls work).
 
 ### Droplet harden (T-009)

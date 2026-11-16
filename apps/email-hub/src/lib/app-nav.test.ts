@@ -20,10 +20,13 @@ describe("APP_PRIMARY_TABS", () => {
       "Suppression",
       "Domains",
       "Senders",
-      "Feedback",
+      "Complaints",
       "Alerts",
       "Reports",
     ])
+    expect(
+      APP_PRIMARY_TABS.find((tab) => tab.title === "Complaints")?.href
+    ).toBe("/complaints")
   })
 })
 

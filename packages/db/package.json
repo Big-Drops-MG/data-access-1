@@ -29,7 +29,8 @@
   },
   "files": [
     "dist",
-    "clickhouse"
+    "clickhouse",
+    "seed"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -42,7 +43,8 @@
     "db:generate": "drizzle-kit generate",
     "db:ch:migrate": "tsx src/clickhouse/migrate-cli.ts",
     "db:migrate": "tsx src/migrate-cli.ts && tsx src/app-role-cli.ts && pnpm db:ch:migrate",
-    "db:seed": "tsx src/dev-seed-cli.ts"
+    "db:seed": "tsx src/dev-seed-cli.ts",
+    "db:seed-catalog": "tsx src/email-catalog-seed-cli.ts"
   },
   "devDependencies": {
     "@types/node": "^24",

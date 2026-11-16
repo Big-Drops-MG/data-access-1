@@ -92,6 +92,10 @@ const baseEnvSchema = z
     /** Prior HMAC secret accepted during rotation (thank-you / feedback tokens). */
     UNSUBSCRIBE_TOKEN_SECRET_PREVIOUS: optionalString,
     BETTER_AUTH_URL: optionalString,
+    /** Directory for recipient CSV uploads (default /data/imports). */
+    RECIPIENT_IMPORTS_DIR: optionalString,
+    /** Shared secret for Cloudflare Email Worker → /api/ext/webhooks/fbl */
+    FBL_WEBHOOK_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

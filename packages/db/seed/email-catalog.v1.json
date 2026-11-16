@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "key": "thank_you",
+      "name": "Thank you",
+      "description": "Post-purchase thank you",
+      "kind": "transactional",
+      "default_opted_in": true
+    },
+    {
+      "key": "feedback_request",
+      "name": "Feedback request",
+      "description": "Ask the recipient for feedback",
+      "kind": "transactional",
+      "default_opted_in": true
+    },
+    {
+      "key": "engagement",
+      "name": "Engagement",
+      "description": "Relationship engagement",
+      "kind": "relationship",
+      "default_opted_in": true
+    }
+  ],
+  "frequency_rules": [
+    {
+      "kind": "cap",
+      "category_key": null,
+      "max_count": 3,
+      "window_days": 7
+    },
+    {
+      "kind": "collision",
+      "category_key": null,
+      "blocks_with_type": "thank_you",
+      "min_gap_hours": 24
+    }
+  ]
+}

@@ -64,3 +64,6 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+
+# local recipient CSV uploads
+.data/

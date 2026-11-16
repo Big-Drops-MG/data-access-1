@@ -30,8 +30,9 @@ export const feedbackStatus = pgEnum("feedback_status", [
 ])
 
 export const feedbackDecision = pgEnum("feedback_decision", [
+  "no_action",
   "suppress",
-  "dismiss",
+  "escalate",
 ])
 
 export const feedbackItem = pgTable(

@@ -537,7 +537,7 @@ export function DataTable<TData>({
             <SelectTrigger
               id={`${testIdPrefix}-page-size`}
               data-testid={`${testIdPrefix}-page-size`}
-              className="h-auto min-w-16 gap-1.5 rounded-full border-border bg-surface py-1.5 pr-2 pl-3.5 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 data-[size=default]:h-auto data-[size=sm]:h-auto [&_svg:not([class*='size-'])]:size-3.5"
+              className="h-auto min-w-16 gap-1.5 rounded-md border-border bg-surface py-1.5 pr-2 pl-3.5 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 data-[size=default]:h-auto data-[size=sm]:h-auto [&_svg:not([class*='size-'])]:size-3.5"
             >
               <SelectValue />
             </SelectTrigger>
@@ -565,7 +565,7 @@ export function DataTable<TData>({
             disabled={!canPreviousPage || isLoading}
             onClick={onPreviousPage}
             data-testid={`${testIdPrefix}-prev`}
-            className="h-auto rounded-full border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
+            className="h-auto rounded-md border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
           >
             Previous
           </Button>
@@ -579,7 +579,7 @@ export function DataTable<TData>({
               }
             }}
             data-testid={`${testIdPrefix}-next`}
-            className="h-auto rounded-full border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
+            className="h-auto rounded-md border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
           >
             Next
           </Button>

@@ -1,6 +1,5 @@
 import type { Recipient } from "@workspace/db"
 import {
-  alert,
   message,
   recipient,
   sender,
@@ -10,6 +9,7 @@ import {
 import type { Database, DatabaseTransaction } from "@workspace/db/client"
 import { and, eq, inArray, sql } from "drizzle-orm"
 
+import { closeAlert, openAlert, type CloseAlertResult } from "./alerts.js"
 import type { MessageEnvironment } from "./compliance-tags.js"
 import { runSendChecks, type SendCheckSkipReason } from "./send-checks.js"
 import type { MergeData, TriggerEmailType } from "./trigger-email.js"
@@ -286,63 +286,21 @@ export async function runSendEmailExclusive(
 }
 
 export async function openSesAccountPausedAlert(db: SendDb): Promise<void> {
-  const now = new Date()
-  const bumped = await db
-    .update(alert)
-    .set({
-      lastTriggeredAt: now,
-      occurrenceCount: sql`${alert.occurrenceCount} + 1`,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(alert.dedupeKey, SES_ACCOUNT_PAUSED_DEDUPE_KEY),
-        eq(alert.status, "open")
-      )
-    )
-    .returning({ id: alert.id })
-
-  if (bumped.length > 0) {
-    return
-  }
-
-  try {
-    await db.insert(alert).values({
-      type: SES_ACCOUNT_PAUSED_ALERT_TYPE,
-      severity: "critical",
-      status: "open",
-      dedupeKey: SES_ACCOUNT_PAUSED_DEDUPE_KEY,
-      payload: { provider: "ses" },
-    })
-  } catch (error) {
-    if (!isUniqueViolation(error)) {
-      throw error
-    }
-    await db
-      .update(alert)
-      .set({
-        lastTriggeredAt: new Date(),
-        occurrenceCount: sql`${alert.occurrenceCount} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(alert.dedupeKey, SES_ACCOUNT_PAUSED_DEDUPE_KEY),
-          eq(alert.status, "open")
-        )
-      )
-  }
+  await openAlert(db, {
+    type: SES_ACCOUNT_PAUSED_ALERT_TYPE,
+    severity: "critical",
+    dedupeKey: SES_ACCOUNT_PAUSED_DEDUPE_KEY,
+    payload: { provider: "ses" },
+  })
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) {
-    return false
-  }
-  if ("code" in error && error.code === "23505") {
-    return true
-  }
-  if ("cause" in error) {
-    return isUniqueViolation(error.cause)
-  }
-  return false
+export async function closeSesAccountPausedAlert(
+  db: SendDb,
+  now?: Date
+): Promise<CloseAlertResult> {
+  return closeAlert(db, {
+    type: SES_ACCOUNT_PAUSED_ALERT_TYPE,
+    dedupeKey: SES_ACCOUNT_PAUSED_DEDUPE_KEY,
+    now,
+  })
 }

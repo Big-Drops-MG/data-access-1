@@ -17,6 +17,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/logger": "workspace:*",
     "@workspace/emails": "workspace:*",
+    "@workspace/logger": "workspace:*",
     "@workspace/shared": "workspace:*",
     "bullmq": "^5.66.4",
     "drizzle-orm": "^0.45.4",

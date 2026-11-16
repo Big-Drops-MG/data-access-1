@@ -2,6 +2,8 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto"
 
 import { AppError } from "@workspace/shared"
 
+import { ipAllowlistMatches, readTrustedClientIp } from "@/lib/api-clients/ip"
+
 /** SD#10.2 / SD#14.4 — ±5 minutes. */
 export const MACHINE_TIMESTAMP_SKEW_SECONDS = 300
 
@@ -92,6 +94,10 @@ export function isTimestampWithinSkew(
   return Math.abs(nowSeconds - timestampSeconds) <= skewSeconds
 }
 
+export function previousSecretExpiresAt(rotatedAt: Date): Date {
+  return new Date(rotatedAt.getTime() + MACHINE_OLD_SECRET_TTL_MS)
+}
+
 export function isOldSecretStillValid(
   rotatedAt: Date | null,
   now: Date
@@ -99,7 +105,7 @@ export function isOldSecretStillValid(
   if (!rotatedAt) {
     return false
   }
-  return now.getTime() - rotatedAt.getTime() <= MACHINE_OLD_SECRET_TTL_MS
+  return now.getTime() <= previousSecretExpiresAt(rotatedAt).getTime()
 }
 
 export function clientHasScope(
@@ -113,25 +119,21 @@ export function isClientIpAllowed(
   clientIp: string | null | undefined,
   allowlist: readonly string[]
 ): boolean {
-  if (allowlist.length === 0) {
-    return true
-  }
-  if (!clientIp) {
-    return false
-  }
-  return allowlist.includes(clientIp)
+  return ipAllowlistMatches(clientIp, allowlist)
 }
 
+/** Trusted-proxy client IP. See `readTrustedClientIp`. */
 export function readClientIp(request: Request): string | null {
-  const forwarded = request.headers.get("x-forwarded-for")
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim()
-    if (first) {
-      return first
-    }
-  }
-  const realIp = request.headers.get("x-real-ip")?.trim()
-  return realIp || null
+  return readTrustedClientIp(request)
+}
+
+const MACHINE_AUTH_DUMMY_SECRET =
+  "emailhub-machine-auth-dummy-secret-not-a-client-key"
+
+function rejectUnknownClient(): never {
+  throw AppError.unauthorized([
+    { path: "x-key-id", message: "Unknown or disabled API client" },
+  ])
 }
 
 function header(request: Request, name: string): string | null {
@@ -175,11 +177,39 @@ export async function authenticateMachineRequest(
     ])
   }
 
+  const url = new URL(request.url)
+  const pathWithQuery = `${url.pathname}${url.search}`
+  const payload = buildMachineSigningPayload({
+    timestamp: timestampRaw,
+    method: request.method,
+    pathWithQuery,
+    body: rawBody,
+  })
+  const provided = signature.toLowerCase()
+
   const client = await deps.resolveClient(keyId)
   if (!client || client.status !== "active") {
-    throw AppError.unauthorized([
-      { path: "x-key-id", message: "Unknown or disabled API client" },
-    ])
+    signaturesMatch(
+      signMachinePayload(MACHINE_AUTH_DUMMY_SECRET, payload),
+      provided
+    )
+    rejectUnknownClient()
+  }
+
+  const expectedCurrent = signMachinePayload(client.secret, payload)
+  let valid = signaturesMatch(expectedCurrent, provided)
+  if (
+    !valid &&
+    client.oldSecret &&
+    isOldSecretStillValid(client.rotatedAt, now)
+  ) {
+    valid = signaturesMatch(
+      signMachinePayload(client.oldSecret, payload),
+      provided
+    )
+  }
+  if (!valid) {
+    rejectUnknownClient()
   }
 
   if (client.expiresAt && client.expiresAt.getTime() <= now.getTime()) {
@@ -193,32 +223,6 @@ export async function authenticateMachineRequest(
   if (!isClientIpAllowed(clientIp, client.ipAllowlist)) {
     throw AppError.forbidden([
       { path: "authorization", message: "Client IP is not allowlisted" },
-    ])
-  }
-
-  const url = new URL(request.url)
-  const pathWithQuery = `${url.pathname}${url.search}`
-  const payload = buildMachineSigningPayload({
-    timestamp: timestampRaw,
-    method: request.method,
-    pathWithQuery,
-    body: rawBody,
-  })
-
-  const expectedCurrent = signMachinePayload(client.secret, payload)
-  let valid = signaturesMatch(expectedCurrent, signature.toLowerCase())
-  if (
-    !valid &&
-    client.oldSecret &&
-    isOldSecretStillValid(client.rotatedAt, now)
-  ) {
-    const expectedOld = signMachinePayload(client.oldSecret, payload)
-    valid = signaturesMatch(expectedOld, signature.toLowerCase())
-  }
-
-  if (!valid) {
-    throw AppError.unauthorized([
-      { path: "x-signature", message: "Invalid signature" },
     ])
   }
 
