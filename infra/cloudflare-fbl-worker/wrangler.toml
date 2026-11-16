@@ -1,6 +1,10 @@
 name = "emailhub-fbl-intake"
 main = "src/index.ts"
 compatibility_date = "2026-11-01"
+account_id = "89ca5206937f2b9dfc01b07ddd1c02c5"
+# Email Worker is bound via Email Routing (no HTTP route required).
+workers_dev = false
+preview_urls = false
 
 # Set secrets/vars in Cloudflare dashboard or via wrangler:
 #   wrangler secret put FBL_WEBHOOK_SECRET
@@ -10,4 +14,4 @@ compatibility_date = "2026-11-01"
 # Action: Send to Worker → emailhub-fbl-intake
 
 [vars]
-HUB_BASE_URL = "https://REPLACE_WITH_HUB_HOST"
+HUB_BASE_URL = "https://emailhub-dev.dataaccess1.net"
