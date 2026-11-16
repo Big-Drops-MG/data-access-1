@@ -204,11 +204,17 @@ Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps
 
 ### Deploy workflow (GHCR + Coolify)
 
-`.github/workflows/deploy.yml` runs on push to `main` (SD#13.6 / T-035):
+`.github/workflows/deploy.yml` (SD#13.6 / T-035):
 
-1. Build and push multi-arch `ghcr.io/<owner>/<repo>:<git-sha>` (and `:main`) for `linux/amd64` + `linux/arm64`; fail if the amd64 image exceeds 400 MiB.
-2. Dev: migrate (`pnpm --filter @workspace/db db:migrate`), then SSH to the droplet (`deploy/ci-pin-coolify-app-image.sh`) to write plaintext `APP_IMAGE` in `.env.compose`, PATCH Coolify `/envs` (Laravel-encrypted), and `POST` deploy with `force=true`. Do not raw-SQL plaintext into Coolify `environment_variables` — that breaks `/envs` with `DecryptException`.
-3. Prod: same steps behind the GitHub Environment **`production`** (required reviewers).
+| Trigger             | Deploys                                                      |
+| ------------------- | ------------------------------------------------------------ |
+| Push to `dev`       | **Dev only** (Environment `development`)                     |
+| Push to `main`      | **Prod only** (Environment `production`, required reviewers) |
+| `workflow_dispatch` | Same as the branch you run it from                           |
+
+1. Build and push multi-arch `ghcr.io/<owner>/<repo>:<git-sha>` (and `:<branch>`) for `linux/amd64` + `linux/arm64`; fail if the amd64 image exceeds 400 MiB.
+2. Migrate (`pnpm --filter @workspace/db db:migrate`), then SSH to the droplet (`deploy/ci-pin-coolify-app-image.sh`) to write plaintext `APP_IMAGE` in `.env.compose`, PATCH Coolify `/envs` (Laravel-encrypted), and `POST` deploy with `force=true`. Do not raw-SQL plaintext into Coolify `environment_variables` — that breaks `/envs` with `DecryptException`.
+3. Unfinished work stays on `dev` → Dev. Promote `dev` → `main` only for a Prod release.
 
 Create GitHub Environments **`development`** and **`production`**. Configure these repository secrets (and environment secrets where noted):
 
