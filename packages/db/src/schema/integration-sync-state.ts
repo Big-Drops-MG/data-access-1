@@ -1,5 +1,13 @@
-import { desc } from "drizzle-orm"
-import { index, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core"
+import { desc, sql } from "drizzle-orm"
+import {
+  check,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core"
 
 export const integrationSyncStatus = pgEnum("integration_sync_status", [
   "healthy",
@@ -21,6 +29,7 @@ export const integrationSyncState = pgTable(
     }),
     status: integrationSyncStatus("status").notNull().default("healthy"),
     lastError: text("last_error"),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -29,6 +38,10 @@ export const integrationSyncState = pgTable(
     index("integration_sync_state_status_last_attempt_idx").on(
       table.status,
       desc(table.lastAttemptAt)
+    ),
+    check(
+      "integration_sync_state_consecutive_failures_nonneg",
+      sql`${table.consecutiveFailures} >= 0`
     ),
   ]
 )

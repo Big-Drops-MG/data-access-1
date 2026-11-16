@@ -95,6 +95,21 @@ export {
   type OpenAlertResult,
 } from "./alerts.js"
 export {
+  INTEGRATION_DOWN_ALERT_TYPE,
+  INTEGRATION_ERROR_MAX_LENGTH,
+  INTEGRATION_FAILURES_TO_DOWN,
+  INTEGRATION_NAME_MAX_LENGTH,
+  integrationDownAlertDedupeKey,
+  nextFailureState,
+  normalizeIntegrationName,
+  recordIntegrationResult,
+  sanitizeIntegrationError,
+  statusAfterConsecutiveFailures,
+  type IntegrationSyncStatusValue,
+  type RecordIntegrationResultInput,
+  type RecordIntegrationResultOutcome,
+} from "./integration-sync-state.js"
+export {
   EVENTS_JOB_NAME,
   EVENTS_JOB_OPTIONS,
   EVENTS_QUEUE_NAME,
