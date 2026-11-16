@@ -6,12 +6,26 @@ account_id = "89ca5206937f2b9dfc01b07ddd1c02c5"
 workers_dev = false
 preview_urls = false
 
-# Set secrets/vars in Cloudflare dashboard or via wrangler:
-#   wrangler secret put FBL_WEBHOOK_SECRET
-#   wrangler vars put HUB_BASE_URL
+# Secrets (per env):
+#   npx wrangler secret put FBL_WEBHOOK_SECRET --env dev
+#   npx wrangler secret put FBL_WEBHOOK_SECRET --env production
 #
-# Email Routing: create address complaint@fbl.dataaccess1.net
-# Action: Send to Worker → emailhub-fbl-intake
+# Deploy:
+#   npx wrangler deploy --env dev
+#   npx wrangler deploy --env production
+#
+# Email Routing (pick one Worker per address):
+#   complaint@fbl.dataaccess1.net      → emailhub-fbl-intake-production  (real FBL)
+#   complaint-dev@fbl.dataaccess1.net  → emailhub-fbl-intake-dev         (Dev tests)
 
-[vars]
-HUB_BASE_URL = "https://emailhub-dev.dataaccess1.net"
+[env.dev]
+name = "emailhub-fbl-intake-dev"
+workers_dev = false
+preview_urls = false
+vars = { HUB_BASE_URL = "https://emailhub-dev.dataaccess1.net" }
+
+[env.production]
+name = "emailhub-fbl-intake-production"
+workers_dev = false
+preview_urls = false
+vars = { HUB_BASE_URL = "https://emailhub.dataaccess1.net" }
