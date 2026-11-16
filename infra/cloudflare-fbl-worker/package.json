@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
+    "deploy:dev": "wrangler deploy --env dev",
+    "deploy:prod": "wrangler deploy --env production",
+    "dev": "wrangler dev --env dev",
+    "smoke:hub": "node scripts/smoke-hub.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

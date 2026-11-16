@@ -1,15 +1,34 @@
 # Cloudflare FBL intake worker
 
-Receives ARF/DSN mail for `complaint@fbl.dataaccess1.net` via Cloudflare Email Routing and POSTs raw MIME to Email Hub.
+Receives ARF/DSN mail via Cloudflare Email Routing and POSTs raw MIME to Email Hub
+`POST /api/ext/webhooks/fbl`.
+
+Do **not** switch Hub URL with `NODE_ENV`. Cloudflare Workers do not get a reliable
+Node-style `NODE_ENV`, and one mailbox can only send to one Worker. Use Wrangler
+environments instead (separate Worker scripts + vars).
+
+| Env          | Worker name                      | `HUB_BASE_URL`                         | Typical mailbox                     |
+| ------------ | -------------------------------- | -------------------------------------- | ----------------------------------- |
+| `dev`        | `emailhub-fbl-intake-dev`        | `https://emailhub-dev.dataaccess1.net` | `complaint-dev@fbl.dataaccess1.net` |
+| `production` | `emailhub-fbl-intake-production` | `https://emailhub.dataaccess1.net`     | `complaint@fbl.dataaccess1.net`     |
 
 ## Setup
 
-1. Enable Email Routing on `fbl.dataaccess1.net` (or the parent zone that owns that mailbox).
-2. Create routing rule: `complaint@fbl.dataaccess1.net` → this Worker.
-3. Set Worker secrets/vars:
-   - `HUB_BASE_URL` — Hub origin (`https://emailhub-dev.dataaccess1.net` for Dev)
-   - `FBL_WEBHOOK_SECRET` — same value as Hub `FBL_WEBHOOK_SECRET`
-4. Register the same address with Google / Microsoft JMRP / Yahoo FBL programs.
-5. Deploy: `pnpm deploy` (from this folder) or `npx wrangler deploy`.
+1. Enable Email Routing on `fbl.dataaccess1.net` (subdomain OK; keep apex MX if needed).
+2. Deploy both envs and set secrets (must match that Hub’s `FBL_WEBHOOK_SECRET`):
+
+```powershell
+cd infra/cloudflare-fbl-worker
+npx wrangler deploy --env dev
+npx wrangler secret put FBL_WEBHOOK_SECRET --env dev
+
+npx wrangler deploy --env production
+npx wrangler secret put FBL_WEBHOOK_SECRET --env production
+```
+
+3. Routing rules:
+   - Dev tests: `complaint-dev@fbl.dataaccess1.net` → Worker `emailhub-fbl-intake-dev`
+   - Real FBL (Google / Microsoft JMRP / Yahoo): `complaint@fbl.dataaccess1.net` → Worker `emailhub-fbl-intake-production`
+4. On each Hub (Coolify Dev / Prod), set the matching `FBL_WEBHOOK_SECRET` and redeploy so `/api/ext/webhooks/fbl` exists.
 
 SES complaint events still use SNS → `/api/ext/webhooks/ses`.
