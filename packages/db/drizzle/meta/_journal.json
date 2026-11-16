@@ -120,6 +120,13 @@
       "when": 1793300000000,
       "tag": "0016_feedback_decision_outcomes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793400000000,
+      "tag": "0017_integration_sync_consecutive_failures",
+      "breakpoints": true
     }
   ]
 }
