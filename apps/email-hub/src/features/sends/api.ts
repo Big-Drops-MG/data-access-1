@@ -1,5 +1,5 @@
 import { apiJson, isApiError } from "@/lib/api-client"
-import type { OfferJson } from "@/lib/offers/serialize"
+import type { OfferListItemJson } from "@/lib/offers/serialize"
 import type { SendJson } from "@/lib/sends/serialize"
 import type { SenderJson } from "@/lib/senders/serialize"
 import type { TemplateJson } from "@/lib/templates/serialize"
@@ -8,7 +8,7 @@ export type SendListItem = SendJson
 export type SendStatus = SendJson["status"]
 export type SendCounts = SendJson["counts"]
 export type SendActivity = SendJson["activity"][number]
-export type OfferOption = OfferJson
+export type OfferOption = OfferListItemJson
 
 export type SendsListResponse = {
   data: SendListItem[]

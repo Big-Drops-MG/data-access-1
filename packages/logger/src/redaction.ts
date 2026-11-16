@@ -47,6 +47,8 @@ const SENSITIVE_KEYS = [
   "GOOGLE_CLIENT_SECRET",
   "googleClientSecret",
   "APP_ENCRYPTION_KEY",
+  "EVERFLOW_API_KEY",
+  "OPTIZMO_API_KEY",
   "UNSUBSCRIBE_TOKEN_SECRET",
   "unsubscribeTokenSecret",
   "unsubscribeToken",

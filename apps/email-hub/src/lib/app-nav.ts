@@ -26,6 +26,7 @@ export const APP_PRIMARY_TABS = [
   },
   { title: "Recipients", href: "/recipients", documentTitle: "Recipients" },
   { title: "Suppression", href: "/suppression", documentTitle: "Suppression" },
+  { title: "Offers", href: "/offers", documentTitle: "Offers" },
   { title: "Domains", href: "/domains", documentTitle: "Domains" },
   { title: "Senders", href: "/senders", documentTitle: "Senders" },
   { title: "Complaints", href: "/complaints", documentTitle: "Complaints" },

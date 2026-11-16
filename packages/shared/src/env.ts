@@ -65,7 +65,6 @@ const baseEnvSchema = z
       .default("development"),
     LOG_LEVEL: logLevelSchema,
     LOG_FORMAT: logFormatSchema,
-    /** Deploy target. `dev` may use SMTP/Mailpit; `prod` requires SES and no E2E. */
     EMAILHUB_ENV: z.preprocess(
       emptyToUndefined,
       z.enum(["dev", "prod"]).optional()
@@ -81,21 +80,18 @@ const baseEnvSchema = z
     SES_MAX_SEND_RATE: optionalString,
     AWS_ACCESS_KEY_ID: optionalString,
     AWS_SECRET_ACCESS_KEY: optionalString,
-    /** Cloudflare API token with Zone.DNS Edit for sending-domain zones. */
     CLOUDFLARE_API_TOKEN: optionalString,
-    /** Optional zone id override; otherwise resolved from the domain name. */
     CLOUDFLARE_ZONE_ID: optionalString,
     E2E: e2eSchema,
     SENTRY_DSN: optionalString,
     APP_ENCRYPTION_KEY: optionalString,
     UNSUBSCRIBE_TOKEN_SECRET: optionalString,
-    /** Prior HMAC secret accepted during rotation (thank-you / feedback tokens). */
     UNSUBSCRIBE_TOKEN_SECRET_PREVIOUS: optionalString,
     BETTER_AUTH_URL: optionalString,
-    /** Directory for recipient CSV uploads (default /data/imports). */
     RECIPIENT_IMPORTS_DIR: optionalString,
-    /** Shared secret for Cloudflare Email Worker → /api/ext/webhooks/fbl */
     FBL_WEBHOOK_SECRET: optionalString,
+    EVERFLOW_API_KEY: optionalString,
+    EVERFLOW_API_BASE_URL: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

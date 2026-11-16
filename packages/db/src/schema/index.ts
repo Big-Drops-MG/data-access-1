@@ -59,7 +59,12 @@ export {
 } from "./message.js"
 export type { Message } from "./message.js"
 export { offer, offerStatus } from "./offer.js"
-export type { NewOffer, Offer } from "./offer.js"
+export type {
+  NewOffer,
+  Offer,
+  OfferCreativeJson,
+  OfferTrackingLinksJson,
+} from "./offer.js"
 export {
   providerReport,
   providerReportProvider,
