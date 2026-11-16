@@ -1,6 +1,7 @@
 # Build → GHCR (amd64+arm64) → migrate → Coolify deploy (SD#13.6 / T-035).
-# Dev deploys automatically on push to main.
-# Prod waits for GitHub Environment "production" approval.
+# Push to `dev` → Dev only (environment "development").
+# Push to `main` → Prod only (environment "production", required reviewers).
+# workflow_dispatch uses the selected branch the same way.
 #
 # Coolify on Hetzner listens on 127.0.0.1:8000 only. Deploy jobs SSH to the
 # host (deploy/ci-pin-coolify-app-image.sh): plaintext APP_IMAGE in .env.compose
@@ -11,6 +12,7 @@ name: Deploy
 on:
   push:
     branches:
+      - dev
       - main
   workflow_dispatch:
 
@@ -45,8 +47,9 @@ jobs:
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME}"
           IMAGE_LOWER="$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')"
+          REF_TAG="${GITHUB_REF_NAME}"
           echo "image=${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
-          echo "tags=${IMAGE_LOWER}:${GITHUB_SHA},${IMAGE_LOWER}:main" >> "$GITHUB_OUTPUT"
+          echo "tags=${IMAGE_LOWER}:${GITHUB_SHA},${IMAGE_LOWER}:${REF_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -86,6 +89,7 @@ jobs:
 
   migrate-dev:
     name: Migrate Dev databases
+    if: github.ref == 'refs/heads/dev'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -140,6 +144,7 @@ jobs:
 
   deploy-dev:
     name: Deploy Dev (Coolify)
+    if: github.ref == 'refs/heads/dev'
     needs: [build, migrate-dev]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -172,6 +177,7 @@ jobs:
 
   migrate-prod:
     name: Migrate Prod databases
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -226,6 +232,7 @@ jobs:
 
   deploy-prod:
     name: Deploy Prod (Coolify)
+    if: github.ref == 'refs/heads/main'
     needs: [build, migrate-prod]
     runs-on: ubuntu-latest
     timeout-minutes: 15
