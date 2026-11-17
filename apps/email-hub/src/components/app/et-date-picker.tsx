@@ -19,6 +19,9 @@ type EtDatePickerProps = {
   placeholder?: string
   disabled?: boolean
   className?: string
+  /** Applied to the trigger button (height, radius, border). */
+  triggerClassName?: string
+  labelClassName?: string
   id?: string
   "data-testid"?: string
 }
@@ -64,6 +67,8 @@ export function EtDatePicker({
   placeholder = "Pick a date",
   disabled = false,
   className,
+  triggerClassName,
+  labelClassName,
   id: idProp,
   "data-testid": testId = "et-date-picker",
 }: EtDatePickerProps) {
@@ -73,8 +78,14 @@ export function EtDatePicker({
   const selected = parseEtDate(value)
 
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={id} className="text-sm font-medium text-fg">
+    <div className={cn("grid grid-rows-[1rem_2.25rem] gap-1.5", className)}>
+      <label
+        htmlFor={id}
+        className={cn(
+          "flex h-4 items-center text-caption leading-none font-medium text-fg-muted",
+          labelClassName
+        )}
+      >
         {label}
       </label>
       <Popover open={open} onOpenChange={setOpen} modal={false}>
@@ -87,7 +98,10 @@ export function EtDatePicker({
               disabled={disabled}
               data-empty={!selected}
               data-testid={testId}
-              className="h-9 w-full max-w-xs justify-start gap-2 border-border-strong bg-surface px-3 font-normal text-fg data-[empty=true]:text-fg-muted"
+              className={cn(
+                "h-9 w-full justify-start gap-2 rounded-md border-border bg-surface px-3 font-normal text-fg shadow-none hover:bg-surface data-[empty=true]:text-fg-muted",
+                triggerClassName
+              )}
             />
           }
         >

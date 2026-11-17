@@ -40,6 +40,7 @@ async function handlePost(request: Request): Promise<Response> {
     {
       name: body.name,
       mailFromSubdomain: body.mail_from_subdomain,
+      offerId: body.offer_id,
     },
     {
       userId: session.id,

@@ -82,6 +82,7 @@ export type CreateDomainResponse = DomainDetailResponse
 export type CreateDomainInput = {
   name: string
   mail_from_subdomain?: string
+  offer_id?: string
 }
 
 export function createDomain(
