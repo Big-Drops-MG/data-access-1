@@ -99,6 +99,7 @@ const baseEnvSchema = z
     GOOGLE_POSTMASTER_REFRESH_TOKEN: optionalString,
     SNDS_KEY: optionalString,
     SNDS_DATA_URL: optionalString,
+    SNDS_IP_STATUS_URL: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {
