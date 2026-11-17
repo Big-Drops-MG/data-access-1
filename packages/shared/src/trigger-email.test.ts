@@ -195,6 +195,28 @@ describe("findOrCreateRecipient", () => {
     )
   })
 
+  it("reselects when Drizzle wraps the unique violation on cause", async () => {
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() => createChain([]))
+      .mockImplementationOnce(() => createChain([recipientRow]))
+    const insertChain = createChain([])
+    insertChain.returning = vi.fn(async () => {
+      throw new Error("Failed query: insert into recipient", {
+        cause: Object.assign(new Error("duplicate key"), { code: "23505" }),
+      })
+    })
+    const db = {
+      select,
+      insert: vi.fn(() => insertChain),
+    } as unknown as EmailHubDb
+
+    await expect(findOrCreateRecipient(db, "jane@example.com")).resolves.toBe(
+      recipientRow
+    )
+    expect(select).toHaveBeenCalledTimes(2)
+  })
+
   it("reselects after a unique-violation race", async () => {
     const select = vi
       .fn()

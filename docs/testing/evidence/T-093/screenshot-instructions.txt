@@ -1,0 +1,22 @@
+T-093 screenshot instructions
+
+These are instructions only. No screenshots were captured in this session.
+
+1. Full integration run
+   Run the suite command in Manual verification.
+   Capture the Vitest summary line: 2 failed, 38 passed, 40 tests.
+   The two failures are the named production defects, not setup skips.
+
+2. Frequency-cap concurrency
+   Run the concurrency filter command.
+   Capture the three passing lines for the cap of one (2 and 8 callers) and the cap of two (6 callers).
+
+3. Webhook results
+   Run the webhook filter command.
+   Capture the 11 passing T-093 SES webhook lines, including the 401 route cases.
+
+4. Coverage matrix
+   Open docs/testing/T-093-send-pipeline-integration-test-report.md
+   Capture the numbered matrix, including the two Fail rows.
+
+Do not crop out the failed test names. Do not edit the terminal text.

@@ -214,10 +214,11 @@ export async function processSendEmailJob(
     const result = await deps.transport.send(
       await renderQueuedEmail(loaded.context, deps.compliance)
     )
-    acceptedId = result.providerMessageId.trim()
-    if (acceptedId === "") {
+    const providerMessageId = result.providerMessageId.trim()
+    if (providerMessageId === "") {
       throw new MailTransportError("send did not return a message id")
     }
+    acceptedId = providerMessageId
     await deps.markSent(messageId, acceptedId, new Date())
   } catch (error) {
     if (acceptedId !== undefined) {

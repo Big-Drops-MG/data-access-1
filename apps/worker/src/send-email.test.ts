@@ -391,6 +391,24 @@ describe("processSendEmailJob", () => {
     expect(jobDeps.markFailed).not.toHaveBeenCalled()
   })
 
+  it("fails the message when the provider returns an empty id", async () => {
+    const jobDeps = deps({
+      transport: {
+        send: vi.fn(async () => ({ providerMessageId: "  " })),
+      },
+    })
+
+    await expect(
+      processSendEmailJob({ message_id: MESSAGE_ID }, jobDeps)
+    ).rejects.toBeInstanceOf(UnrecoverableError)
+    expect(jobDeps.markSent).not.toHaveBeenCalled()
+    expect(jobDeps.releaseClaim).not.toHaveBeenCalled()
+    expect(jobDeps.markFailed).toHaveBeenCalledWith(
+      MESSAGE_ID,
+      expect.stringContaining("message id")
+    )
+  })
+
   it("marks a rejected send failed and does not retry", async () => {
     const jobDeps = deps({
       transport: {

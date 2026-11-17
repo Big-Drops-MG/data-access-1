@@ -30,6 +30,7 @@ import {
 } from "./compliance-tags.js"
 import { hashEmail, normaliseEmail } from "./email.js"
 import { AppError } from "./errors.js"
+import { isUniqueViolation } from "./postgres-errors.js"
 import { emailSchema } from "./schemas.js"
 import { insertSkippedSendCheckMessage, runSendChecks } from "./send-checks.js"
 
@@ -76,15 +77,6 @@ export type TriggerEmailResult = {
   recipient: Recipient
   /** False when an existing row for `idempotencyKey` was returned. */
   created: boolean
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: string }).code === "23505"
-  )
 }
 
 export async function findOrCreateRecipient(
