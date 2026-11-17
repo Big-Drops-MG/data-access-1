@@ -26,8 +26,10 @@ import {
   loadServerEnv,
   markMessageFailed,
   markMessageSent,
+  isSesSendingBlocked,
   openSesAccountPausedAlert,
   releaseQueuedClaim,
+  SES_HEALTH_JOB_NAME,
   resolveUnsubscribeOrigin,
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
@@ -50,13 +52,44 @@ import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
 import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
+import {
+  enforcePersistedSesSendingPause,
+  processSesHealthJob,
+  type SesHealthRedis,
+} from "./ses-health.js"
 
 const DISPATCH_WORKER_CONCURRENCY = 2
 const INTAKE_WORKER_CONCURRENCY = 1
 const PROVIDER_METRICS_PULL_JOB = "provider-metrics-pull"
 
+type WorkerRuntime = {
+  env: ReturnType<typeof loadServerEnv>
+  db: ReturnType<typeof getDb>
+  redis: SesHealthRedis
+  sendEmailQueue: Queue
+}
+
+let workerRuntime: WorkerRuntime | undefined
+
 const logger = createLogger({ service: WORKER_SERVICE })
 setFallbackLogger(logger)
+
+function sesHealthRedis(redis: Redis): SesHealthRedis {
+  return {
+    get: (key) => redis.get(key),
+    set: (key, value, expiryMode, ttlMs, mode) => {
+      if (
+        expiryMode !== undefined &&
+        ttlMs !== undefined &&
+        mode !== undefined
+      ) {
+        return redis.set(key, value, expiryMode, ttlMs, mode)
+      }
+      return redis.set(key, value)
+    },
+    eval: (script, numKeys, ...args) => redis.eval(script, numKeys, ...args),
+  }
+}
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -155,6 +188,18 @@ async function processJob(queueName: QueueName, job: Job): Promise<void> {
       await processProviderMetricsPull({ db: getDb(), env })
       return
     }
+    if (queueName === "monitoring" && job.name === SES_HEALTH_JOB_NAME) {
+      const runtime = workerRuntime
+      if (!runtime) {
+        throw new Error("SES health runtime is not ready")
+      }
+      await processSesHealthJob({
+        env: runtime.env,
+        db: runtime.db,
+        redis: runtime.redis,
+        pauseSendEmail: () => runtime.sendEmailQueue.pause(),
+      })
+    }
   })
 }
 
@@ -176,6 +221,24 @@ async function main(): Promise<void> {
     prefix: BULLMQ_PREFIX,
   })
   const enqueueSendEmail = createEnqueueSendEmail(sendEmailQueue)
+  const sesRedis = sesHealthRedis(connection)
+  workerRuntime = {
+    env,
+    db,
+    redis: sesRedis,
+    sendEmailQueue,
+  }
+  if (env.MAIL_TRANSPORT === "ses") {
+    const restored = await enforcePersistedSesSendingPause(sesRedis, () =>
+      sendEmailQueue.pause()
+    )
+    if (restored) {
+      logger.warn(
+        { event: "ses_health.sending_paused", source: "startup" },
+        "SES safety pause restored"
+      )
+    }
+  }
 
   const schedulerQueues: SchedulerQueueMap = {}
   const managedQueues: Queue[] = [sendEmailQueue]
@@ -374,6 +437,9 @@ async function main(): Promise<void> {
               },
               pauseQueue: () => sendEmailQueue.pause(),
               openAccountPausedAlert: () => openSesAccountPausedAlert(tx),
+              ...(env.MAIL_TRANSPORT === "ses"
+                ? { sendingBlocked: () => isSesSendingBlocked(sesRedis) }
+                : {}),
             })
           })
         }),

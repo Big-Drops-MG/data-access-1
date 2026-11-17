@@ -3,7 +3,12 @@ import { BullMQAdapter } from "@bull-board/api/bullMQAdapter"
 import { HonoAdapter } from "@bull-board/hono"
 import { serveStatic } from "@hono/node-server/serve-static"
 import { getDb } from "@workspace/db/client"
-import { BULLMQ_PREFIX, loadServerEnv, writeAudit } from "@workspace/shared"
+import {
+  BULLMQ_PREFIX,
+  loadServerEnv,
+  writeAudit,
+  isSesSendingBlocked,
+} from "@workspace/shared"
 import { Queue } from "bullmq"
 import { Hono, type Context, type Next } from "hono"
 import { Redis } from "ioredis"
@@ -110,7 +115,9 @@ function createBoardState(): BoardState {
 
     const mutation = classifyBullBoardMutation(c.req.method, relativePath)
     if (mutation) {
-      const allowed = await assertBullBoardMutationAllowed(mutation, queues)
+      const allowed = await assertBullBoardMutationAllowed(mutation, queues, {
+        sesSendingBlocked: () => isSesSendingBlocked(redis),
+      })
       if (!allowed.ok) {
         return Response.json(
           { error: allowed.message },

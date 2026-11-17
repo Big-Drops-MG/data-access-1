@@ -1,4 +1,8 @@
-import { ET_TIME_ZONE } from "@workspace/shared"
+import {
+  ET_TIME_ZONE,
+  SES_HEALTH_INTERVAL_MS,
+  SES_HEALTH_JOB_NAME,
+} from "@workspace/shared"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -35,6 +39,22 @@ describe("schedulers catalog", () => {
     expect(ids).not.toContain("blocklist-check")
     expect(ids).toContain("schedule-promoter")
     expect(ids).toContain("queue-watchdog")
+    expect(ids).toContain(SES_HEALTH_JOB_NAME)
+  })
+
+  it("schedules ses-health every 5 minutes on the monitoring queue", () => {
+    expect(SES_HEALTH_INTERVAL_MS).toBe(300_000)
+    const sesHealth = SCHEDULER_DEFINITIONS.find(
+      (entry) => entry.id === SES_HEALTH_JOB_NAME
+    )
+    expect(sesHealth).toMatchObject({
+      queue: "monitoring",
+      jobName: SES_HEALTH_JOB_NAME,
+      enabledInDev: true,
+      repeat: { every: 300_000 },
+      opts: { attempts: 1 },
+    })
+    expect(sesHealth?.queue).not.toBe("send-email")
   })
 
   it("registers all schedulers in prod", () => {
@@ -68,6 +88,20 @@ describe("registerJobSchedulers", () => {
     expect(schedulePromoterCalls[0]?.[2]).toMatchObject({
       name: "schedule-promoter",
       data: {},
+    })
+
+    const sesHealthCalls = upsert.mock.calls.filter(
+      (call) => call[0] === SES_HEALTH_JOB_NAME
+    )
+    expect(sesHealthCalls).toHaveLength(2)
+    expect(sesHealthCalls[0]?.[1]).toEqual({ every: SES_HEALTH_INTERVAL_MS })
+    expect(sesHealthCalls[0]?.[2]).toMatchObject({
+      name: SES_HEALTH_JOB_NAME,
+      data: {},
+    })
+    expect(sesHealthCalls[1]?.[1]).toEqual(sesHealthCalls[0]?.[1])
+    expect(sesHealthCalls[1]?.[2]).toMatchObject({
+      name: SES_HEALTH_JOB_NAME,
     })
   })
 })
