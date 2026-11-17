@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { AppTabs } from "@/components/app/app-tabs"
 import { AppTopBar } from "@/components/app/app-top-bar"
 import { OfflineBanner } from "@/components/app/offline-banner"
+import { OfferProvider } from "@/components/app/offer-provider"
 import { OnlineStatusProvider } from "@/components/app/online-status"
 import { getSession } from "@/lib/auth"
 import { buildLoginPath } from "@/lib/login/login-path"
@@ -31,16 +32,18 @@ export default async function AppShellLayout({
 
   return (
     <OnlineStatusProvider>
-      <div className="flex min-h-svh min-w-[1280px] flex-col bg-bg text-fg">
-        <OfflineBanner />
-        <AppTopBar
-          name={session.name}
-          jobTitle={session.jobTitle}
-          image={session.image}
-        />
-        <AppTabs role={session.role} />
-        <div className="w-full flex-1 p-6">{children}</div>
-      </div>
+      <OfferProvider>
+        <div className="flex min-h-svh min-w-[1280px] flex-col bg-bg text-fg">
+          <OfflineBanner />
+          <AppTopBar
+            name={session.name}
+            jobTitle={session.jobTitle}
+            image={session.image}
+          />
+          <AppTabs role={session.role} />
+          <div className="w-full flex-1 p-6">{children}</div>
+        </div>
+      </OfferProvider>
     </OnlineStatusProvider>
   )
 }
