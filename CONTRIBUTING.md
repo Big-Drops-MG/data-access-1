@@ -212,7 +212,7 @@ Do not publish Postgres/Redis/ClickHouse ports on the droplet. Laptop local deps
 | Push to `main`      | **Prod only** (Environment `production`, required reviewers) |
 | `workflow_dispatch` | Same as the branch you run it from                           |
 
-1. Build and push multi-arch `ghcr.io/<owner>/<repo>:<git-sha>` (and `:<branch>`) for `linux/amd64` + `linux/arm64`; fail if the amd64 image exceeds 400 MiB.
+1. Build and push `ghcr.io/<owner>/<repo>:<git-sha>` (and `:<branch>`) for `linux/arm64` on a native ARM runner; fail if the arm64 image exceeds 400 MiB. Newer `dev` deploys cancel an in-flight Dev deploy; `main` does not cancel.
 2. Migrate (`pnpm --filter @workspace/db db:migrate`), then SSH to the droplet (`deploy/ci-pin-coolify-app-image.sh`) to write plaintext `APP_IMAGE` in `.env.compose`, PATCH Coolify `/envs` (Laravel-encrypted), and `POST` deploy with `force=true`. Do not raw-SQL plaintext into Coolify `environment_variables` — that breaks `/envs` with `DecryptException`.
 3. Unfinished work stays on `dev` → Dev. Promote `dev` → `main` only for a Prod release.
 
@@ -234,7 +234,7 @@ Compose apps use `APP_IMAGE=ghcr.io/<owner>/<repo>:<sha>`. Migrate jobs open an 
 Hetzner notes:
 
 - Coolify API is localhost-only; Deploy SSHs with `HETZNER_SSH_*` and calls it on the host.
-- Droplet is **arm64** — multi-arch GHCR images are required.
+- Droplet is **arm64** — deploy publishes `linux/arm64` only (native ARM GitHub runner; no QEMU).
 - On the host, `docker login ghcr.io` with `GHCR_PULL_TOKEN` (`read:packages`) so Coolify compose can pull private images.
 - This org has **deploy keys disabled**. Prefer a Coolify GitHub App, or keep compose start scripts under `/opt/emailhub(-dev)/coolify-up.sh` (current Hetzner cutover) so Deploy does not depend on cloning. Do not embed PATs in `git_repository` URLs.
 - Never SQL-insert a PEM into Coolify `private_keys` — Coolify encrypts with `APP_KEY`; plaintext rows cause `DecryptException: The payload is invalid` on Deploy. Fix with `deploy/hetzner-fix-coolify-git-key-decrypt.sh` on the droplet (detaches `private_key_id`, keeps `coolify-up`). Add keys only via Coolify UI if ever required.

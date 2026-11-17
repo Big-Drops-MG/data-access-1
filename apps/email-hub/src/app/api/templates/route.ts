@@ -24,6 +24,7 @@ async function handleGet(request: Request): Promise<Response> {
     status: query.status,
     emailType: query.email_type,
     categoryId: query.category_id,
+    offerId: query.offer_id,
   })
 
   return Response.json(result)

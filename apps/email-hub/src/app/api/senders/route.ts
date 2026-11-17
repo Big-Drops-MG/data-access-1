@@ -21,6 +21,7 @@ async function handleGet(request: Request): Promise<Response> {
     cursor: query.cursor,
     status: query.status,
     domainId: query.domain_id,
+    offerId: query.offer_id,
   })
 
   return Response.json(result)

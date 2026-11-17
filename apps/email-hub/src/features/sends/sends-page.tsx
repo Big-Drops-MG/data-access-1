@@ -8,6 +8,7 @@ import { useMemo } from "react"
 import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
+import { useOfferSelection } from "@/components/app/offer-provider"
 import type { SendStatus } from "@/features/sends/api"
 import {
   parseSendStatusTab,
@@ -28,6 +29,7 @@ type SendsPageProps = {
 
 export function SendsPage({ canWrite = false }: SendsPageProps) {
   const router = useRouter()
+  const { selectedOfferId } = useOfferSelection()
   const tableState = useDataTableUrlState({ filterKeys: SEND_FILTER_KEYS })
   const selectedStatus = parseSendStatusTab(tableState.filters.status)
 
@@ -37,12 +39,16 @@ export function SendsPage({ canWrite = false }: SendsPageProps) {
       cursor: tableState.cursor,
       status:
         selectedStatus === "all" ? undefined : (selectedStatus as SendStatus),
+      offer_id: selectedOfferId ?? undefined,
     }),
-    [selectedStatus, tableState.cursor, tableState.limit]
+    [selectedOfferId, selectedStatus, tableState.cursor, tableState.limit]
   )
 
   const list = useSendsList(listParams)
-  const allForCounts = useSendsList({ limit: 100 })
+  const allForCounts = useSendsList({
+    limit: 100,
+    offer_id: selectedOfferId ?? undefined,
+  })
 
   const counts = useMemo(() => {
     const rows = allForCounts.data?.data ?? []

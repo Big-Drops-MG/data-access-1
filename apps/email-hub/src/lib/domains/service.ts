@@ -36,6 +36,8 @@ import {
   type CloudflareDnsDeps,
   type CloudflareDnsRecordInput,
 } from "./cloudflare-dns"
+import { domainScopedToOffer } from "@/lib/offer-scope"
+
 import { createDnsLookup } from "./dns-resolver"
 import {
   serializeDnsRecord,
@@ -200,10 +202,15 @@ export type DomainStatusCounts = {
   inactive: number
 }
 
-async function countDomainsByStatus(db: Db): Promise<DomainStatusCounts> {
+async function countDomainsByStatus(
+  db: Db,
+  offerId?: string
+): Promise<DomainStatusCounts> {
+  const offerWhere = offerId ? domainScopedToOffer(db, offerId) : undefined
   const rows = await db
     .select({ status: domain.status, total: count() })
     .from(domain)
+    .where(offerWhere)
     .groupBy(domain.status)
 
   const counts: DomainStatusCounts = {
@@ -226,6 +233,7 @@ export async function listDomains(
     limit: number
     cursor?: string
     status?: Domain["status"]
+    offerId?: string
   },
   db: Database = getDb()
 ): Promise<{
@@ -236,6 +244,9 @@ export async function listDomains(
   const conditions = []
   if (input.status) {
     conditions.push(eq(domain.status, input.status))
+  }
+  if (input.offerId) {
+    conditions.push(domainScopedToOffer(db, input.offerId))
   }
   if (input.cursor) {
     conditions.push(lt(domain.id, input.cursor))
@@ -254,7 +265,7 @@ export async function listDomains(
       .where(where)
       .orderBy(desc(domain.id))
       .limit(input.limit + 1),
-    countDomainsByStatus(db),
+    countDomainsByStatus(db, input.offerId),
   ])
 
   const page = rows.slice(0, input.limit)

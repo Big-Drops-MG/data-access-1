@@ -21,6 +21,8 @@ import {
   writeAudit,
 } from "@workspace/shared"
 
+import { templateScopedToOffer } from "@/lib/offer-scope"
+
 import { validateTemplateForPublishing } from "./publish-validation"
 
 import {
@@ -44,6 +46,7 @@ export type ListTemplatesInput = {
   status?: Template["status"]
   emailType?: Template["emailType"]
   categoryId?: string
+  offerId?: string
 }
 
 export type CreateTemplateInput = {
@@ -194,6 +197,9 @@ export async function listTemplates(
   }
   if (input.categoryId) {
     conditions.push(eq(template.categoryId, input.categoryId))
+  }
+  if (input.offerId) {
+    conditions.push(templateScopedToOffer(db, input.offerId))
   }
   if (input.cursor) {
     conditions.push(lt(template.id, input.cursor))

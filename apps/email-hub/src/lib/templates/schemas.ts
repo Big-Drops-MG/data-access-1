@@ -17,6 +17,7 @@ export const templateListQuerySchema = paginationSchema
     status: templateStatusSchema.optional(),
     email_type: emailTypeSchema.optional(),
     category_id: uuidSchema.optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

@@ -8,6 +8,7 @@ import {
 import { getDb, type Database } from "@workspace/db/client"
 import {
   AppError,
+  enqueueOptizmoSyncJob,
   isUniqueViolation,
   recordIntegrationResult,
   writeAudit,
@@ -16,12 +17,14 @@ import { getContextLogger } from "@workspace/logger"
 
 import {
   encryptWithAppKey,
+  AppEncryptionError,
   readAppEncryptionKeyFromEnv,
 } from "@/lib/crypto/app-encryption"
 import {
   fetchEverflowOfferById,
   type EverflowOfferDetail,
 } from "@/lib/everflow/client"
+import { getSyncQueue } from "@/lib/sync-queue"
 
 import {
   serializeOffer,
@@ -45,6 +48,7 @@ type ImportDeps = {
   fetchOffer?: (offerId: number) => Promise<EverflowOfferDetail>
   encryptionKey?: string
   now?: Date
+  enqueueOptizmoSync?: (offerId: string) => Promise<void>
 }
 
 function mapOfferStatus(status: string): "active" | "inactive" {
@@ -170,11 +174,15 @@ export async function importOfferFromEverflow(
         encryptionKey
       )
       hasMailerKey = true
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof AppEncryptionError
+          ? error.message
+          : "Failed to encrypt Optizmo mailer access key"
       throw AppError.unavailable([
         {
           path: "app_encryption_key",
-          message: "APP_ENCRYPTION_KEY is not configured",
+          message,
         },
       ])
     }
@@ -224,6 +232,30 @@ export async function importOfferFromEverflow(
 
       return row
     })
+
+    if (created.hasOptizmoMailerAccessKey) {
+      const enqueue =
+        deps.enqueueOptizmoSync ??
+        ((offerId: string) =>
+          enqueueOptizmoSyncJob(getSyncQueue(), {
+            offerId,
+            trigger: "manual",
+            requestId: actor.requestId ?? undefined,
+            now,
+          }))
+      try {
+        await enqueue(created.id)
+      } catch (error) {
+        logger.warn(
+          {
+            event: "optizmo.enqueue_after_import_failed",
+            offer_id: created.id,
+            err: error,
+          },
+          "Failed to enqueue Optizmo sync after offer import"
+        )
+      }
+    }
 
     return serializeOffer(created)
   } catch (error) {

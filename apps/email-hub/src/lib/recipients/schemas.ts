@@ -10,6 +10,7 @@ export const recipientListQuerySchema = paginationSchema
     email: emailSchema.optional(),
     status: recipientStatusFilterSchema.optional(),
     opted_out_category_id: uuidSchema.optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

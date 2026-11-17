@@ -39,6 +39,7 @@ AWS_SECRET_ACCESS_KEY=
 
 SNS_TOPIC_ARN=
 OPTIZMO_API_KEY=
+OPTIZMO_API_BASE_URL=
 EVERFLOW_API_KEY=
 CLOUDFLARE_API_TOKEN=
 CLOUDFLARE_ZONE_ID=
@@ -51,7 +52,8 @@ FBL_WEBHOOK_SECRET=
 BLOCKLISTS=zen.spamhaus.org
 
 # App-level crypto (non-auth). TOTP secrets use BETTER_AUTH_SECRET, not this.
-APP_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef
+# 32-byte key, base64-encoded (generate: openssl rand -base64 32)
+APP_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 # Coolify/Traefik is one trusted hop and appends the peer to X-Forwarded-For.
 # Set 2 if another proxy (for example Cloudflare) sits in front of Coolify.
 TRUSTED_PROXY_HOPS=1

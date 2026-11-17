@@ -37,6 +37,7 @@ export type DomainsListParams = {
   limit?: number
   cursor?: string
   status?: string
+  offer_id?: string
 }
 
 function toSearchParams(params: DomainsListParams = {}): string {
@@ -49,6 +50,9 @@ function toSearchParams(params: DomainsListParams = {}): string {
   }
   if (params.status) {
     search.set("status", params.status)
+  }
+  if (params.offer_id) {
+    search.set("offer_id", params.offer_id)
   }
   const text = search.toString()
   return text ? `?${text}` : ""

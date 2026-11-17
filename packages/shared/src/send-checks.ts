@@ -10,6 +10,7 @@ import type { Message, Recipient } from "@workspace/db"
 import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm"
 
 import type { MessageEnvironment } from "./compliance-tags.js"
+import { md5HashEmail } from "./email.js"
 import { AppError } from "./errors.js"
 import type { EmailHubTx, TriggerEmailType } from "./trigger-email.js"
 
@@ -116,6 +117,7 @@ export async function gatherSendCheckFacts(
   now: Date
 ): Promise<SendCheckFacts> {
   const emailHash = input.recipient.emailHash
+  const optizmoMd5Hash = md5HashEmail(input.recipient.email)
   const transactional = isTransactionalEmailType(input.emailType)
 
   const hardOrComplaintSuppressed = await hasActiveSuppression(
@@ -125,7 +127,11 @@ export async function gatherSendCheckFacts(
   )
   const engagementSuppressed = transactional
     ? false
-    : await hasEngagementSuppression(tx, emailHash, input.offerId)
+    : await hasEngagementSuppression(
+        tx,
+        [emailHash, optizmoMd5Hash],
+        input.offerId
+      )
   const categoryOptedOut = transactional
     ? false
     : await hasCategoryOptOut(tx, input.recipient.id, input.categoryId)
@@ -182,7 +188,7 @@ async function hasActiveSuppression(
 
 async function hasEngagementSuppression(
   tx: EmailHubTx,
-  emailHash: string,
+  emailHashes: string[],
   offerId: string | null
 ): Promise<boolean> {
   const scopeMatch =
@@ -205,7 +211,7 @@ async function hasEngagementSuppression(
     .from(suppressionEntry)
     .where(
       and(
-        eq(suppressionEntry.emailHash, emailHash),
+        inArray(suppressionEntry.emailHash, emailHashes),
         isNull(suppressionEntry.removedAt),
         inArray(suppressionEntry.source, ENGAGEMENT_SUPPRESSION_SOURCES),
         scopeMatch

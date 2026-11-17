@@ -134,6 +134,13 @@
       "when": 1793500000000,
       "tag": "0018_offer_everflow_import",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0019_unsubscribe_settings",
+      "breakpoints": true
     }
   ]
 }

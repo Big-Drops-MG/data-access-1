@@ -46,6 +46,7 @@ export const domainListQuerySchema = paginationSchema
   .extend({
     cursor: uuidSchema.optional(),
     status: domainStatusSchema.optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 
