@@ -6,6 +6,7 @@ import { unsubscribeSettings, type UnsubscribeSettings } from "@workspace/db"
 import { getDb, type Database } from "@workspace/db/client"
 import {
   AppError,
+  isAppError,
   loadServerEnv,
   resolveUnsubscribeOrigin,
 } from "@workspace/shared"
@@ -101,20 +102,48 @@ export function serializeUnsubscribeSettings(
   }
 }
 
+function isUndefinedTableError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "42P01"
+  )
+}
+
 export async function ensureUnsubscribeSettings(
   db: Database = getDb()
 ): Promise<UnsubscribeSettings> {
-  const [existing] = await db.select().from(unsubscribeSettings).limit(1)
-  if (existing) {
-    return existing
+  try {
+    const [existing] = await db.select().from(unsubscribeSettings).limit(1)
+    if (existing) {
+      return existing
+    }
+    const [created] = await db
+      .insert(unsubscribeSettings)
+      .values({})
+      .returning()
+    if (!created) {
+      throw AppError.unavailable([
+        { path: "unsubscribe_settings", message: "Could not create settings" },
+      ])
+    }
+    return created
+  } catch (error) {
+    if (isAppError(error)) {
+      throw error
+    }
+    if (isUndefinedTableError(error)) {
+      throw AppError.unavailable([
+        {
+          path: "unsubscribe_settings",
+          message:
+            "unsubscribe_settings is missing — run Postgres migrations (0019_unsubscribe_settings)",
+        },
+      ])
+    }
+    throw error
   }
-  const [created] = await db.insert(unsubscribeSettings).values({}).returning()
-  if (!created) {
-    throw AppError.unavailable([
-      { path: "unsubscribe_settings", message: "Could not create settings" },
-    ])
-  }
-  return created
 }
 
 export async function getUnsubscribeSettings(
