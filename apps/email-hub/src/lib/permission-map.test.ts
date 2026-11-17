@@ -213,6 +213,11 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("DELETE", "/api/sends")).toBeNull()
   })
 
+  it("maps audit-log list to operator+", () => {
+    expect(minRoleForStaffApi("GET", "/api/audit-log")).toBe("operator")
+    expect(minRoleForStaffApi("POST", "/api/audit-log")).toBeNull()
+  })
+
   it("maps suppression routes (viewer read, operator add, admin remove)", () => {
     const id = "019a0000-0000-7000-8000-000000000001"
     expect(minRoleForStaffApi("GET", "/api/suppressions")).toBe("viewer")
