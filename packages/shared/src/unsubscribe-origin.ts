@@ -10,8 +10,16 @@ type OriginDb = Database | DatabaseTransaction
 export async function resolveUnsubscribeOrigin(
   db: OriginDb,
   fallbackOrigin: string
-): Promise<string> {
-  const fallback = fallbackOrigin.trim().replace(/\/+$/, "")
+): Promise<string>
+export async function resolveUnsubscribeOrigin(
+  db: OriginDb,
+  fallbackOrigin: string | undefined
+): Promise<string | undefined>
+export async function resolveUnsubscribeOrigin(
+  db: OriginDb,
+  fallbackOrigin: string | undefined
+): Promise<string | undefined> {
+  const fallback = fallbackOrigin?.trim().replace(/\/+$/, "")
   try {
     const [row] = await db.select().from(unsubscribeSettings).limit(1)
     const domain = row?.customDomain?.trim().toLowerCase() ?? ""

@@ -232,6 +232,9 @@ export function parseServerEnv(
 let cachedWebEnv: WebServerEnv | undefined
 let cachedWorkerEnv: ServerEnv | undefined
 
+export function loadServerEnv(role: "web"): WebServerEnv
+export function loadServerEnv(role?: "worker"): ServerEnv
+export function loadServerEnv(role: ServerEnvRole): ServerEnv | WebServerEnv
 export function loadServerEnv(
   role: ServerEnvRole = "worker"
 ): ServerEnv | WebServerEnv {
