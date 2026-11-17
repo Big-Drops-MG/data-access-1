@@ -2,6 +2,9 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@workspace/ui", "@workspace/shared"],
+  experimental: {
+    agentUpgrade: "security",
+  },
   async redirects() {
     return [
       {
