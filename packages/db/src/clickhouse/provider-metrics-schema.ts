@@ -15,7 +15,7 @@ export type ProviderMetricsProvider =
 
 export const PROVIDER_METRICS_BY_PROVIDER = {
   google_postmaster: ["spam_rate", "domain_reputation", "ip_reputation"],
-  snds: ["complaint_rate", "trap_hits", "filter_result"],
+  snds: ["complaint_rate", "trap_hits", "filter_result", "ip_status"],
   jmrp: ["junk_reports"],
   yahoo: ["complaint_rate"],
 } as const satisfies Record<ProviderMetricsProvider, readonly string[]>

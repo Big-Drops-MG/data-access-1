@@ -23,7 +23,7 @@ services:
     mem_limit: 640m
 
   worker:
-    mem_limit: 384m
+    mem_limit: 1024m
 
   postgres:
     mem_limit: 512m
@@ -31,9 +31,7 @@ services:
       - /data/dev/postgres:/var/lib/postgresql
 
   clickhouse:
-    # 768m left idle RSS near ClickHouse's ~90% cgroup budget; CI CH
-    # migrations then hit MEMORY_LIMIT_EXCEEDED (~690MiB / ~686MiB max).
-    mem_limit: 1536m
+    mem_limit: 2560m
     volumes:
       - /data/dev/clickhouse:/var/lib/clickhouse
 

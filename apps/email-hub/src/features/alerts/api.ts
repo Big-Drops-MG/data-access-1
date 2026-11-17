@@ -16,6 +16,7 @@ export type AlertListParams = {
   status?: AlertStatus
   severity?: AlertSeverity
   type?: string
+  offer_id?: string
 }
 
 function toSearchParams(params: AlertListParams = {}): string {
@@ -34,6 +35,9 @@ function toSearchParams(params: AlertListParams = {}): string {
   }
   if (params.type) {
     search.set("type", params.type)
+  }
+  if (params.offer_id) {
+    search.set("offer_id", params.offer_id)
   }
   const text = search.toString()
   return text ? `?${text}` : ""

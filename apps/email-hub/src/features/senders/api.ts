@@ -14,6 +14,7 @@ export type SendersListParams = {
   cursor?: string
   status?: "active" | "inactive" | "pending_verification"
   domain_id?: string
+  offer_id?: string
 }
 
 export type SenderRouteConflict = {
@@ -35,6 +36,9 @@ function toSearchParams(params: SendersListParams = {}): string {
   }
   if (params.domain_id) {
     search.set("domain_id", params.domain_id)
+  }
+  if (params.offer_id) {
+    search.set("offer_id", params.offer_id)
   }
   const text = search.toString()
   return text ? `?${text}` : ""

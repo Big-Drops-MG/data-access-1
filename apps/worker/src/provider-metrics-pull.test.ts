@@ -1,15 +1,34 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { UnrecoverableError } from "bullmq"
+
+const openAlert = vi.hoisted(() => vi.fn())
+const closeAlert = vi.hoisted(() => vi.fn())
+const recordIntegrationResult = vi.hoisted(() => vi.fn())
+
+vi.mock("@workspace/shared", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    openAlert,
+    closeAlert,
+    recordIntegrationResult,
+  }
+})
 
 import {
+  PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
   dayFromActivityPeriod,
   etDateDaysAgo,
   parseComplaintRate,
   parseCsv,
+  providerCredsAlertDedupeKey,
   readPostmasterCredentials,
   reputationToValue,
   resolveSndsDataUrl,
+  resolveSndsIpStatusUrl,
   sndsCsvToMetricRows,
   sndsFilterResultToValue,
+  sndsIpStatusCsvToMetricRows,
   toPostmasterDateId,
   trafficStatsToMetricRows,
   processProviderMetricsPull,
@@ -31,6 +50,15 @@ function createSelectDb(responses: unknown[]) {
     }),
   }
 }
+
+beforeEach(() => {
+  openAlert.mockReset()
+  closeAlert.mockReset()
+  recordIntegrationResult.mockReset()
+  openAlert.mockResolvedValue({ created: true, alert: {} })
+  closeAlert.mockResolvedValue({ closed: true, alert: {} })
+  recordIntegrationResult.mockResolvedValue({})
+})
 
 describe("provider-metrics-pull helpers", () => {
   it("maps reputation and filter enums", () => {
@@ -77,15 +105,30 @@ describe("provider-metrics-pull helpers", () => {
     })
   })
 
-  it("resolves SNDS data URL from key or full URL", () => {
+  it("resolves SNDS data and IP status URLs from key or full URL", () => {
     expect(resolveSndsDataUrl({})).toBeNull()
+    expect(resolveSndsIpStatusUrl({})).toBeNull()
     expect(resolveSndsDataUrl({ SNDS_KEY: "abc" })).toContain("key=abc")
+    expect(resolveSndsIpStatusUrl({ SNDS_KEY: "abc" })).toContain(
+      "ipStatus.aspx"
+    )
     expect(
       resolveSndsDataUrl({
         SNDS_DATA_URL: "https://example.com/snds.csv",
         SNDS_KEY: "ignored",
       })
     ).toBe("https://example.com/snds.csv")
+    expect(
+      resolveSndsIpStatusUrl({
+        SNDS_IP_STATUS_URL: "https://example.com/status.csv",
+        SNDS_KEY: "ignored",
+      })
+    ).toBe("https://example.com/status.csv")
+    expect(
+      resolveSndsIpStatusUrl({
+        SNDS_DATA_URL: "https://example.com/snds.csv",
+      })
+    ).toBeNull()
   })
 
   it("formats ET date ids and activity periods", () => {
@@ -119,7 +162,7 @@ describe("provider-metrics-pull helpers", () => {
     ).toEqual([])
     expect(
       sndsCsvToMetricRows({
-        csvText: "Foo,Bar\na,b",
+        csvText: "Nope\n1",
         fallbackDay: "2026-11-14",
         sourceReportId: "00000000-0000-4000-8000-000000000001",
         version: 1,
@@ -137,8 +180,6 @@ describe("provider-metrics-pull helpers", () => {
           provider: "snds",
           target: "203.0.113.10",
           metric: "complaint_rate",
-          value: 0.001,
-          day: "2026-11-15",
         }),
         expect.objectContaining({
           target: "203.0.113.10",
@@ -159,24 +200,68 @@ describe("provider-metrics-pull helpers", () => {
     )
   })
 
-  it("builds Google metric rows from traffic stats", () => {
-    const rows = trafficStatsToMetricRows({
-      domainName: "mail.example.com",
-      day: "2026-11-15",
-      sourceReportId: "00000000-0000-4000-8000-000000000001",
-      version: 1,
-      stats: {
-        spamRatio: 0.012,
-        domainReputation: "HIGH",
-        ipReputations: [
-          { reputation: "MEDIUM", ipCidrRange: "203.0.113.0/24" },
-          { reputation: "BAD", ipCidrRange: "  " },
-          { reputation: "unknown" },
-          { reputation: "LOW", ipCidrRange: "198.51.100.0/24" },
-        ],
-      },
-    })
-    expect(rows).toEqual(
+  it("builds IP status rows only for listed IPs", () => {
+    expect(
+      sndsIpStatusCsvToMetricRows({
+        csvText: "",
+        day: "2026-11-15",
+        sourceReportId: "00000000-0000-4000-8000-000000000001",
+        version: 1,
+      })
+    ).toEqual([])
+    expect(
+      sndsIpStatusCsvToMetricRows({
+        csvText: [
+          "IP Address,Status",
+          "203.0.113.10,Blocked due to user complaints",
+          "not-an-ip,Blocked",
+        ].join("\n"),
+        day: "2026-11-15",
+        sourceReportId: "00000000-0000-4000-8000-000000000001",
+        version: 1,
+      })
+    ).toEqual([
+      expect.objectContaining({
+        provider: "snds",
+        target: "203.0.113.10",
+        metric: "ip_status",
+        value: 1,
+        day: "2026-11-15",
+      }),
+    ])
+    expect(
+      sndsIpStatusCsvToMetricRows({
+        csvText: '"198.51.100.20","Blocked"\n',
+        day: "2026-11-15",
+        sourceReportId: "00000000-0000-4000-8000-000000000001",
+        version: 1,
+      })
+    ).toEqual([
+      expect.objectContaining({
+        target: "198.51.100.20",
+        metric: "ip_status",
+        value: 1,
+      }),
+    ])
+  })
+
+  it("maps trafficStats JSON to metric rows and skips empty stats", () => {
+    expect(
+      trafficStatsToMetricRows({
+        domainName: "mail.example.com",
+        day: "2026-11-15",
+        sourceReportId: "00000000-0000-4000-8000-000000000001",
+        version: 1,
+        stats: {
+          spamRatio: 0.012,
+          domainReputation: "HIGH",
+          ipReputations: [
+            { reputation: "MEDIUM", ipCidrRange: "203.0.113.0/24" },
+            { reputation: "BAD" },
+          ],
+        },
+      })
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ metric: "spam_rate", value: 0.012 }),
         expect.objectContaining({ metric: "domain_reputation", value: 4 }),
@@ -218,9 +303,10 @@ describe("processProviderMetricsPull", () => {
     expect(result.snds.skipped).toBe(true)
     expect(result.rows).toBe(0)
     expect(inserted).toEqual([])
+    expect(openAlert).not.toHaveBeenCalled()
   })
 
-  it("pulls Google, SNDS, and hub FBL aggregates", async () => {
+  it("pulls Google, SNDS data + IP status, and hub FBL aggregates", async () => {
     const inserted: unknown[] = []
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes("oauth2.googleapis.com/token")) {
@@ -240,7 +326,13 @@ describe("processProviderMetricsPull", () => {
           { status: 200 }
         )
       }
-      if (url.includes("snds")) {
+      if (url.includes("ipStatus.aspx")) {
+        return new Response(
+          "IP Address,Status\n203.0.113.10,Blocked due to complaints\n",
+          { status: 200 }
+        )
+      }
+      if (url.includes("snds") || url.includes("data.aspx")) {
         return new Response(
           [
             "IP Address,Activity Period,Filter Result,Complaint Rate,Trap Hits",
@@ -282,14 +374,52 @@ describe("processProviderMetricsPull", () => {
     expect(result.yahoo.rows).toBe(1)
     expect(result.jmrp.rows).toBe(1)
     expect(inserted.length).toBe(result.rows)
+    expect(inserted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "google_postmaster",
+          metric: "spam_rate",
+        }),
+        expect.objectContaining({
+          provider: "snds",
+          metric: "complaint_rate",
+        }),
+        expect.objectContaining({
+          provider: "snds",
+          metric: "ip_status",
+          value: 1,
+        }),
+      ])
+    )
     expect(fetchImpl).toHaveBeenCalled()
+    expect(closeAlert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
+        dedupeKey: providerCredsAlertDedupeKey("google_postmaster"),
+      })
+    )
+    expect(closeAlert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
+        dedupeKey: providerCredsAlertDedupeKey("snds"),
+      })
+    )
+    expect(recordIntegrationResult).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: "google_postmaster", ok: true })
+    )
+    expect(recordIntegrationResult).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: "snds", ok: true })
+    )
   })
 
   it("aggregates feedback_item yahoo/microsoft providers when sent is zero", async () => {
     const inserted: Array<{ provider: string; metric: string; value: number }> =
       []
     const result = await processProviderMetricsPull({
-      // No Google creds → domains select is skipped; first query is sent count.
       db: createSelectDb([
         [{ count: 0 }],
         [],
@@ -379,7 +509,7 @@ describe("processProviderMetricsPull", () => {
     expect(result.google).toEqual({ domains: 0, rows: 0, skipped: false })
   })
 
-  it("throws when Postmaster token refresh fails", async () => {
+  it("opens provider_credentials_invalid and throws UnrecoverableError on Postmaster 4xx", async () => {
     await expect(
       processProviderMetricsPull({
         db: createSelectDb([[{ name: "mail.example.com" }]]) as never,
@@ -392,7 +522,24 @@ describe("processProviderMetricsPull", () => {
         now: new Date("2026-11-17T15:00:00.000Z"),
         insertRows: async () => undefined,
       })
-    ).rejects.toThrow(/Postmaster token refresh failed/)
+    ).rejects.toBeInstanceOf(UnrecoverableError)
+
+    expect(openAlert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
+        severity: "warning",
+        dedupeKey: providerCredsAlertDedupeKey("google_postmaster"),
+        payload: expect.objectContaining({
+          provider: "google_postmaster",
+          http_status: 401,
+        }),
+      })
+    )
+    expect(recordIntegrationResult).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: "google_postmaster", ok: false })
+    )
   })
 
   it("throws when Postmaster token response has no access_token", async () => {
@@ -436,7 +583,31 @@ describe("processProviderMetricsPull", () => {
     ).rejects.toThrow(/Postmaster trafficStats failed/)
   })
 
-  it("throws when SNDS data fetch fails", async () => {
+  it("opens provider_credentials_invalid on SNDS 4xx", async () => {
+    await expect(
+      processProviderMetricsPull({
+        db: createSelectDb([]) as never,
+        env: { SNDS_DATA_URL: "https://example.com/snds.csv" },
+        fetchImpl: async () => new Response("nope", { status: 403 }),
+        now: new Date("2026-11-17T15:00:00.000Z"),
+        insertRows: async () => undefined,
+      })
+    ).rejects.toBeInstanceOf(UnrecoverableError)
+
+    expect(openAlert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
+        dedupeKey: providerCredsAlertDedupeKey("snds"),
+        payload: expect.objectContaining({
+          provider: "snds",
+          http_status: 403,
+        }),
+      })
+    )
+  })
+
+  it("throws when SNDS data fetch fails with 5xx", async () => {
     await expect(
       processProviderMetricsPull({
         db: createSelectDb([]) as never,
@@ -446,5 +617,10 @@ describe("processProviderMetricsPull", () => {
         insertRows: async () => undefined,
       })
     ).rejects.toThrow(/SNDS data fetch failed/)
+    expect(openAlert).not.toHaveBeenCalled()
+    expect(recordIntegrationResult).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: "snds", ok: false })
+    )
   })
 })

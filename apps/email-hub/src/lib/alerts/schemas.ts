@@ -12,6 +12,7 @@ export const alertListQuerySchema = paginationSchema
     status: alertStatusSchema.optional(),
     severity: alertSeveritySchema.optional(),
     type: z.string().trim().min(1).max(128).optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

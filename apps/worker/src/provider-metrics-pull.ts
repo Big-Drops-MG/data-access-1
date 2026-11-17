@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import { and, eq, gte, lt, sql } from "drizzle-orm"
+import { UnrecoverableError } from "bullmq"
 
 import { domain, feedbackItem, message, providerReport } from "@workspace/db"
 import type { Database } from "@workspace/db/client"
@@ -9,11 +10,33 @@ import {
   clickhouseInsert,
 } from "@workspace/db/clickhouse"
 import { getContextLogger } from "@workspace/logger"
+import {
+  closeAlert,
+  openAlert,
+  recordIntegrationResult,
+} from "@workspace/shared"
 
 const POSTMASTER_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const POSTMASTER_API_BASE = "https://gmailpostmastertools.googleapis.com/v1"
 const SNDS_DATA_URL_DEFAULT =
   "https://sendersupport.olc.protection.outlook.com/snds/data.aspx"
+const SNDS_IP_STATUS_URL_DEFAULT =
+  "https://sendersupport.olc.protection.outlook.com/snds/ipStatus.aspx"
+const HTTP_TIMEOUT_MS = 10_000
+
+export const PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE =
+  "provider_credentials_invalid" as const
+export const GOOGLE_POSTMASTER_INTEGRATION = "google_postmaster" as const
+export const SNDS_INTEGRATION = "snds" as const
+
+export type ProviderMetricsProviderKey =
+  typeof GOOGLE_POSTMASTER_INTEGRATION | typeof SNDS_INTEGRATION
+
+export function providerCredsAlertDedupeKey(
+  provider: ProviderMetricsProviderKey
+): string {
+  return `provider_creds:${provider}`
+}
 
 export type PostmasterCredentials = {
   clientId: string
@@ -25,10 +48,9 @@ export type ProviderMetricsPullEnv = {
   GOOGLE_POSTMASTER_CLIENT_ID?: string
   GOOGLE_POSTMASTER_CLIENT_SECRET?: string
   GOOGLE_POSTMASTER_REFRESH_TOKEN?: string
-  /** Automated Data Access key from the SNDS portal. */
   SNDS_KEY?: string
-  /** Full daily data export URL (overrides SNDS_KEY when set). */
   SNDS_DATA_URL?: string
+  SNDS_IP_STATUS_URL?: string
 }
 
 export type ProviderMetricInsertRow = {
@@ -54,7 +76,6 @@ export type MetricsFetch = (
   init?: RequestInit
 ) => Promise<Response>
 
-/** Map Postmaster domainReputation / ipReputation enums to Float64. */
 export function reputationToValue(
   raw: string | undefined | null
 ): number | null {
@@ -75,7 +96,6 @@ export function reputationToValue(
   }
 }
 
-/** Map SNDS filter result labels to a numeric scale (1 green … 3 red). */
 export function sndsFilterResultToValue(
   raw: string | undefined | null
 ): number | null {
@@ -148,6 +168,20 @@ export function resolveSndsDataUrl(env: ProviderMetricsPullEnv): string | null {
     return null
   }
   return `${SNDS_DATA_URL_DEFAULT}?key=${encodeURIComponent(key)}`
+}
+
+export function resolveSndsIpStatusUrl(
+  env: ProviderMetricsPullEnv
+): string | null {
+  const full = env.SNDS_IP_STATUS_URL?.trim() ?? ""
+  if (full !== "") {
+    return full
+  }
+  const key = env.SNDS_KEY?.trim() ?? ""
+  if (key === "") {
+    return null
+  }
+  return `${SNDS_IP_STATUS_URL_DEFAULT}?key=${encodeURIComponent(key)}`
 }
 
 export function etDateDaysAgo(days: number, now = new Date()): string {
@@ -224,7 +258,10 @@ function headerIndex(headers: string[], ...names: string[]): number {
   return -1
 }
 
-/** Activity Period like "11/16/2026 …" → YYYY-MM-DD when parseable. */
+function looksLikeIpv4(value: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(value.trim())
+}
+
 export function dayFromActivityPeriod(
   raw: string | undefined,
   fallbackDay: string
@@ -288,6 +325,45 @@ export function sndsCsvToMetricRows(input: {
     if (filter != null) {
       rows.push({ ...base, metric: "filter_result", value: filter })
     }
+  }
+  return rows
+}
+
+export function sndsIpStatusCsvToMetricRows(input: {
+  csvText: string
+  day: string
+  sourceReportId: string
+  version: number
+}): ProviderMetricInsertRow[] {
+  const table = parseCsv(input.csvText)
+  if (table.length === 0) {
+    return []
+  }
+
+  const first = table[0] ?? []
+  const firstCell = first[0]?.trim() ?? ""
+  const hasHeader =
+    firstCell.toLowerCase().includes("ip") && !looksLikeIpv4(firstCell)
+  const dataRows = hasHeader ? table.slice(1) : table
+  const headers = hasHeader ? first : ["IP Address", "Status"]
+  const ipIdx = headerIndex(headers, "IP Address", "IP")
+  const effectiveIpIdx = ipIdx >= 0 ? ipIdx : 0
+
+  const rows: ProviderMetricInsertRow[] = []
+  for (const cells of dataRows) {
+    const ip = cells[effectiveIpIdx]?.trim() ?? ""
+    if (ip === "" || !looksLikeIpv4(ip)) {
+      continue
+    }
+    rows.push({
+      day: input.day,
+      provider: "snds",
+      target: ip,
+      metric: "ip_status",
+      value: 1,
+      source_report_id: input.sourceReportId,
+      version: input.version,
+    })
   }
   return rows
 }
@@ -368,32 +444,104 @@ export function trafficStatsToMetricRows(input: {
   return rows
 }
 
+async function fetchWithTimeout(
+  fetchImpl: MetricsFetch,
+  url: string,
+  init?: RequestInit
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS)
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function isClientErrorStatus(status: number): boolean {
+  return status >= 400 && status < 500
+}
+
+async function markProviderCredentialsInvalid(
+  db: Database,
+  provider: ProviderMetricsProviderKey,
+  status: number,
+  now: Date
+): Promise<void> {
+  await openAlert(db, {
+    type: PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
+    severity: "warning",
+    dedupeKey: providerCredsAlertDedupeKey(provider),
+    payload: {
+      provider,
+      http_status: status,
+    },
+    now,
+    refreshPayload: true,
+  })
+  await recordIntegrationResult(db, {
+    name: provider,
+    ok: false,
+    error: `${provider} credentials rejected (${String(status)})`,
+    now,
+  })
+}
+
+async function markProviderSuccess(
+  db: Database,
+  provider: ProviderMetricsProviderKey,
+  now: Date
+): Promise<void> {
+  await closeAlert(db, {
+    type: PROVIDER_CREDENTIALS_INVALID_ALERT_TYPE,
+    dedupeKey: providerCredsAlertDedupeKey(provider),
+    now,
+  })
+  await recordIntegrationResult(db, {
+    name: provider,
+    ok: true,
+    now,
+  })
+}
+
+async function markProviderTransientFailure(
+  db: Database,
+  provider: ProviderMetricsProviderKey,
+  message: string,
+  now: Date
+): Promise<void> {
+  await recordIntegrationResult(db, {
+    name: provider,
+    ok: false,
+    error: message,
+    now,
+  })
+}
+
 async function refreshAccessToken(
   credentials: PostmasterCredentials,
   fetchImpl: MetricsFetch
-): Promise<string> {
+): Promise<{ token: string } | { status: number }> {
   const body = new URLSearchParams({
     client_id: credentials.clientId,
     client_secret: credentials.clientSecret,
     refresh_token: credentials.refreshToken,
     grant_type: "refresh_token",
   })
-  const response = await fetchImpl(POSTMASTER_TOKEN_URL, {
+  const response = await fetchWithTimeout(fetchImpl, POSTMASTER_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
   })
   if (!response.ok) {
-    throw new Error(
-      `Postmaster token refresh failed (${String(response.status)})`
-    )
+    return { status: response.status }
   }
   const json = (await response.json()) as { access_token?: string }
   const token = json.access_token?.trim() ?? ""
   if (token === "") {
     throw new Error("Postmaster token refresh returned no access_token")
   }
-  return token
+  return { token }
 }
 
 async function fetchTrafficStats(input: {
@@ -401,21 +549,21 @@ async function fetchTrafficStats(input: {
   domainName: string
   dateId: string
   fetchImpl: MetricsFetch
-}): Promise<TrafficStatsJson | null> {
+}): Promise<
+  { stats: TrafficStatsJson } | { missing: true } | { errorStatus: number }
+> {
   const encodedDomain = encodeURIComponent(input.domainName)
   const url = `${POSTMASTER_API_BASE}/domains/${encodedDomain}/trafficStats/${input.dateId}`
-  const response = await input.fetchImpl(url, {
+  const response = await fetchWithTimeout(input.fetchImpl, url, {
     headers: { authorization: `Bearer ${input.accessToken}` },
   })
   if (response.status === 404) {
-    return null
+    return { missing: true }
   }
   if (!response.ok) {
-    throw new Error(
-      `Postmaster trafficStats failed for ${input.domainName} (${String(response.status)})`
-    )
+    return { errorStatus: response.status }
   }
-  return (await response.json()) as TrafficStatsJson
+  return { stats: (await response.json()) as TrafficStatsJson }
 }
 
 async function pullGooglePostmaster(input: {
@@ -425,6 +573,7 @@ async function pullGooglePostmaster(input: {
   day: string
   sourceReportId: string
   version: number
+  now: Date
 }): Promise<{
   domains: number
   rows: ProviderMetricInsertRow[]
@@ -453,46 +602,95 @@ async function pullGooglePostmaster(input: {
     return { domains: 0, rows: [], skipped: false }
   }
 
-  const accessToken = await refreshAccessToken(credentials, input.fetchImpl)
+  const tokenResult = await refreshAccessToken(credentials, input.fetchImpl)
+  if ("status" in tokenResult) {
+    if (isClientErrorStatus(tokenResult.status)) {
+      await markProviderCredentialsInvalid(
+        input.db,
+        GOOGLE_POSTMASTER_INTEGRATION,
+        tokenResult.status,
+        input.now
+      )
+      throw new UnrecoverableError(
+        `Postmaster token refresh failed (${String(tokenResult.status)})`
+      )
+    }
+    await markProviderTransientFailure(
+      input.db,
+      GOOGLE_POSTMASTER_INTEGRATION,
+      `Postmaster token refresh failed (${String(tokenResult.status)})`,
+      input.now
+    )
+    throw new Error(
+      `Postmaster token refresh failed (${String(tokenResult.status)})`
+    )
+  }
+
   const dateId = toPostmasterDateId(input.day)
   const rows: ProviderMetricInsertRow[] = []
   for (const row of verified) {
-    const stats = await fetchTrafficStats({
-      accessToken,
+    const statsResult = await fetchTrafficStats({
+      accessToken: tokenResult.token,
       domainName: row.name,
       dateId,
       fetchImpl: input.fetchImpl,
     })
-    if (!stats) {
+    if ("missing" in statsResult) {
       continue
+    }
+    if ("errorStatus" in statsResult) {
+      if (isClientErrorStatus(statsResult.errorStatus)) {
+        await markProviderCredentialsInvalid(
+          input.db,
+          GOOGLE_POSTMASTER_INTEGRATION,
+          statsResult.errorStatus,
+          input.now
+        )
+        throw new UnrecoverableError(
+          `Postmaster trafficStats failed for ${row.name} (${String(statsResult.errorStatus)})`
+        )
+      }
+      await markProviderTransientFailure(
+        input.db,
+        GOOGLE_POSTMASTER_INTEGRATION,
+        `Postmaster trafficStats failed for ${row.name} (${String(statsResult.errorStatus)})`,
+        input.now
+      )
+      throw new Error(
+        `Postmaster trafficStats failed for ${row.name} (${String(statsResult.errorStatus)})`
+      )
     }
     rows.push(
       ...trafficStatsToMetricRows({
         domainName: row.name,
         day: input.day,
-        stats,
+        stats: statsResult.stats,
         sourceReportId: input.sourceReportId,
         version: input.version,
       })
     )
   }
+
+  await markProviderSuccess(input.db, GOOGLE_POSTMASTER_INTEGRATION, input.now)
   return { domains: verified.length, rows, skipped: false }
 }
 
 async function pullSnds(input: {
+  db: Database
   env: ProviderMetricsPullEnv
   fetchImpl: MetricsFetch
   day: string
   sourceReportId: string
   version: number
+  now: Date
 }): Promise<{
   ips: number
   rows: ProviderMetricInsertRow[]
   skipped: boolean
 }> {
   const logger = getContextLogger()
-  const url = resolveSndsDataUrl(input.env)
-  if (!url) {
+  const dataUrl = resolveSndsDataUrl(input.env)
+  if (!dataUrl) {
     logger.info(
       { event: "provider_metrics_pull.snds_skipped_no_credentials" },
       "Skipping SNDS pull; SNDS_KEY / SNDS_DATA_URL not configured"
@@ -500,23 +698,78 @@ async function pullSnds(input: {
     return { ips: 0, rows: [], skipped: true }
   }
 
-  const response = await input.fetchImpl(url)
-  if (!response.ok) {
-    throw new Error(`SNDS data fetch failed (${String(response.status)})`)
+  const dataResponse = await fetchWithTimeout(input.fetchImpl, dataUrl)
+  if (!dataResponse.ok) {
+    if (isClientErrorStatus(dataResponse.status)) {
+      await markProviderCredentialsInvalid(
+        input.db,
+        SNDS_INTEGRATION,
+        dataResponse.status,
+        input.now
+      )
+      throw new UnrecoverableError(
+        `SNDS data fetch failed (${String(dataResponse.status)})`
+      )
+    }
+    await markProviderTransientFailure(
+      input.db,
+      SNDS_INTEGRATION,
+      `SNDS data fetch failed (${String(dataResponse.status)})`,
+      input.now
+    )
+    throw new Error(`SNDS data fetch failed (${String(dataResponse.status)})`)
   }
-  const csvText = await response.text()
+
+  const csvText = await dataResponse.text()
   const rows = sndsCsvToMetricRows({
     csvText,
     fallbackDay: input.day,
     sourceReportId: input.sourceReportId,
     version: input.version,
   })
+
+  const ipStatusUrl = resolveSndsIpStatusUrl(input.env)
+  if (ipStatusUrl) {
+    const statusResponse = await fetchWithTimeout(input.fetchImpl, ipStatusUrl)
+    if (!statusResponse.ok) {
+      if (isClientErrorStatus(statusResponse.status)) {
+        await markProviderCredentialsInvalid(
+          input.db,
+          SNDS_INTEGRATION,
+          statusResponse.status,
+          input.now
+        )
+        throw new UnrecoverableError(
+          `SNDS IP status fetch failed (${String(statusResponse.status)})`
+        )
+      }
+      await markProviderTransientFailure(
+        input.db,
+        SNDS_INTEGRATION,
+        `SNDS IP status fetch failed (${String(statusResponse.status)})`,
+        input.now
+      )
+      throw new Error(
+        `SNDS IP status fetch failed (${String(statusResponse.status)})`
+      )
+    }
+    const statusText = await statusResponse.text()
+    rows.push(
+      ...sndsIpStatusCsvToMetricRows({
+        csvText: statusText,
+        day: input.day,
+        sourceReportId: input.sourceReportId,
+        version: input.version,
+      })
+    )
+  }
+
+  await markProviderSuccess(input.db, SNDS_INTEGRATION, input.now)
   const ips = new Set(rows.map((row) => row.target)).size
   return { ips, rows, skipped: false }
 }
 
 function etDayBoundsUtc(day: string): { start: Date; end: Date } {
-  // Approximate ET midnight as UTC-5; good enough for daily complaint rates.
   const start = new Date(`${day}T05:00:00.000Z`)
   const end = new Date(start.getTime() + 86_400_000)
   return { start, end }
@@ -632,7 +885,8 @@ export async function processProviderMetricsPull(options: {
 }): Promise<ProviderMetricsPullResult> {
   const logger = getContextLogger()
   const fetchImpl = options.fetchImpl ?? fetch
-  const day = etDateDaysAgo(2, options.now)
+  const now = options.now ?? new Date()
+  const day = etDateDaysAgo(2, now)
   const sourceReportId = randomUUID()
   const version = Date.now()
 
@@ -643,14 +897,17 @@ export async function processProviderMetricsPull(options: {
     day,
     sourceReportId,
     version,
+    now,
   })
 
   const snds = await pullSnds({
+    db: options.db,
     env: options.env,
     fetchImpl,
     day,
     sourceReportId,
     version,
+    now,
   })
 
   const hub = await pullHubFblAggregates({

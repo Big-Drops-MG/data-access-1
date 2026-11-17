@@ -19,6 +19,7 @@ async function handleGet(request: Request): Promise<Response> {
     email: query.email,
     status: query.status,
     optedOutCategoryId: query.opted_out_category_id,
+    offerId: query.offer_id,
   })
 
   return jsonForRole(session.role, result)

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo } from "react"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
@@ -38,6 +39,7 @@ function parseTypeTab(value: string | undefined): TemplateTypeTabValue {
 
 export function TemplatesPage({ canWrite = false }: TemplatesPageProps) {
   const router = useRouter()
+  const { selectedOfferId } = useOfferSelection()
   const tableState = useDataTableUrlState({ filterKeys: TEMPLATE_FILTER_KEYS })
   const selectedType = parseTypeTab(tableState.filters.email_type)
 
@@ -47,12 +49,16 @@ export function TemplatesPage({ canWrite = false }: TemplatesPageProps) {
       cursor: tableState.cursor,
       email_type:
         selectedType === "all" ? undefined : (selectedType as EmailType),
+      offer_id: selectedOfferId ?? undefined,
     }),
-    [selectedType, tableState.cursor, tableState.limit]
+    [selectedOfferId, selectedType, tableState.cursor, tableState.limit]
   )
 
   const list = useTemplatesList(listParams)
-  const allForCounts = useTemplatesList({ limit: 100 })
+  const allForCounts = useTemplatesList({
+    limit: 100,
+    offer_id: selectedOfferId ?? undefined,
+  })
 
   const counts = useMemo(() => {
     const rows = allForCounts.data?.data ?? []
