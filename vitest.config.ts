@@ -40,6 +40,8 @@ export default defineConfig({
         "apps/email-hub/src/lib/auth/two-factor-hooks.ts",
         // Client hook (Next router + React state); URL helpers covered in url-state tests.
         "apps/email-hub/src/lib/data-table/use-data-table-url-state.ts",
+        // Integration-test SNS fixture. The coverage job does not run *.int.test.ts.
+        "apps/email-hub/src/lib/ses-webhook-test-signature.ts",
       ],
       thresholds: {
         // packages/shared — 90%
