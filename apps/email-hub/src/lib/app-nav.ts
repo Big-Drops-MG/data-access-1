@@ -26,7 +26,6 @@ export const APP_PRIMARY_TABS = [
   },
   { title: "Recipients", href: "/recipients", documentTitle: "Recipients" },
   { title: "Suppression", href: "/suppression", documentTitle: "Suppression" },
-  { title: "Offers", href: "/offers", documentTitle: "Offers" },
   { title: "Domains", href: "/domains", documentTitle: "Domains" },
   { title: "Senders", href: "/senders", documentTitle: "Senders" },
   { title: "Complaints", href: "/complaints", documentTitle: "Complaints" },
@@ -36,6 +35,12 @@ export const APP_PRIMARY_TABS = [
 
 /** Admin dropdown items (SD#12.3). Viewer never sees the menu. */
 export const APP_ADMIN_NAV_ITEMS = [
+  {
+    title: "Offers",
+    href: "/offers",
+    documentTitle: "Offers",
+    minRole: "operator",
+  },
   {
     title: "Audit log",
     href: "/admin/audit-log",
@@ -72,7 +77,12 @@ export function isPathActive(pathname: string, href: string): boolean {
 }
 
 export function isAdminSectionActive(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/")
+  return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/offers" ||
+    pathname.startsWith("/offers/")
+  )
 }
 
 /** Operator and Admin see the Admin control; Viewer does not (T-044). */
