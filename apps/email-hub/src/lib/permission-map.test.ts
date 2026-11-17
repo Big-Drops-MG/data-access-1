@@ -50,6 +50,21 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("GET", "/api/domains")).toBe("viewer")
   })
 
+  it("maps unsubscribe admin routes by role", () => {
+    expect(minRoleForStaffApi("GET", "/api/unsubscribe/opt-outs")).toBe(
+      "viewer"
+    )
+    expect(minRoleForStaffApi("GET", "/api/unsubscribe/settings")).toBe(
+      "viewer"
+    )
+    expect(minRoleForStaffApi("PATCH", "/api/unsubscribe/settings")).toBe(
+      "operator"
+    )
+    expect(
+      minRoleForStaffApi("POST", "/api/unsubscribe/settings/verify-domain")
+    ).toBe("operator")
+  })
+
   it("maps domain writes to admin and detail reads to viewer", () => {
     expect(minRoleForStaffApi("POST", "/api/domains")).toBe("admin")
     expect(

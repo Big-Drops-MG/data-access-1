@@ -18,6 +18,7 @@ describe("APP_PRIMARY_TABS", () => {
       "Email routes",
       "Recipients",
       "Suppression",
+      "Unsubscribe",
       "Domains",
       "Senders",
       "Complaints",
@@ -25,6 +26,9 @@ describe("APP_PRIMARY_TABS", () => {
       "Reports",
     ])
     expect(APP_PRIMARY_TABS.map((tab) => tab.title)).not.toContain("Offers")
+    expect(
+      APP_PRIMARY_TABS.find((tab) => tab.title === "Unsubscribe")?.href
+    ).toBe("/unsubscribe")
     expect(
       APP_ADMIN_NAV_ITEMS.find((item) => item.title === "Offers")?.href
     ).toBe("/offers")
