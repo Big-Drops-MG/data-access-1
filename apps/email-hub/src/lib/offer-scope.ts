@@ -21,21 +21,25 @@ type Db = Database | DatabaseTransaction
  * and send usage; messages drive recipient/complaint scoping; alerts match payload/dedupe.
  */
 export function templateScopedToOffer(db: Db, offerId: string): SQL {
-  return exists(
-    db
-      .select({ id: emailRoute.id })
-      .from(emailRoute)
-      .where(
-        and(
-          eq(emailRoute.templateId, template.id),
-          or(eq(emailRoute.offerId, offerId), isNull(emailRoute.offerId))
+  return or(
+    eq(template.offerId, offerId),
+    exists(
+      db
+        .select({ id: emailRoute.id })
+        .from(emailRoute)
+        .where(
+          and(
+            eq(emailRoute.templateId, template.id),
+            or(eq(emailRoute.offerId, offerId), isNull(emailRoute.offerId))
+          )
         )
-      )
-  )
+    )
+  ) as SQL
 }
 
 export function senderScopedToOffer(db: Db, offerId: string): SQL {
   return or(
+    eq(sender.offerId, offerId),
     exists(
       db
         .select({ id: emailRoute.id })

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { FormField } from "@/components/app/form-field"
 import { useMutationDisabledProps } from "@/components/app/online-status"
 import {
@@ -66,6 +67,7 @@ export function SenderForm({
 }: SenderFormProps) {
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
+  const { selectedOfferId } = useOfferSelection()
 
   const domainsQuery = useQuery({
     queryKey: listQueryKey("senders-domains", { status: "verified" }),
@@ -173,6 +175,9 @@ export function SenderForm({
             from_name: values.from_name,
             local_part: values.local_part,
             reply_to: values.reply_to.trim() ? values.reply_to.trim() : null,
+            ...(mode === "create" && selectedOfferId
+              ? { offer_id: selectedOfferId }
+              : {}),
           }
           const onError = (error: unknown) => {
             const { fieldMapped, unmapped } = applyServerErrors(

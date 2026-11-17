@@ -56,6 +56,7 @@ function senderRow(
     replyTo: overrides.replyTo ?? null,
     status: overrides.status ?? ("active" as const),
     version: overrides.version ?? 1,
+    offerId: null,
     createdBy: userId,
     createdAt: at,
     updatedAt: at,

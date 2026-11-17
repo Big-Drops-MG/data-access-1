@@ -18,6 +18,7 @@ import { uuidv7PrimaryKey } from "./columns.js"
 
 import { emailCategory } from "./email-category.js"
 import { emailType } from "./email-type.js"
+import { offer } from "./offer.js"
 import { user } from "./user.js"
 
 export const templateStatus = pgEnum("template_status", [
@@ -74,6 +75,9 @@ export const template = pgTable(
       .references(() => emailCategory.id, { onDelete: "restrict" }),
     currentVersionId: uuid("current_version_id"),
     status: templateStatus("status").notNull(),
+    offerId: uuid("offer_id").references(() => offer.id, {
+      onDelete: "set null",
+    }),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
@@ -87,6 +91,7 @@ export const template = pgTable(
   (table) => [
     uniqueIndex("template_name_unique").on(table.name),
     index("template_email_type_status_idx").on(table.emailType, table.status),
+    index("template_offer_id_idx").on(table.offerId),
     foreignKey({
       name: "template_current_version_same_template_fk",
       columns: [table.currentVersionId, table.id],

@@ -43,6 +43,7 @@ async function handlePost(request: Request): Promise<Response> {
       name: body.name,
       categoryId: body.category_id,
       emailType: body.email_type,
+      offerId: body.offer_id,
     },
     {
       userId: session.id,

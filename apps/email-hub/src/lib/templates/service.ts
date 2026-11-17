@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, lt, max } from "drizzle-orm"
 import {
   emailCategory,
   emailRoute,
+  offer,
   template,
   templateVersion,
   type Template,
@@ -53,6 +54,7 @@ export type CreateTemplateInput = {
   name: string
   categoryId: string
   emailType: Template["emailType"]
+  offerId?: string
 }
 
 export type UpdateTemplateInput = {
@@ -300,6 +302,21 @@ export async function createTemplate(
 ): Promise<TemplateJson> {
   await requireCategory(db, input.categoryId)
 
+  let offerId: string | null = null
+  if (input.offerId) {
+    const [offerRow] = await db
+      .select({ id: offer.id })
+      .from(offer)
+      .where(eq(offer.id, input.offerId))
+      .limit(1)
+    if (!offerRow) {
+      throw AppError.validationFailed([
+        { path: "offer_id", message: "Offer not found" },
+      ])
+    }
+    offerId = offerRow.id
+  }
+
   try {
     return await db.transaction(async (tx) => {
       const [row] = await tx
@@ -309,6 +326,7 @@ export async function createTemplate(
           categoryId: input.categoryId,
           emailType: input.emailType,
           status: "draft",
+          offerId,
           createdBy: actor.userId,
         })
         .returning()
