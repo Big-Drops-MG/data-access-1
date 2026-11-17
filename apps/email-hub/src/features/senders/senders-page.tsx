@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
@@ -42,6 +43,7 @@ function parseStatusTab(value: string | undefined): SenderStatusTabValue {
 export function SendersPage({ canWrite = false }: SendersPageProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { selectedOfferId } = useOfferSelection()
   const tableState = useDataTableUrlState({ filterKeys: SENDER_FILTER_KEYS })
   const selectedStatus = parseStatusTab(tableState.filters.status)
   const searchQuery = (tableState.filters.q ?? "").trim().toLowerCase()
@@ -55,13 +57,22 @@ export function SendersPage({ canWrite = false }: SendersPageProps) {
       limit: tableState.limit,
       cursor: tableState.cursor,
       status: selectedStatus,
+      offer_id: selectedOfferId ?? undefined,
     }),
-    [selectedStatus, tableState.cursor, tableState.limit]
+    [selectedOfferId, selectedStatus, tableState.cursor, tableState.limit]
   )
 
   const list = useSendersList(listParams)
-  const activeForCounts = useSendersList({ status: "active", limit: 100 })
-  const inactiveForCounts = useSendersList({ status: "inactive", limit: 100 })
+  const activeForCounts = useSendersList({
+    status: "active",
+    limit: 100,
+    offer_id: selectedOfferId ?? undefined,
+  })
+  const inactiveForCounts = useSendersList({
+    status: "inactive",
+    limit: 100,
+    offer_id: selectedOfferId ?? undefined,
+  })
   const statusCounts = useMemo(
     () => ({
       active: activeForCounts.data?.data.length ?? 0,

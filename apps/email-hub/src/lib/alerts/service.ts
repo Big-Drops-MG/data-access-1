@@ -8,6 +8,8 @@ import {
 } from "@workspace/db/client"
 import { AppError, uuidSchema, writeAudit } from "@workspace/shared"
 
+import { alertScopedToOffer } from "@/lib/offer-scope"
+
 import { serializeAlert, type AlertJson } from "./serialize"
 
 type Db = Database | DatabaseTransaction
@@ -33,6 +35,7 @@ export type ListAlertsInput = {
   status?: Alert["status"]
   severity?: Alert["severity"]
   type?: string
+  offerId?: string
 }
 
 function auditSnapshot(row: Alert): Record<string, string | number | null> {
@@ -74,6 +77,9 @@ export async function listAlerts(
   }
   if (input.type) {
     conditions.push(eq(alert.type, input.type))
+  }
+  if (input.offerId) {
+    conditions.push(alertScopedToOffer(input.offerId))
   }
   if (input.cursor) {
     conditions.push(lt(alert.id, input.cursor))

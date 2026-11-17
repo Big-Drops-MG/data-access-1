@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo } from "react"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
@@ -42,6 +43,7 @@ function parseStatusChip(value: string | undefined): DomainStatusChipValue {
 /** Domains list using shared DataTable (T-055); create lives at /domains/new. */
 export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
   const router = useRouter()
+  const { selectedOfferId } = useOfferSelection()
   const tableState = useDataTableUrlState({ filterKeys: DOMAIN_FILTER_KEYS })
   const selectedStatus = parseStatusChip(tableState.filters.status)
 
@@ -50,8 +52,9 @@ export function DomainsPage({ canCreateDomain = false }: DomainsPageProps) {
       limit: tableState.limit,
       cursor: tableState.cursor,
       status: selectedStatus === "all" ? undefined : selectedStatus,
+      offer_id: selectedOfferId ?? undefined,
     }),
-    [selectedStatus, tableState.cursor, tableState.limit]
+    [selectedOfferId, selectedStatus, tableState.cursor, tableState.limit]
   )
 
   const list = useDomainsList(listParams)

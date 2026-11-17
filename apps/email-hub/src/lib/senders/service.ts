@@ -15,6 +15,8 @@ import {
 } from "@workspace/db/client"
 import { AppError, emailSchema, writeAudit } from "@workspace/shared"
 
+import { senderScopedToOffer } from "@/lib/offer-scope"
+
 import {
   senderConflictDetails,
   serializeSender,
@@ -33,6 +35,7 @@ export type ListSendersInput = {
   cursor?: string
   status?: Sender["status"]
   domainId?: string
+  offerId?: string
 }
 
 export type CreateSenderInput = {
@@ -184,6 +187,9 @@ export async function listSenders(
   }
   if (input.domainId) {
     conditions.push(eq(sender.domainId, input.domainId))
+  }
+  if (input.offerId) {
+    conditions.push(senderScopedToOffer(db, input.offerId))
   }
   if (input.cursor) {
     conditions.push(lt(sender.id, input.cursor))

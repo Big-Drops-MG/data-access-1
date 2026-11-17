@@ -20,6 +20,7 @@ async function handleGet(request: Request): Promise<Response> {
     status: query.status,
     severity: query.severity,
     type: query.type,
+    offerId: query.offer_id,
   })
 
   return jsonForRole(session.role, result)

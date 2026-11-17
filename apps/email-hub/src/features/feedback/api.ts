@@ -18,6 +18,7 @@ export type FeedbackListParams = {
   limit?: number
   cursor?: string
   status?: FeedbackStatus
+  offer_id?: string
 }
 
 export type FeedbackClassificationsResponse = {
@@ -34,6 +35,9 @@ function toSearchParams(params: FeedbackListParams = {}): string {
   }
   if (params.status) {
     search.set("status", params.status)
+  }
+  if (params.offer_id) {
+    search.set("offer_id", params.offer_id)
   }
   const text = search.toString()
   return text ? `?${text}` : ""

@@ -32,6 +32,7 @@ export const senderListQuerySchema = paginationSchema
     cursor: uuidSchema.optional(),
     status: senderStatusSchema.optional(),
     domain_id: uuidSchema.optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 
