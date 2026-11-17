@@ -1,3 +1,8 @@
+/**
+ * Next loads this for both Node and Edge. Never import Node built-ins here.
+ * Node-only setup lives in ./instrumentation.node and is loaded only when
+ * NEXT_RUNTIME === "nodejs".
+ */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") {
     return
