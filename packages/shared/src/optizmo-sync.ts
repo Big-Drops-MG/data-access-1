@@ -1,5 +1,5 @@
 import { parse } from "csv-parse"
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm"
 import type { Queue } from "bullmq"
 
 import {
@@ -121,6 +121,7 @@ function clientDeps(
   const apiKey = env.OPTIZMO_API_KEY?.trim() ?? ""
   return {
     apiKey,
+    format: "md5",
     ...(env.OPTIZMO_API_BASE_URL ? { baseUrl: env.OPTIZMO_API_BASE_URL } : {}),
     ...(fetchImpl ? { fetchImpl } : {}),
   }
@@ -181,13 +182,38 @@ export function collectEmailsFromCsvChunk(
   return emails
 }
 
-export async function parseOptizmoSuppressionStream(
+export async function streamOptizmoSuppressionHashes(
   stream: NodeJS.ReadableStream,
-  format: "plain" | "md5"
-): Promise<Set<string>> {
-  const hashes = new Set<string>()
+  format: "plain" | "md5",
+  onChunk: (hashes: string[]) => Promise<void>,
+  chunkSize = OPTIZMO_SYNC_CHUNK_SIZE
+): Promise<number> {
+  let emailsSeen = 0
   let headerResolved = false
   let emailColumnIndex: number | null = null
+  const buffer: string[] = []
+  const seenInChunk = new Set<string>()
+
+  const flush = async () => {
+    if (buffer.length === 0) {
+      return
+    }
+    const chunk = buffer.splice(0, buffer.length)
+    seenInChunk.clear()
+    await onChunk(chunk)
+  }
+
+  const pushHash = async (hash: string) => {
+    if (seenInChunk.has(hash)) {
+      return
+    }
+    seenInChunk.add(hash)
+    buffer.push(hash)
+    emailsSeen += 1
+    if (buffer.length >= chunkSize) {
+      await flush()
+    }
+  }
 
   const parser = stream.pipe(
     parse({
@@ -211,14 +237,14 @@ export async function parseOptizmoSuppressionStream(
         record.length === 1 &&
         isMd5Hex(record[0] ?? "")
       ) {
+        emailColumnIndex = null
         for (const hash of collectSuppressionValuesFromCsvChunk(
           [record],
           null,
           format
         )) {
-          hashes.add(hash)
+          await pushHash(hash)
         }
-        emailColumnIndex = null
         continue
       }
       emailColumnIndex = null
@@ -228,10 +254,24 @@ export async function parseOptizmoSuppressionStream(
       emailColumnIndex,
       format
     )) {
-      hashes.add(hash)
+      await pushHash(hash)
     }
   }
 
+  await flush()
+  return emailsSeen
+}
+
+export async function parseOptizmoSuppressionStream(
+  stream: NodeJS.ReadableStream,
+  format: "plain" | "md5"
+): Promise<Set<string>> {
+  const hashes = new Set<string>()
+  await streamOptizmoSuppressionHashes(stream, format, async (chunk) => {
+    for (const hash of chunk) {
+      hashes.add(hash)
+    }
+  })
   return hashes
 }
 
@@ -301,67 +341,85 @@ async function failOfferSync(
   })
 }
 
-async function upsertOptizmoHashes(
+async function upsertOptizmoHashChunk(
   db: Database,
   offerId: string,
   syncRunId: string,
-  hashes: Set<string>
-): Promise<{ rowsAdded: number; rowsRemoved: number }> {
-  const hashList = [...hashes]
-  const hashSet = new Set(hashList)
-  let rowsAdded = 0
+  hashes: string[]
+): Promise<number> {
+  if (hashes.length === 0) {
+    return 0
+  }
 
-  const recipientRows =
-    hashList.length === 0
-      ? []
-      : await db
-          .select({ id: recipient.id, emailHash: recipient.emailHash })
-          .from(recipient)
-          .where(inArray(recipient.emailHash, hashList))
+  const recipientRows = await db
+    .select({ id: recipient.id, emailHash: recipient.emailHash })
+    .from(recipient)
+    .where(inArray(recipient.emailHash, hashes))
   const recipientByHash = new Map(
     recipientRows.map((row) => [row.emailHash, row.id] as const)
   )
 
-  for (let i = 0; i < hashList.length; i += OPTIZMO_SYNC_CHUNK_SIZE) {
-    const chunk = hashList.slice(i, i + OPTIZMO_SYNC_CHUNK_SIZE)
-    const values = chunk.map((emailHash) => ({
-      emailHash,
-      recipientId: recipientByHash.get(emailHash) ?? null,
-      scope: "offer" as const,
-      offerId,
-      source: "optizmo" as const,
-      syncRunId,
-    }))
-    const inserted = await db
-      .insert(suppressionEntry)
-      .values(values)
-      .onConflictDoNothing({
-        target: [
-          suppressionEntry.emailHash,
-          suppressionEntry.scope,
-          suppressionEntry.offerId,
-        ],
-        where: sql`${suppressionEntry.removedAt} IS NULL AND ${suppressionEntry.offerId} IS NOT NULL`,
-      })
-      .returning({ id: suppressionEntry.id })
-    rowsAdded += inserted.length
-  }
+  const values = hashes.map((emailHash) => ({
+    emailHash,
+    recipientId: recipientByHash.get(emailHash) ?? null,
+    scope: "offer" as const,
+    offerId,
+    source: "optizmo" as const,
+    syncRunId,
+  }))
+  const inserted = await db
+    .insert(suppressionEntry)
+    .values(values)
+    .onConflictDoNothing({
+      target: [
+        suppressionEntry.emailHash,
+        suppressionEntry.scope,
+        suppressionEntry.offerId,
+      ],
+      where: sql`${suppressionEntry.removedAt} IS NULL AND ${suppressionEntry.offerId} IS NOT NULL`,
+    })
+    .returning({ id: suppressionEntry.id })
 
-  const removed = await db
+  await db
     .update(suppressionEntry)
-    .set({ removedAt: new Date() })
+    .set({ syncRunId })
     .where(
       and(
         eq(suppressionEntry.offerId, offerId),
         eq(suppressionEntry.scope, "offer"),
         eq(suppressionEntry.source, "optizmo"),
         isNull(suppressionEntry.removedAt),
-        notInArray(suppressionEntry.emailHash, [...hashSet])
+        inArray(suppressionEntry.emailHash, hashes)
+      )
+    )
+
+  return inserted.length
+}
+
+async function removeStaleOptizmoHashes(
+  db: Database,
+  offerId: string,
+  syncRunId: string,
+  now: Date
+): Promise<number> {
+  const removed = await db
+    .update(suppressionEntry)
+    .set({ removedAt: now })
+    .where(
+      and(
+        eq(suppressionEntry.offerId, offerId),
+        eq(suppressionEntry.scope, "offer"),
+        eq(suppressionEntry.source, "optizmo"),
+        isNull(suppressionEntry.removedAt),
+        or(
+          isNull(suppressionEntry.syncRunId),
+          ne(suppressionEntry.syncRunId, syncRunId)
+        )
       )
     )
     .returning({ id: suppressionEntry.id })
 
-  return { rowsAdded, rowsRemoved: removed.length }
+  return removed.length
 }
 
 async function syncOneOffer(
@@ -464,9 +522,21 @@ async function syncOneOffer(
       prepared.downloadLink,
       optizmo
     )
-    const hashes = await parseOptizmoSuppressionStream(stream, prepared.format)
+    let rowsAdded = 0
+    const emailsSeen = await streamOptizmoSuppressionHashes(
+      stream,
+      prepared.format,
+      async (hashes) => {
+        rowsAdded += await upsertOptizmoHashChunk(
+          db,
+          offerId,
+          syncRun.id,
+          hashes
+        )
+      }
+    )
 
-    if (hashes.size === 0) {
+    if (emailsSeen === 0) {
       const message = "Optizmo suppression file was empty"
       await failOfferSync(db, {
         syncRunId: syncRun.id,
@@ -488,11 +558,11 @@ async function syncOneOffer(
       throwPermanent(deps, message)
     }
 
-    const { rowsAdded, rowsRemoved } = await upsertOptizmoHashes(
+    const rowsRemoved = await removeStaleOptizmoHashes(
       db,
       offerId,
       syncRun.id,
-      hashes
+      now
     )
 
     await db
@@ -532,7 +602,7 @@ async function syncOneOffer(
         offer_id: offerId,
         rows_added: rowsAdded,
         rows_removed: rowsRemoved,
-        emails_seen: hashes.size,
+        emails_seen: emailsSeen,
         format: prepared.format,
       },
       "Optizmo sync completed"
@@ -543,7 +613,7 @@ async function syncOneOffer(
       offerId,
       rowsAdded,
       rowsRemoved,
-      emailsSeen: hashes.size,
+      emailsSeen,
     }
   } catch (error) {
     if (isPermanentFailure(error, deps)) {
