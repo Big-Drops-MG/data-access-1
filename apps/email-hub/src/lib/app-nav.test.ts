@@ -24,9 +24,7 @@ describe("APP_PRIMARY_TABS", () => {
       "Alerts",
       "Reports",
     ])
-    expect(
-      APP_PRIMARY_TABS.find((tab) => tab.title === "Offers")
-    ).toBeUndefined()
+    expect(APP_PRIMARY_TABS.map((tab) => tab.title)).not.toContain("Offers")
     expect(
       APP_ADMIN_NAV_ITEMS.find((item) => item.title === "Offers")?.href
     ).toBe("/offers")
