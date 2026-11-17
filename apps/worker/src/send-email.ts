@@ -100,6 +100,7 @@ export async function renderQueuedEmail(
   unsubscribeUrl?: string
   listUnsubscribeUrl?: string
   oneClickUnsubscribe?: boolean
+  feedbackId: string
 }> {
   const replyTo = context.replyTo?.trim() ?? ""
   const links = unsubscribeLinksFor(context, compliance)
@@ -124,6 +125,7 @@ export async function renderQueuedEmail(
     unsubscribeUrl: rendered.unsubscribeUrl,
     listUnsubscribeUrl: links.listUnsubscribeUrl,
     oneClickUnsubscribe: links.oneClickUnsubscribe,
+    feedbackId: `eh:${context.messageId.replace(/[^a-zA-Z0-9_-]/g, "")}`,
   }
 }
 

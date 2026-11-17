@@ -1,6 +1,7 @@
 export const PACKAGE_NAME = "@workspace/emails" as const
 
 export {
+  FEEDBACK_ID_HEADER,
   LIST_UNSUBSCRIBE_HEADER,
   LIST_UNSUBSCRIBE_POST,
   LIST_UNSUBSCRIBE_POST_HEADER,

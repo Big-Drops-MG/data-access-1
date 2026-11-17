@@ -656,7 +656,16 @@ export function readSesEvent(message: string): ParsedSesEvent | null {
     sesMessageId,
     bounceType: readBounceType(record),
     recipientEmails: readRecipientEmails(record),
+    complaintFeedbackType: readComplaintFeedbackType(record),
   }
+}
+
+function readComplaintFeedbackType(
+  record: Record<string, unknown>
+): string | null {
+  const complaint = nestedRecord(record, "complaint")
+  const value = complaint?.complaintFeedbackType
+  return typeof value === "string" && value.length > 0 ? value : null
 }
 
 function readBounceType(record: Record<string, unknown>): string | null {

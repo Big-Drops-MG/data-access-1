@@ -92,6 +92,11 @@ const baseEnvSchema = z
     FBL_WEBHOOK_SECRET: optionalString,
     EVERFLOW_API_KEY: optionalString,
     EVERFLOW_API_BASE_URL: optionalString,
+    GOOGLE_POSTMASTER_CLIENT_ID: optionalString,
+    GOOGLE_POSTMASTER_CLIENT_SECRET: optionalString,
+    GOOGLE_POSTMASTER_REFRESH_TOKEN: optionalString,
+    SNDS_KEY: optionalString,
+    SNDS_DATA_URL: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

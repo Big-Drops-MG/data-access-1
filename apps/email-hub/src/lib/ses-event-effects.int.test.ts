@@ -40,6 +40,7 @@ describe.skipIf(!databaseUrl)("SES hard bounce and complaint (int)", () => {
         eventType: "Bounce",
         sesMessageId,
         bounceType: "Permanent",
+        complaintFeedbackType: null,
         recipientEmails: [email],
       },
       "bounced"
@@ -100,6 +101,7 @@ describe.skipIf(!databaseUrl)("SES hard bounce and complaint (int)", () => {
         eventType: "Complaint",
         sesMessageId,
         bounceType: null,
+        complaintFeedbackType: null,
         recipientEmails: [email],
       },
       "complained"
@@ -147,6 +149,7 @@ describe.skipIf(!databaseUrl)("SES hard bounce and complaint (int)", () => {
         eventType: "Bounce",
         sesMessageId: `ses-missing-${suffix}`,
         bounceType: null,
+        complaintFeedbackType: null,
         recipientEmails: [email],
       },
       "bounced"
@@ -181,6 +184,7 @@ describe.skipIf(!databaseUrl)("SES hard bounce and complaint (int)", () => {
         eventType: "Complaint",
         sesMessageId,
         bounceType: null,
+        complaintFeedbackType: null,
         recipientEmails: [],
       },
       "complained"

@@ -7,6 +7,7 @@ import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
 import type { FeedbackStatus } from "@/features/feedback/api"
+import { DomainsReputationPage } from "@/features/feedback/domains-reputation-page"
 import { feedbackColumns } from "@/features/feedback/feedback-columns"
 import {
   isStalePending,
@@ -14,11 +15,16 @@ import {
   type FeedbackStatusTabValue,
 } from "@/features/feedback/feedback-status"
 import { FeedbackStatusTabs } from "@/features/feedback/feedback-status-tabs"
+import {
+  parseComplaintsView,
+  type ComplaintsView,
+} from "@/features/feedback/feedback-view"
+import { FeedbackViewTabs } from "@/features/feedback/feedback-view-tabs"
 import { useFeedbackList } from "@/features/feedback/use-feedback-list"
 import { isApiError } from "@/lib/api-client"
 import { useDataTableUrlState } from "@/lib/data-table/use-data-table-url-state"
 
-const FILTER_KEYS = ["status"] as const
+const FILTER_KEYS = ["status", "view"] as const
 
 type FeedbackPageProps = {
   currentUserId?: string | null
@@ -27,6 +33,7 @@ type FeedbackPageProps = {
 export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
   const router = useRouter()
   const tableState = useDataTableUrlState({ filterKeys: FILTER_KEYS })
+  const selectedView = parseComplaintsView(tableState.filters.view)
   const selectedStatus = parseFeedbackStatusTab(tableState.filters.status)
 
   const listParams = useMemo(
@@ -73,70 +80,82 @@ export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
   const rows = list.data?.data ?? []
   const nextCursor = list.data?.next_cursor ?? null
 
+  function setView(view: ComplaintsView) {
+    tableState.setFilter("view", view === "users" ? undefined : view)
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Complaints"
-        description="Provider feedback-loop and mailbox complaints. Nothing is suppressed until a person decides."
+        description="Domain reputation and per-user junk reports. Nothing is suppressed until a person decides."
       />
 
-      {stalePendingCount > 0 ? (
-        <aside
-          className="rounded-lg border border-warn/30 bg-warn/10 px-4 py-3 text-[14px] text-fg"
-          data-testid="feedback-stale-banner"
-          role="status"
-        >
-          {stalePendingCount} complaint
-          {stalePendingCount === 1 ? " has" : "s have"} waited more than 48
-          hours. Open the oldest one first.
-        </aside>
-      ) : null}
+      <FeedbackViewTabs value={selectedView} onChange={setView} />
 
-      {list.isError ? (
-        <InlineErrorCard
-          message={
-            isApiError(list.error)
-              ? list.error.message
-              : "Could not load feedback."
-          }
-          requestId={isApiError(list.error) ? list.error.requestId : null}
-          onRetry={() => {
-            void list.refetch()
-          }}
-        />
-      ) : null}
+      {selectedView === "domains" ? <DomainsReputationPage /> : null}
 
-      <DataTable
-        storageKey="feedback"
-        columns={columns}
-        data={rows}
-        getRowId={(row) => row.id}
-        nextCursor={nextCursor}
-        pageSize={tableState.limit}
-        onPageSizeChange={tableState.setLimit}
-        onNextPage={tableState.goNext}
-        onPreviousPage={tableState.goPrevious}
-        canPreviousPage={tableState.canGoPrevious}
-        isLoading={list.isPending && !list.data}
-        showColumnToggle={false}
-        equalColumnWidths
-        animateRows
-        onRowClick={(row) => {
-          router.push(`/complaints/${encodeURIComponent(row.id)}`)
-        }}
-        toolbar={
-          <FeedbackStatusTabs
-            value={selectedStatus}
-            counts={counts}
-            onChange={(value) => {
-              tableState.setFilter(
-                "status",
-                value === "pending" ? undefined : value
-              )
+      {selectedView === "users" ? (
+        <>
+          {stalePendingCount > 0 ? (
+            <aside
+              className="rounded-lg border border-warn/30 bg-warn/10 px-4 py-3 text-[14px] text-fg"
+              data-testid="feedback-stale-banner"
+              role="status"
+            >
+              {stalePendingCount} complaint
+              {stalePendingCount === 1 ? " has" : "s have"} waited more than 48
+              hours. Open the oldest one first.
+            </aside>
+          ) : null}
+
+          {list.isError ? (
+            <InlineErrorCard
+              message={
+                isApiError(list.error)
+                  ? list.error.message
+                  : "Could not load feedback."
+              }
+              requestId={isApiError(list.error) ? list.error.requestId : null}
+              onRetry={() => {
+                void list.refetch()
+              }}
+            />
+          ) : null}
+
+          <DataTable
+            storageKey="feedback"
+            columns={columns}
+            data={rows}
+            getRowId={(row) => row.id}
+            nextCursor={nextCursor}
+            pageSize={tableState.limit}
+            onPageSizeChange={tableState.setLimit}
+            onNextPage={tableState.goNext}
+            onPreviousPage={tableState.goPrevious}
+            canPreviousPage={tableState.canGoPrevious}
+            isLoading={list.isPending && !list.data}
+            showColumnToggle={false}
+            equalColumnWidths
+            animateRows
+            onRowClick={(row) => {
+              router.push(`/complaints/${encodeURIComponent(row.id)}`)
             }}
+            toolbar={
+              <FeedbackStatusTabs
+                value={selectedStatus}
+                counts={counts}
+                onChange={(value) => {
+                  tableState.setFilter(
+                    "status",
+                    value === "pending" ? undefined : value
+                  )
+                }}
+              />
+            }
           />
-        }
-      />
+        </>
+      ) : null}
     </div>
   )
 }

@@ -36,6 +36,8 @@ export type ParsedSesEvent = {
   bounceType: string | null
   /** Addresses from bounce/complaint recipients or mail.destination. */
   recipientEmails: string[]
+  /** SES complaint.complaintFeedbackType when present (e.g. abuse). */
+  complaintFeedbackType: string | null
 }
 
 export type SesMessageContext = {
@@ -66,6 +68,45 @@ export function isHardBounceEvent(event: ParsedSesEvent): boolean {
 
 export function isComplaintEvent(event: ParsedSesEvent): boolean {
   return normalizeSesEventType(event.eventType) === "complaint"
+}
+
+const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"])
+const MICROSOFT_DOMAINS = new Set([
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+])
+const YAHOO_DOMAINS = new Set(["yahoo.com", "ymail.com", "aol.com"])
+
+function emailDomain(email: string): string {
+  const at = email.lastIndexOf("@")
+  if (at < 0) {
+    return ""
+  }
+  return email
+    .slice(at + 1)
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Prefer mailbox domain so Gmail SES complaints show as Google in Complaints.
+ */
+export function resolveComplaintProvider(event: ParsedSesEvent): string {
+  for (const email of event.recipientEmails) {
+    const domain = emailDomain(email)
+    if (GMAIL_DOMAINS.has(domain)) {
+      return "google"
+    }
+    if (MICROSOFT_DOMAINS.has(domain)) {
+      return "microsoft"
+    }
+    if (YAHOO_DOMAINS.has(domain)) {
+      return "yahoo"
+    }
+  }
+  return "ses"
 }
 
 /** Unique key for feedback_item (SES message id + event type). */
@@ -237,7 +278,7 @@ export async function applyComplaintEffects(
       recipientId: ctx.recipientId,
       messageId: ctx.messageId,
       source: "provider_fbl",
-      provider: "ses",
+      provider: resolveComplaintProvider(event),
       status: "pending",
       dedupeHash: feedbackDedupeHash(event.sesMessageId, event.eventType),
     })

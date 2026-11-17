@@ -40,12 +40,36 @@ export function feedbackStatusToBadge(
 }
 
 export function shortFeedbackId(id: string): string {
-  return `FB-${id.slice(-4).toUpperCase()}`
+  return `CMP-${id.slice(-4).toUpperCase()}`
+}
+
+export function feedbackProviderDisplayName(
+  provider: string | null | undefined
+): string | null {
+  if (!provider) {
+    return null
+  }
+  switch (provider.toLowerCase()) {
+    case "google":
+    case "gmail":
+      return "Google / Gmail"
+    case "ses":
+      return "SES"
+    case "yahoo":
+      return "Yahoo"
+    case "jmrp":
+    case "microsoft":
+    case "outlook":
+      return "Microsoft"
+    default:
+      return provider
+  }
 }
 
 export function feedbackSourceLabel(item: FeedbackListItem): string {
-  if (item.provider) {
-    return item.provider
+  const fromProvider = feedbackProviderDisplayName(item.provider)
+  if (fromProvider) {
+    return fromProvider
   }
   switch (item.source) {
     case "provider_fbl":

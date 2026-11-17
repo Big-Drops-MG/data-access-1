@@ -11,6 +11,7 @@ import {
   feedbackDedupeHash,
   isComplaintEvent,
   isHardBounceEvent,
+  resolveComplaintProvider,
   type ParsedSesEvent,
   type SesMessageContext,
 } from "@/lib/ses-event-effects"
@@ -37,6 +38,7 @@ function hardBounceEvent(
     sesMessageId: SES_ID,
     bounceType,
     recipientEmails: emails,
+    complaintFeedbackType: null,
   }
 }
 
@@ -46,6 +48,7 @@ function complaintEvent(emails: string[] = [EMAIL]): ParsedSesEvent {
     sesMessageId: SES_ID,
     bounceType: null,
     recipientEmails: emails,
+    complaintFeedbackType: null,
   }
 }
 
@@ -251,6 +254,15 @@ describe("applyComplaintEffects", () => {
     expect(harness.suppressionInserts).toEqual([])
     expect(harness.recipientUpdates).toEqual([])
     expect(harness.auditInserts).toEqual([])
+  })
+
+  it("labels Gmail SES complaints as google", async () => {
+    const harness = createEffectsDb()
+    const event = complaintEvent(["user@gmail.com"])
+
+    expect(resolveComplaintProvider(event)).toBe("google")
+    await applyComplaintEffects(harness.db, ctx, event)
+    expect(harness.feedbackInserts[0]).toMatchObject({ provider: "google" })
   })
 
   it("creates an orphan pending feedback_item when message is unknown", async () => {
