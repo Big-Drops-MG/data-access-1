@@ -92,6 +92,8 @@ const baseEnvSchema = z
     FBL_WEBHOOK_SECRET: optionalString,
     EVERFLOW_API_KEY: optionalString,
     EVERFLOW_API_BASE_URL: optionalString,
+    OPTIZMO_API_KEY: optionalString,
+    OPTIZMO_API_BASE_URL: optionalString,
     GOOGLE_POSTMASTER_CLIENT_ID: optionalString,
     GOOGLE_POSTMASTER_CLIENT_SECRET: optionalString,
     GOOGLE_POSTMASTER_REFRESH_TOKEN: optionalString,

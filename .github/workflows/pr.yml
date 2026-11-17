@@ -99,7 +99,24 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          set -euo pipefail
+          attempt=1
+          max_attempts=3
+          while [ "$attempt" -le "$max_attempts" ]; do
+            if pnpm install --frozen-lockfile; then
+              exit 0
+            fi
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "pnpm install failed after ${max_attempts} attempts"
+              exit 1
+            fi
+            sleep_seconds=$((attempt * 20))
+            echo "pnpm install failed (attempt ${attempt}/${max_attempts}); retrying in ${sleep_seconds}s"
+            rm -rf node_modules
+            sleep "$sleep_seconds"
+            attempt=$((attempt + 1))
+          done
 
       - name: ESLint
         run: pnpm lint

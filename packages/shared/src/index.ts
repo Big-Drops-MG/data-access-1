@@ -132,6 +132,50 @@ export {
   type CsvIngestJobData,
 } from "./intake-queue.js"
 export {
+  AppEncryptionError,
+  decryptWithAppKey,
+  encryptWithAppKey,
+  parseAppEncryptionKey,
+  readAppEncryptionKeyFromEnv,
+} from "./app-encryption.js"
+export {
+  OPTIZMO_SYNC_JOB_NAME,
+  OPTIZMO_SYNC_JOB_OPTIONS,
+  OPTIZMO_SYNC_WORKER_CONCURRENCY,
+  SYNC_QUEUE_NAME,
+  createEnqueueOptizmoSync,
+  enqueueOptizmoSyncJob,
+  optizmoSyncJobId,
+  type OptizmoSyncJobData,
+  type OptizmoSyncTrigger,
+} from "./optizmo-queue.js"
+export {
+  OPTIZMO_DEFAULT_BASE_URL,
+  OPTIZMO_GETFILE_TIMEOUT_MS,
+  OPTIZMO_HTTP_TIMEOUT_MS,
+  OPTIZMO_MAX_FILE_BYTES,
+  OptizmoClientError,
+  looksLikeFirstDownloadRefusal,
+  prepareOptizmoDownload,
+  streamOptizmoSuppressionFile,
+  type OptizmoClientDeps,
+  type OptizmoFetch,
+} from "./optizmo-client.js"
+export {
+  OPTIZMO_FIRST_DOWNLOAD_ALERT_TYPE,
+  OPTIZMO_INTEGRATION_NAME,
+  OPTIZMO_SYNC_ALERT_TYPE,
+  OPTIZMO_SYNC_CHUNK_SIZE,
+  collectEmailsFromCsvChunk,
+  optizmoFirstDownloadAlertDedupeKey,
+  optizmoSyncAlertDedupeKey,
+  parseOptizmoEmailStream,
+  processOptizmoSyncJob,
+  type OptizmoSyncEnv,
+  type OptizmoSyncResult,
+  type ProcessOptizmoSyncDeps,
+} from "./optizmo-sync.js"
+export {
   SES_ACCOUNT_PAUSED_ALERT_TYPE,
   SES_ACCOUNT_PAUSED_DEDUPE_KEY,
   claimQueuedMessage,

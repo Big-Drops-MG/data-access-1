@@ -16,7 +16,10 @@ import {
   DISPATCH_SEND_JOB_NAME,
   EVENTS_QUEUE_NAME,
   INTAKE_QUEUE_NAME,
+  OPTIZMO_SYNC_JOB_NAME,
+  OPTIZMO_SYNC_WORKER_CONCURRENCY,
   SCHEDULE_PROMOTER_JOB_NAME,
+  SYNC_QUEUE_NAME,
   claimQueuedMessage,
   createEnqueueSendEmail,
   loadQueuedSend,
@@ -31,6 +34,7 @@ import {
   type CsvIngestJobData,
   type DispatchSendJobData,
   type EventsJobData,
+  type OptizmoSyncJobData,
   type SendEmailJobData,
 } from "@workspace/shared"
 import { Queue, Worker, type Job } from "bullmq"
@@ -39,6 +43,7 @@ import { Redis } from "ioredis"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
+import { handleOptizmoSyncJob } from "./optizmo-sync.js"
 import { processProviderMetricsPull } from "./provider-metrics-pull.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
@@ -174,6 +179,7 @@ async function main(): Promise<void> {
   const schedulerQueues: SchedulerQueueMap = {}
   const managedQueues: Queue[] = [sendEmailQueue]
   let dispatchQueue: Queue | undefined
+  let syncQueue: Queue | undefined
   for (const name of QUEUE_NAMES) {
     if (name === SEND_EMAIL_QUEUE_NAME) {
       continue
@@ -186,11 +192,14 @@ async function main(): Promise<void> {
     if (name === DISPATCH_QUEUE_NAME) {
       dispatchQueue = queue
     }
+    if (name === SYNC_QUEUE_NAME) {
+      syncQueue = queue
+    }
     if (
       name === DISPATCH_QUEUE_NAME ||
       name === "monitoring" ||
       name === INTAKE_QUEUE_NAME ||
-      name === "sync" ||
+      name === SYNC_QUEUE_NAME ||
       name === "maintenance"
     ) {
       schedulerQueues[name] = queue
@@ -200,7 +209,11 @@ async function main(): Promise<void> {
   if (!dispatchQueue) {
     throw new Error("Dispatch queue failed to initialize")
   }
+  if (!syncQueue) {
+    throw new Error("Sync queue failed to initialize")
+  }
   const activeDispatchQueue = dispatchQueue
+  const activeSyncQueue = syncQueue
 
   const schedulerIds = await registerJobSchedulers(
     schedulerQueues,
@@ -220,13 +233,44 @@ async function main(): Promise<void> {
       name !== SEND_EMAIL_QUEUE_NAME &&
       name !== EVENTS_QUEUE_NAME &&
       name !== DISPATCH_QUEUE_NAME &&
-      name !== INTAKE_QUEUE_NAME
+      name !== INTAKE_QUEUE_NAME &&
+      name !== SYNC_QUEUE_NAME
   ).map(
     (name) =>
       new Worker(name, (job) => processJob(name, job), {
         connection,
         prefix: BULLMQ_PREFIX,
       })
+  )
+
+  workers.push(
+    new Worker(
+      SYNC_QUEUE_NAME,
+      (job) =>
+        withJobLogs(SYNC_QUEUE_NAME, job, async () => {
+          if (job.name === OPTIZMO_SYNC_JOB_NAME) {
+            await handleOptizmoSyncJob(job.data as OptizmoSyncJobData, {
+              db,
+              env,
+              syncQueue: activeSyncQueue,
+            })
+            return
+          }
+          logger.warn(
+            {
+              event: "sync.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown sync job"
+          )
+        }),
+      {
+        connection,
+        prefix: BULLMQ_PREFIX,
+        concurrency: OPTIZMO_SYNC_WORKER_CONCURRENCY,
+      }
+    )
   )
 
   workers.push(
@@ -354,6 +398,7 @@ async function main(): Promise<void> {
       events_concurrency: 10,
       dispatch_concurrency: DISPATCH_WORKER_CONCURRENCY,
       intake_concurrency: INTAKE_WORKER_CONCURRENCY,
+      sync_concurrency: OPTIZMO_SYNC_WORKER_CONCURRENCY,
     },
     "Worker ready"
   )
