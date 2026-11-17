@@ -16,16 +16,31 @@ import { setupServer } from "msw/node"
 import { offer, suppressionEntry, suppressionSyncRun } from "@workspace/db"
 
 import { encryptWithAppKey } from "./app-encryption.js"
+import { hashEmail } from "./email.js"
 import { OPTIZMO_DEFAULT_BASE_URL } from "./optizmo-client.js"
 import {
   OPTIZMO_FIRST_DOWNLOAD_ALERT_TYPE,
   OPTIZMO_SYNC_ALERT_TYPE,
   collectEmailsFromCsvChunk,
+  collectSuppressionValuesFromCsvChunk,
   optizmoFirstDownloadAlertDedupeKey,
   optizmoSyncAlertDedupeKey,
   parseOptizmoEmailStream,
+  parseOptizmoSuppressionStream,
   processOptizmoSyncJob,
 } from "./optizmo-sync.js"
+
+function prepareSuccess(format: "plain" | "md5" = "plain") {
+  return HttpResponse.json({
+    result: "success",
+    format,
+    campaign_name: "Test",
+    download_link: `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}?token=api-secret&dcma=x`,
+    optout_link: "https://example.com/o",
+    delta_timestamp: 1,
+    help: "Use the download_link",
+  })
+}
 
 const OFFER_ID = "019a0000-0000-7000-8000-0000000000aa"
 const KEY = Buffer.alloc(32, 9).toString("base64")
@@ -77,14 +92,62 @@ describe("optizmo-sync helpers", () => {
     ).toEqual(["a@example.com", "b@example.com"])
   })
 
+  it("collects md5 hashes or email hashes for storage", () => {
+    expect(
+      collectSuppressionValuesFromCsvChunk(
+        [["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], ["not-a-hash"]],
+        null,
+        "md5"
+      )
+    ).toEqual(["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"])
+    expect(
+      collectSuppressionValuesFromCsvChunk([["a@example.com"]], null, "plain")
+    ).toEqual([hashEmail("a@example.com")])
+    expect(
+      collectSuppressionValuesFromCsvChunk(
+        [
+          ["skip", "  B@Example.com "],
+          ["skip", ""],
+          ["skip", 12 as unknown as string],
+          ["skip", "bad"],
+        ],
+        1,
+        "plain"
+      )
+    ).toEqual([hashEmail("b@example.com")])
+    expect(
+      collectEmailsFromCsvChunk(
+        [
+          ["x", "c@example.com"],
+          ["x", 5 as unknown as string],
+        ],
+        1
+      )
+    ).toEqual(["c@example.com"])
+  })
+
   it("parses a streamed csv without loading the whole file", async () => {
     const stream = Readable.from([
       "email\n",
       "one@example.com\n",
       "two@example.com\n",
     ])
-    const emails = await parseOptizmoEmailStream(stream)
-    expect([...emails].sort()).toEqual(["one@example.com", "two@example.com"])
+    const hashes = await parseOptizmoEmailStream(stream)
+    expect([...hashes].sort()).toEqual(
+      [hashEmail("one@example.com"), hashEmail("two@example.com")].sort()
+    )
+  })
+
+  it("parses md5 suppression lines", async () => {
+    const stream = Readable.from([
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+    ])
+    const hashes = await parseOptizmoSuppressionStream(stream, "md5")
+    expect([...hashes].sort()).toEqual([
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    ])
   })
 })
 
@@ -99,11 +162,14 @@ describe("processOptizmoSyncJob", () => {
     server.use(
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
-        () => HttpResponse.text("ok")
+        () => prepareSuccess("plain")
       ),
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
-        () => HttpResponse.text("email\nalice@example.com\nbob@example.com\n")
+        () =>
+          HttpResponse.text("email\nalice@example.com\nbob@example.com\n", {
+            headers: { "content-type": "text/plain" },
+          })
       )
     )
 
@@ -204,11 +270,14 @@ describe("processOptizmoSyncJob", () => {
     server.use(
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
-        () => HttpResponse.text("ok")
+        () => prepareSuccess("plain")
       ),
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
-        () => HttpResponse.text("email\n")
+        () =>
+          HttpResponse.text("email\n", {
+            headers: { "content-type": "text/plain" },
+          })
       )
     )
 
@@ -546,7 +615,7 @@ describe("processOptizmoSyncJob", () => {
     server.use(
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
-        () => HttpResponse.text("busy", { status: 503 })
+        () => HttpResponse.json({ result: "error" }, { status: 503 })
       )
     )
 
@@ -591,6 +660,290 @@ describe("processOptizmoSyncJob", () => {
     ).rejects.toMatchObject({
       name: "OptizmoClientError",
       code: "http",
+      retryable: true,
+    })
+  })
+
+  it("syncs md5 lists and uses APP_ENCRYPTION_KEY from env", async () => {
+    server.use(
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
+        () => prepareSuccess("md5")
+      ),
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
+        () =>
+          HttpResponse.text(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+            { headers: { "content-type": "text/plain" } }
+          )
+      )
+    )
+
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: ENC,
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: (table: unknown) => {
+          if (table === offer) {
+            return {
+              where: () => ({
+                limit: async () => [offerRow],
+              }),
+            }
+          }
+          return { where: async () => [] }
+        },
+      })),
+      insert: vi.fn((table: unknown) => ({
+        values: (values: unknown) => ({
+          returning: async () => {
+            if (table === suppressionSyncRun) {
+              return [{ id: "run-md5" }]
+            }
+            return Array.isArray(values)
+              ? values.map((_, i) => ({ id: `m-${String(i)}` }))
+              : [{ id: "m-0" }]
+          },
+          onConflictDoNothing: () => ({
+            returning: async () => {
+              return Array.isArray(values)
+                ? values.map((_, i) => ({ id: `m-${String(i)}` }))
+                : [{ id: "m-0" }]
+            },
+          }),
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => ({
+            returning: async () => [],
+          }),
+        }),
+      })),
+    }
+
+    const result = await processOptizmoSyncJob(
+      { offer_id: OFFER_ID, trigger: "manual" },
+      {
+        db: db as never,
+        env: {
+          OPTIZMO_API_KEY: "api-secret",
+          APP_ENCRYPTION_KEY: KEY,
+          OPTIZMO_API_BASE_URL: OPTIZMO_DEFAULT_BASE_URL,
+        },
+        permanentFailure,
+      }
+    )
+    expect(result).toMatchObject({
+      kind: "offer",
+      emailsSeen: 2,
+      rowsAdded: 2,
+    })
+  })
+
+  it("marks sync failed and rethrows unexpected non-Optizmo errors", async () => {
+    server.use(
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
+        () => prepareSuccess("plain")
+      ),
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
+        () =>
+          HttpResponse.text("email\na@example.com\n", {
+            headers: { "content-type": "text/plain" },
+          })
+      )
+    )
+
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: ENC,
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: (table: unknown) => {
+          if (table === offer) {
+            return {
+              where: () => ({
+                limit: async () => [offerRow],
+              }),
+            }
+          }
+          return { where: async () => [] }
+        },
+      })),
+      insert: vi.fn((table: unknown) => ({
+        values: (values: unknown) => ({
+          returning: async () => {
+            if (table === suppressionSyncRun) {
+              return [{ id: "run-boom" }]
+            }
+            return Array.isArray(values)
+              ? values.map((_, i) => ({ id: `b-${String(i)}` }))
+              : [{ id: "b-0" }]
+          },
+          onConflictDoNothing: () => ({
+            returning: async () => {
+              throw new Error("insert exploded")
+            },
+          }),
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => Promise.resolve([{ id: "x" }]),
+        }),
+      })),
+    }
+
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: db as never,
+          env: { OPTIZMO_API_KEY: "api-secret" },
+          encryptionKey: KEY,
+          permanentFailure,
+        }
+      )
+    ).rejects.toThrow("insert exploded")
+    expect(openAlert).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        type: OPTIZMO_SYNC_ALERT_TYPE,
+        dedupeKey: optizmoSyncAlertDedupeKey(OFFER_ID),
+      })
+    )
+  })
+
+  it("throws OptizmoPermanentFailure when no permanentFailure helper is provided", async () => {
+    const dbMissing = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [],
+          }),
+        }),
+      })),
+    }
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: dbMissing as never,
+          env: {},
+        }
+      )
+    ).rejects.toMatchObject({ name: "OptizmoPermanentFailure" })
+  })
+
+  it("treats empty-file permanent failures as terminal inside the sync try", async () => {
+    server.use(
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
+        () => prepareSuccess("plain")
+      ),
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
+        () =>
+          HttpResponse.text("email\n", {
+            headers: { "content-type": "text/plain" },
+          })
+      )
+    )
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: ENC,
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [offerRow],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: () => ({
+          returning: async () => [{ id: "run-empty-2" }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => Promise.resolve([{ id: "x" }]),
+        }),
+      })),
+    }
+
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: db as never,
+          env: { OPTIZMO_API_KEY: "api-secret" },
+          encryptionKey: KEY,
+        }
+      )
+    ).rejects.toMatchObject({ name: "OptizmoPermanentFailure" })
+  })
+
+  it("ignores permanentFailure helpers that throw while probing", async () => {
+    server.use(
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
+        () => HttpResponse.json({ result: "error" }, { status: 503 })
+      )
+    )
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: ENC,
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [offerRow],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: () => ({
+          returning: async () => [{ id: "run-probe" }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => Promise.resolve([{ id: "x" }]),
+        }),
+      })),
+    }
+
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: db as never,
+          env: { OPTIZMO_API_KEY: "api-secret" },
+          encryptionKey: KEY,
+          permanentFailure: () => {
+            throw new Error("probe failed")
+          },
+        }
+      )
+    ).rejects.toMatchObject({
+      name: "OptizmoClientError",
       retryable: true,
     })
   })
