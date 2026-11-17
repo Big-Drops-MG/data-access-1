@@ -215,6 +215,7 @@ describe("minRoleForStaffApi", () => {
 
   it("maps audit-log list to operator+", () => {
     expect(minRoleForStaffApi("GET", "/api/audit-log")).toBe("operator")
+    expect(minRoleForStaffApi("GET", "/api/audit-log/actors")).toBe("operator")
     expect(minRoleForStaffApi("POST", "/api/audit-log")).toBeNull()
   })
 

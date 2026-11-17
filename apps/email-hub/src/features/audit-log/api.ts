@@ -1,11 +1,19 @@
 import { apiJson } from "@/lib/api-client"
-import type { AuditLogJson } from "@/lib/audit-log/serialize"
+import type {
+  AuditActorOptionJson,
+  AuditLogJson,
+} from "@/lib/audit-log/serialize"
 
 export type AuditLogListItem = AuditLogJson
+export type AuditActorOption = AuditActorOptionJson
 
 export type AuditLogListResponse = {
   data: AuditLogListItem[]
   next_cursor: string | null
+}
+
+export type AuditActorsResponse = {
+  data: AuditActorOption[]
 }
 
 export type AuditLogListParams = {
@@ -59,4 +67,8 @@ export function fetchAuditLogList(
   return apiJson<AuditLogListResponse>(
     `/api/audit-log${toSearchParams(params)}`
   )
+}
+
+export function fetchAuditActors(): Promise<AuditActorsResponse> {
+  return apiJson<AuditActorsResponse>("/api/audit-log/actors")
 }
