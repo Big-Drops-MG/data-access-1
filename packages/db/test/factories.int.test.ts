@@ -14,6 +14,7 @@ import {
   databaseUrlIdentity,
   sslForDatabaseUrl,
 } from "../src/connection-policy.js"
+import { applyPostgresMigrations } from "../src/postgres-migrate.js"
 import * as schema from "../src/schema/index.js"
 import { createDomain, createMessage, createSender } from "./factories.js"
 
@@ -38,9 +39,7 @@ describe.skipIf(migrationUrl.length === 0)("database factories", () => {
       clientConfig(withDatabase(migrationUrl, scratchName))
     )
     await scratchOwner.connect()
-    for (const statement of scratchSchema) {
-      await scratchOwner.query(statement)
-    }
+    await applyPostgresMigrations(scratchOwner)
 
     const password = applicationPassword(migrationUrl)
     await applyAppRole(sqlClientFromPg(scratchOwner), {
@@ -54,7 +53,7 @@ describe.skipIf(migrationUrl.length === 0)("database factories", () => {
       )
     )
     await app.connect()
-  }, 30_000)
+  }, 60_000)
 
   afterAll(async () => {
     await app?.end()
@@ -149,145 +148,6 @@ describe.skipIf(migrationUrl.length === 0)("database factories", () => {
     expect(first.recipientId).not.toBe(second.recipientId)
   })
 })
-
-const scratchSchema = [
-  "CREATE EXTENSION IF NOT EXISTS citext",
-  "CREATE TYPE user_role AS ENUM ('admin', 'operator', 'viewer')",
-  "CREATE TYPE user_status AS ENUM ('active', 'deactivated')",
-  "CREATE TYPE email_category_kind AS ENUM ('transactional', 'relationship')",
-  "CREATE TYPE email_type AS ENUM ('thank_you', 'feedback_request', 'engagement')",
-  "CREATE TYPE domain_status AS ENUM ('pending', 'verifying', 'verified', 'failed', 'inactive')",
-  "CREATE TYPE sender_status AS ENUM ('active', 'inactive', 'pending_verification')",
-  "CREATE TYPE template_status AS ENUM ('draft', 'active', 'archived')",
-  "CREATE TYPE recipient_tier AS ENUM ('standard', 'premium')",
-  "CREATE TYPE recipient_status AS ENUM ('active', 'bounced')",
-  "CREATE TYPE message_status AS ENUM ('queued', 'sent', 'delivered', 'bounced', 'complained', 'skipped', 'failed')",
-  "CREATE TYPE message_environment AS ENUM ('production', 'test')",
-  "CREATE TYPE message_skip_reason AS ENUM ('recipient_bounced', 'suppressed', 'opted_out', 'not_premium', 'collision', 'frequency_cap', 'no_route')",
-  "CREATE TYPE audit_actor_type AS ENUM ('user', 'api_client', 'system')",
-  `CREATE TABLE "user" (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     email citext NOT NULL,
-     name text NOT NULL,
-     email_verified boolean NOT NULL DEFAULT false,
-     image text,
-     role user_role NOT NULL,
-     job_title text,
-     status user_status NOT NULL,
-     two_factor_enabled boolean NOT NULL DEFAULT false,
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now()
-   )`,
-  `CREATE UNIQUE INDEX user_email_unique ON "user" (email)`,
-  `CREATE TABLE email_category (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     key text NOT NULL UNIQUE,
-     name text NOT NULL,
-     description text,
-     kind email_category_kind NOT NULL,
-     default_opted_in boolean NOT NULL DEFAULT true,
-     is_active boolean NOT NULL DEFAULT true,
-     created_by uuid REFERENCES "user" (id) ON DELETE SET NULL,
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now()
-   )`,
-  `CREATE TABLE domain (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     name text NOT NULL,
-     ses_identity_arn text,
-     status domain_status NOT NULL DEFAULT 'pending',
-     created_by uuid REFERENCES "user" (id) ON DELETE SET NULL,
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now(),
-     verified_at timestamptz
-   )`,
-  `CREATE UNIQUE INDEX domain_name_unique ON domain (lower(name))`,
-  `CREATE TABLE sender (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     domain_id uuid NOT NULL REFERENCES domain (id) ON DELETE RESTRICT,
-     from_name text NOT NULL,
-     from_email citext NOT NULL UNIQUE,
-     reply_to citext,
-     postal_address text,
-     status sender_status NOT NULL DEFAULT 'pending_verification',
-     version integer NOT NULL DEFAULT 1,
-     created_by uuid REFERENCES "user" (id) ON DELETE SET NULL,
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now(),
-     deactivated_at timestamptz
-   )`,
-  `CREATE TABLE template (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     name text NOT NULL UNIQUE,
-     email_type email_type NOT NULL,
-     category_id uuid NOT NULL REFERENCES email_category (id),
-     current_version_id uuid,
-     status template_status NOT NULL,
-     created_by uuid NOT NULL REFERENCES "user" (id),
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now()
-   )`,
-  `CREATE TABLE template_version (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     template_id uuid NOT NULL REFERENCES template (id) ON DELETE CASCADE,
-     version_no integer NOT NULL,
-     subject text NOT NULL,
-     body_source text NOT NULL,
-     merge_tags jsonb NOT NULL DEFAULT '{}'::jsonb,
-     created_by uuid NOT NULL REFERENCES "user" (id),
-     created_at timestamptz NOT NULL DEFAULT now(),
-     CONSTRAINT template_version_no_positive CHECK (version_no > 0),
-     UNIQUE (template_id, version_no),
-     UNIQUE (id, template_id)
-   )`,
-  `ALTER TABLE template
-     ADD CONSTRAINT template_current_version_same_template_fk
-     FOREIGN KEY (current_version_id, id)
-     REFERENCES template_version (id, template_id)`,
-  `CREATE TABLE recipient (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     email citext NOT NULL UNIQUE,
-     email_hash text NOT NULL UNIQUE,
-     external_user_id text,
-     tier recipient_tier NOT NULL DEFAULT 'standard',
-     tier_updated_at timestamptz NOT NULL DEFAULT now(),
-     status recipient_status NOT NULL DEFAULT 'active',
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now(),
-     last_emailed_at timestamptz
-   )`,
-  `CREATE TABLE message (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     send_id uuid,
-     recipient_id uuid NOT NULL REFERENCES recipient (id),
-     offer_id uuid,
-     email_type email_type NOT NULL,
-     template_version_id uuid REFERENCES template_version (id),
-     sender_id uuid REFERENCES sender (id),
-     idempotency_key text NOT NULL UNIQUE,
-     environment message_environment NOT NULL DEFAULT 'production',
-     merge_data jsonb NOT NULL DEFAULT '{}'::jsonb,
-     status message_status NOT NULL,
-     skip_reason message_skip_reason,
-     failure_reason text,
-     ses_message_id text,
-     queued_at timestamptz,
-     sent_at timestamptz,
-     created_at timestamptz NOT NULL DEFAULT now(),
-     updated_at timestamptz NOT NULL DEFAULT now(),
-     CONSTRAINT message_skip_reason_check CHECK (
-       (status = 'skipped' AND skip_reason IS NOT NULL)
-       OR (status <> 'skipped' AND skip_reason IS NULL)
-     )
-   )`,
-  `CREATE TABLE audit_log (
-     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-     actor_type audit_actor_type NOT NULL,
-     actor_id uuid,
-     action text NOT NULL,
-     entity_type text NOT NULL
-   )`,
-]
 
 function applicationPassword(ownerUrl: string): string {
   const configured = process.env.DATABASE_URL?.trim()
