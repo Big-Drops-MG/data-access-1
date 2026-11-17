@@ -48,13 +48,22 @@ describe("dev seed catalog", () => {
     expect(DEV_OFFER.status).toBe("active")
     expect(DEV_USER.email.endsWith("@example.com")).toBe(true)
     expect(DEV_RECIPIENTS.map((row) => row.email)).toEqual([
+      "maria.lopez@example.com",
+      "j.whitaker@example.org",
       "ada@example.com",
       "blair@example.com",
       "casey@example.com",
+      "noah.patel@example.com",
+      "samira.khan@example.com",
+      "hardbounce@example.com",
     ])
     expect(new Set(DEV_RECIPIENTS.map((row) => row.tier))).toEqual(
       new Set(["standard", "premium"])
     )
+    expect(new Set(DEV_RECIPIENTS.map((row) => row.status))).toEqual(
+      new Set(["active", "bounced"])
+    )
+    expect(DEV_RECIPIENTS).toHaveLength(8)
   })
 
   it("hashes the normalised recipient email with sha256", () => {

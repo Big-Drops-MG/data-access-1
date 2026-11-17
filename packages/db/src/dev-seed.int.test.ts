@@ -72,17 +72,32 @@ describe.skipIf(migrationUrl.length === 0)("dev seed", () => {
       categories: 3,
       frequencyRules: 2,
       offers: 1,
-      recipients: 3,
+      recipients: 8,
+      messages: 8,
       feedbackClassifications: 4,
     })
-    expect(await counts(app)).toEqual(first)
+    expect(await counts(app)).toMatchObject({
+      categories: 3,
+      frequencyRules: 2,
+      offers: 1,
+      recipients: 8,
+      messages: 8,
+      feedbackClassifications: 4,
+    })
 
     await app.query(
       "UPDATE email_category SET name = 'changed' WHERE key = 'thank_you'"
     )
-    await seedDev(db)
-
-    expect(await counts(app)).toEqual(first)
+    const second = await seedDev(db)
+    expect(second.messages).toBe(0)
+    expect(await counts(app)).toMatchObject({
+      categories: 3,
+      frequencyRules: 2,
+      offers: 1,
+      recipients: 8,
+      messages: 8,
+      feedbackClassifications: 4,
+    })
     const renamed = await app.query<{ name: string }>(
       "SELECT name FROM email_category WHERE key = 'thank_you'"
     )
@@ -223,6 +238,7 @@ async function counts(client: Client): Promise<{
   frequencyRules: number
   offers: number
   recipients: number
+  messages: number
   feedbackClassifications: number
 }> {
   const result = await client.query<{
@@ -230,6 +246,7 @@ async function counts(client: Client): Promise<{
     frequency_rules: number
     offers: number
     recipients: number
+    messages: number
     feedback_classifications: number
   }>(
     `SELECT
@@ -237,6 +254,7 @@ async function counts(client: Client): Promise<{
        (SELECT count(*) FROM frequency_rule) AS frequency_rules,
        (SELECT count(*) FROM offer) AS offers,
        (SELECT count(*) FROM recipient) AS recipients,
+       (SELECT count(*) FROM message) AS messages,
        (SELECT count(*) FROM feedback_classification) AS feedback_classifications`
   )
   const row = result.rows[0]
@@ -249,6 +267,7 @@ async function counts(client: Client): Promise<{
     frequencyRules: Number(row.frequency_rules),
     offers: Number(row.offers),
     recipients: Number(row.recipients),
+    messages: Number(row.messages),
     feedbackClassifications: Number(row.feedback_classifications),
   }
 }

@@ -102,7 +102,7 @@ export function RecipientsPage() {
             }}
           >
             <Download className="size-3.5" strokeWidth={1.75} aria-hidden />
-            Export CSV
+            Download as CSV
           </button>
         }
       />

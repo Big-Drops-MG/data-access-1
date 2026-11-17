@@ -9,9 +9,12 @@ import {
 } from "./connection-policy.js"
 import { loadEmailCatalog, seedEmailCatalog } from "./email-catalog-seed.js"
 import {
+  emailCategory,
   feedbackClassification,
+  message,
   offer,
   recipient,
+  recipientPreference,
   user,
 } from "./schema/index.js"
 
@@ -54,9 +57,63 @@ export const DEV_OFFER = {
 } as const
 
 export const DEV_RECIPIENTS = [
-  { email: "ada@example.com", tier: "standard", externalUserId: "dev-ada" },
-  { email: "blair@example.com", tier: "premium", externalUserId: "dev-blair" },
-  { email: "casey@example.com", tier: "standard", externalUserId: "dev-casey" },
+  {
+    email: "maria.lopez@example.com",
+    tier: "premium",
+    status: "active",
+    externalUserId: "dev-maria",
+    lastEmailedAt: "2026-10-08T17:58:00.000Z",
+  },
+  {
+    email: "j.whitaker@example.org",
+    tier: "standard",
+    status: "active",
+    externalUserId: "dev-whitaker",
+    lastEmailedAt: "2026-10-07T13:20:00.000Z",
+    optOutEngagement: true,
+  },
+  {
+    email: "ada@example.com",
+    tier: "standard",
+    status: "active",
+    externalUserId: "dev-ada",
+    lastEmailedAt: "2026-10-06T15:00:00.000Z",
+  },
+  {
+    email: "blair@example.com",
+    tier: "premium",
+    status: "active",
+    externalUserId: "dev-blair",
+    lastEmailedAt: "2026-10-05T19:30:00.000Z",
+  },
+  {
+    email: "casey@example.com",
+    tier: "standard",
+    status: "bounced",
+    externalUserId: "dev-casey",
+    lastEmailedAt: "2026-09-28T12:00:00.000Z",
+  },
+  {
+    email: "noah.patel@example.com",
+    tier: "premium",
+    status: "active",
+    externalUserId: "dev-noah",
+    lastEmailedAt: "2026-10-08T11:12:00.000Z",
+  },
+  {
+    email: "samira.khan@example.com",
+    tier: "standard",
+    status: "active",
+    externalUserId: "dev-samira",
+    lastEmailedAt: null,
+  },
+  {
+    email: "hardbounce@example.com",
+    tier: "standard",
+    status: "bounced",
+    externalUserId: "dev-bounce",
+    lastEmailedAt: "2026-09-12T08:45:00.000Z",
+  },
 ] as const
 
 export const DEV_FEEDBACK_CLASSIFICATIONS = [
@@ -71,6 +128,7 @@ export type DevSeedResult = {
   frequencyRules: number
   offers: number
   recipients: number
+  messages: number
   feedbackClassifications: number
 }
 
@@ -94,8 +152,10 @@ export async function seedDev(db: Database): Promise<DevSeedResult> {
     updatedByUserId: userId,
     reconcile: false,
   })
-  await ensureOffer(db)
+  const offerId = await ensureOffer(db)
   await ensureRecipients(db)
+  await ensureRecipientPreferences(db)
+  const messages = await ensureOfferMessages(db, offerId)
   await ensureFeedbackClassifications(db, userId)
 
   return {
@@ -103,6 +163,7 @@ export async function seedDev(db: Database): Promise<DevSeedResult> {
     frequencyRules: catalogResult.frequencyRules,
     offers: 1,
     recipients: DEV_RECIPIENTS.length,
+    messages,
     feedbackClassifications: DEV_FEEDBACK_CLASSIFICATIONS.length,
   }
 }
@@ -135,8 +196,8 @@ async function ensureUser(db: Database): Promise<string> {
   return existing.id
 }
 
-async function ensureOffer(db: Database): Promise<void> {
-  await db
+async function ensureOffer(db: Database): Promise<string> {
+  const [inserted] = await db
     .insert(offer)
     .values({
       name: DEV_OFFER.name,
@@ -144,10 +205,28 @@ async function ensureOffer(db: Database): Promise<void> {
       status: DEV_OFFER.status,
     })
     .onConflictDoNothing({ target: offer.externalRef })
+    .returning({ id: offer.id })
+
+  if (inserted) {
+    return inserted.id
+  }
+
+  const [existing] = await db
+    .select({ id: offer.id })
+    .from(offer)
+    .where(eq(offer.externalRef, DEV_OFFER.externalRef))
+    .limit(1)
+
+  if (!existing) {
+    throw new Error("Dev offer was not inserted.")
+  }
+
+  return existing.id
 }
 
 async function ensureRecipients(db: Database): Promise<void> {
   for (const row of DEV_RECIPIENTS) {
+    const lastEmailedAt = row.lastEmailedAt ? new Date(row.lastEmailedAt) : null
     await db
       .insert(recipient)
       .values({
@@ -155,9 +234,103 @@ async function ensureRecipients(db: Database): Promise<void> {
         emailHash: hashNormalisedEmail(row.email),
         externalUserId: row.externalUserId,
         tier: row.tier,
+        status: row.status,
+        lastEmailedAt,
       })
-      .onConflictDoNothing({ target: recipient.email })
+      .onConflictDoUpdate({
+        target: recipient.email,
+        set: {
+          externalUserId: row.externalUserId,
+          tier: row.tier,
+          status: row.status,
+          lastEmailedAt,
+          updatedAt: new Date(),
+        },
+      })
   }
+}
+
+async function ensureRecipientPreferences(db: Database): Promise<void> {
+  const [engagement] = await db
+    .select({ id: emailCategory.id })
+    .from(emailCategory)
+    .where(eq(emailCategory.key, "engagement"))
+    .limit(1)
+
+  if (!engagement) {
+    return
+  }
+
+  for (const row of DEV_RECIPIENTS) {
+    if (!("optOutEngagement" in row) || !row.optOutEngagement) {
+      continue
+    }
+    const [existing] = await db
+      .select({ id: recipient.id })
+      .from(recipient)
+      .where(eq(recipient.email, row.email))
+      .limit(1)
+    if (!existing) {
+      continue
+    }
+    await db
+      .insert(recipientPreference)
+      .values({
+        recipientId: existing.id,
+        categoryId: engagement.id,
+        optedOut: true,
+        source: "unsubscribe_link",
+      })
+      .onConflictDoNothing({
+        target: [
+          recipientPreference.recipientId,
+          recipientPreference.categoryId,
+        ],
+      })
+  }
+}
+
+/**
+ * Link each seeded recipient to the sample offer via a skipped message so Hub
+ * offer-scoped recipient lists (T-152) show mock rows when Sample offer is selected.
+ */
+async function ensureOfferMessages(
+  db: Database,
+  offerId: string
+): Promise<number> {
+  let created = 0
+  for (const row of DEV_RECIPIENTS) {
+    const [existingRecipient] = await db
+      .select({ id: recipient.id })
+      .from(recipient)
+      .where(eq(recipient.email, row.email))
+      .limit(1)
+    if (!existingRecipient) {
+      continue
+    }
+
+    const idempotencyKey = `dev-seed:${offerId}:${existingRecipient.id}:thank_you`
+    const sentAt = row.lastEmailedAt ? new Date(row.lastEmailedAt) : new Date()
+    const [inserted] = await db
+      .insert(message)
+      .values({
+        recipientId: existingRecipient.id,
+        offerId,
+        emailType: "thank_you",
+        idempotencyKey,
+        status: "skipped",
+        skipReason: "no_route",
+        queuedAt: sentAt,
+        sentAt: null,
+      })
+      .onConflictDoNothing({ target: message.idempotencyKey })
+      .returning({ id: message.id })
+
+    if (inserted) {
+      created += 1
+    }
+  }
+  return created
 }
 
 async function ensureFeedbackClassifications(
