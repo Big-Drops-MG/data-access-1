@@ -16,6 +16,7 @@ import { getContextLogger } from "@workspace/logger"
 
 import {
   encryptWithAppKey,
+  AppEncryptionError,
   readAppEncryptionKeyFromEnv,
 } from "@/lib/crypto/app-encryption"
 import {
@@ -170,11 +171,15 @@ export async function importOfferFromEverflow(
         encryptionKey
       )
       hasMailerKey = true
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof AppEncryptionError
+          ? error.message
+          : "Failed to encrypt Optizmo mailer access key"
       throw AppError.unavailable([
         {
           path: "app_encryption_key",
-          message: "APP_ENCRYPTION_KEY is not configured",
+          message,
         },
       ])
     }

@@ -40,7 +40,11 @@ export default async function UnsubscribePage({
           title="Link expired"
           description={unsubscribeExpiredMessage()}
           logoUrl={logoUrl}
-        />
+        >
+          <p className="text-center text-sm text-fg-muted">
+            You can close this page.
+          </p>
+        </AuthCard>
       </div>
     )
   }
