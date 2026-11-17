@@ -126,9 +126,7 @@ export function AuditLogPage() {
   )
 
   function clearFilters() {
-    for (const key of FILTER_KEYS) {
-      tableState.setFilter(key, undefined)
-    }
+    tableState.setFilters({})
   }
 
   return (
