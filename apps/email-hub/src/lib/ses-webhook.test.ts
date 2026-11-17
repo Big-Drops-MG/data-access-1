@@ -598,6 +598,7 @@ describe("handleSesWebhook", () => {
       sesMessageId: SES_ID,
       bounceType: "Permanent",
       recipientEmails: [],
+      complaintFeedbackType: null,
     })
     expect(harness.updateStatus).not.toHaveBeenCalled()
   })

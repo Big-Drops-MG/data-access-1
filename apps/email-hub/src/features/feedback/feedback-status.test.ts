@@ -42,12 +42,16 @@ describe("feedback-status helpers", () => {
     expect(parseFeedbackStatusTab("resolved")).toBe("resolved")
     expect(parseFeedbackStatusTab("nope")).toBe("pending")
     expect(shortFeedbackId("019a0000-0000-7000-8000-0000000000aa")).toBe(
-      "FB-00AA"
+      "CMP-00AA"
     )
   })
 
   it("labels source, type, and decision", () => {
     expect(feedbackSourceLabel(item())).toBe("Yahoo Sender Hub")
+    expect(feedbackSourceLabel(item({ provider: "google" }))).toBe(
+      "Google / Gmail"
+    )
+    expect(feedbackSourceLabel(item({ provider: "ses" }))).toBe("SES")
     expect(
       feedbackSourceLabel(item({ provider: null, source: "feedback_form" }))
     ).toBe("Feedback form")

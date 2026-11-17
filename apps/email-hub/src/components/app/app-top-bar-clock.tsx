@@ -23,20 +23,29 @@ type AppTopBarClockProps = {
 
 /** Live America/New_York clock for the top bar. */
 export function AppTopBarClock({ className }: AppTopBarClockProps) {
-  const [now, setNow] = useState(() => new Date())
+  const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000)
-    return () => window.clearInterval(timer)
+    const timeoutId = window.setTimeout(() => {
+      setNow(new Date())
+    }, 0)
+    const intervalId = window.setInterval(() => {
+      setNow(new Date())
+    }, 1000)
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.clearInterval(intervalId)
+    }
   }, [])
 
   return (
     <time
       className={cn("text-caption text-fg-muted tabular-nums", className)}
-      dateTime={now.toISOString()}
+      dateTime={now?.toISOString()}
       data-testid="app-top-bar-clock"
+      suppressHydrationWarning
     >
-      {formatLiveEtClock(now)}
+      {now ? formatLiveEtClock(now) : "\u00a0"}
     </time>
   )
 }

@@ -3,6 +3,7 @@ import type { SendMailOptions } from "nodemailer"
 import { describe, expect, it } from "vitest"
 
 import {
+  FEEDBACK_ID_HEADER,
   LIST_UNSUBSCRIBE_HEADER,
   LIST_UNSUBSCRIBE_POST,
   LIST_UNSUBSCRIBE_POST_HEADER,
@@ -138,6 +139,26 @@ describe("mail transport", () => {
     expect(ses.inputs[0]?.ConfigurationSetName).toBe("emailhub-prod")
     expect(ses.inputs).toHaveLength(1)
     expect(smtp.sent).toHaveLength(1)
+  })
+
+  it("sets Feedback-ID for Postmaster campaign rates", async () => {
+    const ses = fakeSes()
+    const message: RenderedMessage = {
+      ...rendered,
+      feedbackId: "eh:0192f6c0message",
+    }
+
+    await createMailTransport(
+      {
+        MAIL_TRANSPORT: "ses",
+        SES_REGION: "us-east-1",
+      },
+      { sesClient: ses.client }
+    ).send(message)
+
+    expect(
+      headerValue(ses.inputs[0]?.Content?.Simple?.Headers, FEEDBACK_ID_HEADER)
+    ).toBe("eh:0192f6c0message")
   })
 
   it("omits List-Unsubscribe-Post for engagement Everflow URLs", async () => {

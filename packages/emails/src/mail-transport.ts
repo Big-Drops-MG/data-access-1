@@ -10,6 +10,7 @@ import type { SendMailOptions } from "nodemailer"
 export const LIST_UNSUBSCRIBE_HEADER = "List-Unsubscribe"
 export const LIST_UNSUBSCRIBE_POST_HEADER = "List-Unsubscribe-Post"
 export const LIST_UNSUBSCRIBE_POST = "List-Unsubscribe=One-Click"
+export const FEEDBACK_ID_HEADER = "Feedback-ID"
 
 export type RenderedMessage = {
   from: string
@@ -27,6 +28,11 @@ export type RenderedMessage = {
    * List-Unsubscribe-Post. Engagement / Everflow URLs pass false.
    */
   oneClickUnsubscribe?: boolean
+  /**
+   * Google Postmaster Feedback-ID value for campaign-level FBL rates.
+   * Format: colon-separated identifiers (no spaces).
+   */
+  feedbackId?: string
 }
 
 export type SendResult = {
@@ -115,7 +121,7 @@ export function createSesTransport(options: {
       loggedSend("ses", message, () =>
         providerResult("SES", async () => {
           const replyTo = prepareMessage(message)
-          const headers = unsubscribeHeaders(message)
+          const headers = mailHeaders(message)
           const output = await client.send(
             new SendEmailCommand({
               FromEmailAddress: message.from,
@@ -160,7 +166,7 @@ export function createSmtpTransport(options: {
       loggedSend("smtp", message, () =>
         providerResult("SMTP", async () => {
           const replyTo = prepareMessage(message)
-          const headers = smtpUnsubscribeHeaders(message)
+          const headers = smtpMailHeaders(message)
           const info = await sender.sendMail({
             from: message.from,
             to: message.to,
@@ -213,37 +219,45 @@ async function loggedSend(
   }
 }
 
-function unsubscribeHeaders(
+function mailHeaders(
   message: Pick<
     RenderedMessage,
-    "unsubscribeUrl" | "listUnsubscribeUrl" | "oneClickUnsubscribe"
+    | "unsubscribeUrl"
+    | "listUnsubscribeUrl"
+    | "oneClickUnsubscribe"
+    | "feedbackId"
   >
 ): { Name: string; Value: string }[] {
+  const headers: { Name: string; Value: string }[] = []
+  const feedbackId = message.feedbackId?.trim() ?? ""
+  if (feedbackId !== "") {
+    headers.push({ Name: FEEDBACK_ID_HEADER, Value: feedbackId })
+  }
   const url =
     message.listUnsubscribeUrl?.trim() || message.unsubscribeUrl?.trim() || ""
-  if (url === "") {
-    return []
-  }
-  const value = url.startsWith("<") ? url : `<${url}>`
-  const headers: { Name: string; Value: string }[] = [
-    { Name: LIST_UNSUBSCRIBE_HEADER, Value: value },
-  ]
-  if (message.oneClickUnsubscribe !== false) {
-    headers.push({
-      Name: LIST_UNSUBSCRIBE_POST_HEADER,
-      Value: LIST_UNSUBSCRIBE_POST,
-    })
+  if (url !== "") {
+    const value = url.startsWith("<") ? url : `<${url}>`
+    headers.push({ Name: LIST_UNSUBSCRIBE_HEADER, Value: value })
+    if (message.oneClickUnsubscribe !== false) {
+      headers.push({
+        Name: LIST_UNSUBSCRIBE_POST_HEADER,
+        Value: LIST_UNSUBSCRIBE_POST,
+      })
+    }
   }
   return headers
 }
 
-function smtpUnsubscribeHeaders(
+function smtpMailHeaders(
   message: Pick<
     RenderedMessage,
-    "unsubscribeUrl" | "listUnsubscribeUrl" | "oneClickUnsubscribe"
+    | "unsubscribeUrl"
+    | "listUnsubscribeUrl"
+    | "oneClickUnsubscribe"
+    | "feedbackId"
   >
 ): Record<string, string> | undefined {
-  const headers = unsubscribeHeaders(message)
+  const headers = mailHeaders(message)
   if (headers.length === 0) {
     return undefined
   }

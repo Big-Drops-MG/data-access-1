@@ -3,16 +3,8 @@ export async function register(): Promise<void> {
     return
   }
 
-  const dns = await import("node:dns")
-  if (typeof dns.setDefaultResultOrder === "function") {
-    dns.setDefaultResultOrder("ipv4first")
-  }
-
-  const { loadServerEnv } = await import("@workspace/shared")
-  const { WEB_SERVICE, createLogger, setFallbackLogger } =
-    await import("@workspace/logger")
-  loadServerEnv("web")
-  setFallbackLogger(createLogger({ service: WEB_SERVICE }))
+  const { registerNode } = await import("./instrumentation.node")
+  await registerNode()
 }
 
 type RequestErrorInfo = {

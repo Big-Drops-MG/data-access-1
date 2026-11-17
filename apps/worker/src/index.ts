@@ -39,6 +39,7 @@ import { Redis } from "ioredis"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
+import { processProviderMetricsPull } from "./provider-metrics-pull.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
 import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
@@ -46,6 +47,7 @@ import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
 
 const DISPATCH_WORKER_CONCURRENCY = 2
 const INTAKE_WORKER_CONCURRENCY = 1
+const PROVIDER_METRICS_PULL_JOB = "provider-metrics-pull"
 
 const logger = createLogger({ service: WORKER_SERVICE })
 setFallbackLogger(logger)
@@ -141,7 +143,13 @@ async function withJobLogs(
 }
 
 async function processJob(queueName: QueueName, job: Job): Promise<void> {
-  await withJobLogs(queueName, job, async () => undefined)
+  await withJobLogs(queueName, job, async () => {
+    if (queueName === "monitoring" && job.name === PROVIDER_METRICS_PULL_JOB) {
+      const env = loadServerEnv("worker")
+      await processProviderMetricsPull({ db: getDb(), env })
+      return
+    }
+  })
 }
 
 async function main(): Promise<void> {
