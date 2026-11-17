@@ -53,7 +53,8 @@ export function isScheduleLeadValid(
 
 export function sendFormDefaults(
   initial: SendListItem | undefined,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options: { defaultOfferId?: string | null } = {}
 ): SendFormValues {
   if (!initial) {
     return {
@@ -61,7 +62,7 @@ export function sendFormDefaults(
       template_version_id: "",
       category_id: "",
       sender_id: "",
-      offer_id: ALL_OFFERS_VALUE,
+      offer_id: options.defaultOfferId?.trim() || ALL_OFFERS_VALUE,
       scheduled_for: defaultScheduledFor(now),
     }
   }

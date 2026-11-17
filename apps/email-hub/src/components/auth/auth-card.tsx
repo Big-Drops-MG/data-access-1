@@ -8,9 +8,11 @@ type AuthCardProps = {
   title: string
   /** Supporting copy under the title (same header column). */
   description?: ReactNode
-  children: ReactNode
+  children?: ReactNode
   footer?: ReactNode
   className?: string
+  /** Optional HTTPS logo for public unsubscribe branding. */
+  logoUrl?: string | null
 }
 
 /**
@@ -23,6 +25,7 @@ export function AuthCard({
   children,
   footer,
   className,
+  logoUrl,
 }: AuthCardProps) {
   return (
     <section
@@ -33,7 +36,17 @@ export function AuthCard({
       data-testid="auth-card"
     >
       <header className="flex flex-col items-center gap-6 text-center">
-        <BrandMark />
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote tenant logo URL
+          <img
+            src={logoUrl}
+            alt=""
+            className="h-8 w-auto max-w-[12rem] object-contain"
+            data-testid="unsubscribe-custom-logo"
+          />
+        ) : (
+          <BrandMark />
+        )}
         <div className="flex w-full flex-col gap-2">
           <h1 className="text-h2 font-bold tracking-tight text-fg">{title}</h1>
           {description ? (
@@ -44,7 +57,9 @@ export function AuthCard({
         </div>
       </header>
 
-      <div className="mt-8 flex flex-col gap-6">{children}</div>
+      {children ? (
+        <div className="mt-8 flex flex-col gap-6">{children}</div>
+      ) : null}
 
       {footer ? (
         <footer className="mt-8 border-t border-border pt-6 text-center text-sm text-fg-muted">

@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/auth/brand-mark"
 import { isDevEnvironmentBadgeVisible } from "@/lib/env-badge"
 
 import { AppTopBarClock } from "./app-top-bar-clock"
+import { AppTopBarOfferSwitcher } from "./app-top-bar-offer-switcher"
 import { AppTopBarUserMenu } from "./app-top-bar-user-menu"
 
 type AppTopBarProps = {
@@ -56,6 +57,10 @@ export function AppTopBar({
             DEV
           </span>
         ) : null}
+      </div>
+
+      <div className="mx-4 min-w-0 flex-1">
+        <AppTopBarOfferSwitcher />
       </div>
 
       <div className="ml-auto flex items-center gap-4">

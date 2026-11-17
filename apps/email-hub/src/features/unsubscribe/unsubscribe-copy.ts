@@ -12,7 +12,7 @@ export function unsubscribeConfirmCopy(
   const categoryLabel = categoryName?.trim() || "this email type"
   return {
     categoryLabel,
-    categoryDescription: `Stop emails in “${categoryLabel}” only.`,
+    categoryDescription: `Stop emails in "${categoryLabel}" only.`,
     allDescription:
       "Stop relationship emails and add a list-unsubscribe suppression.",
   }
