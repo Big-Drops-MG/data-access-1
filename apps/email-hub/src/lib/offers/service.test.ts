@@ -151,12 +151,14 @@ describe("importOfferFromEverflow", () => {
       ),
     }
 
+    const enqueueOptizmoSync = vi.fn(async () => undefined)
     const result = await importOfferFromEverflow(
       2049,
       { userId: "user-1", requestId: "req-1" },
       {
         db: db as never as Database,
         now: at,
+        enqueueOptizmoSync,
         fetchOffer: async () => ({
           network_offer_id: 2049,
           name: "Q4 relaunch",
@@ -196,6 +198,7 @@ describe("importOfferFromEverflow", () => {
     expect(JSON.stringify(result)).not.toContain("m-test-key")
     expect(JSON.stringify(result)).not.toContain("enc.key")
     expect(result.has_optizmo_mailer_access_key).toBe(true)
+    expect(enqueueOptizmoSync).toHaveBeenCalledWith(storedOffer.id)
   })
 
   it("records integration failure when Everflow fetch fails", async () => {
