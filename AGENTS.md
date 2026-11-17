@@ -5,8 +5,14 @@
 1. Check the remote is up to date: `git fetch origin`.
 2. Confirm which base branch the task uses (normally `dev` for feature/fix/chore work; `main` only for hotfixes).
 3. Update local base if needed: `git checkout <base>` then `git pull origin <base>` (merge/pull only — do not rebase shared branches).
-4. Create or switch to the task branch from that up-to-date base: `<type>/T-###-short-kebab-name`.
-5. Only then start implementing the task.
+4. **Notion task required:** If the request is not already tracked as a Notion Tasks row (`T-###`), **create that task first**, then implement. Do not invent work under a fake `T-000` when the product ask is real deliverable work.
+   - Database: EmailHub **Tasks** (`collection://3f264423-ce67-80e1-9361-000b80a4f812`).
+   - Assign the next free `T-###` (query recent task Names; never reuse).
+   - Fill at minimum: **Name** (`T-### · …`), **Status** (`In Progress` when starting), **Type**, **Priority**, **Sprint** / **Sprint Key**, **Story** (existing US-## or create/link the right story), **Assignee**, **Description**, **Done When**, **Estimated Hours**, **Doc Reference** / **Doc Sections** when known, **Depends On** when blocked by another task.
+   - Branch and commits must use that real `T-###`: `<type>/T-###-short-kebab-name` and `<type>(T-###): …`.
+   - After opening a PR, set **PR / Link** on the Notion task.
+5. Create or switch to the task branch from that up-to-date base: `<type>/T-###-short-kebab-name`.
+6. Only then start implementing the task.
 
 Do not begin coding on a stale local branch.
 

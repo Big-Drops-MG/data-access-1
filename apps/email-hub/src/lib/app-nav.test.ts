@@ -10,7 +10,7 @@ import {
 } from "@/lib/app-nav"
 
 describe("APP_PRIMARY_TABS", () => {
-  it("ships primary tabs including Offers", () => {
+  it("ships primary tabs without Offers (Offers lives under Admin)", () => {
     expect(APP_PRIMARY_TABS.map((tab) => tab.title)).toEqual([
       "Dashboard",
       "Sends",
@@ -18,16 +18,20 @@ describe("APP_PRIMARY_TABS", () => {
       "Email routes",
       "Recipients",
       "Suppression",
-      "Offers",
+      "Unsubscribe",
       "Domains",
       "Senders",
       "Complaints",
       "Alerts",
       "Reports",
     ])
-    expect(APP_PRIMARY_TABS.find((tab) => tab.title === "Offers")?.href).toBe(
-      "/offers"
-    )
+    expect(APP_PRIMARY_TABS.map((tab) => tab.title)).not.toContain("Offers")
+    expect(
+      APP_PRIMARY_TABS.find((tab) => tab.title === "Unsubscribe")?.href
+    ).toBe("/unsubscribe")
+    expect(
+      APP_ADMIN_NAV_ITEMS.find((item) => item.title === "Offers")?.href
+    ).toBe("/offers")
   })
 })
 
@@ -41,9 +45,11 @@ describe("isPathActive", () => {
 })
 
 describe("isAdminSectionActive", () => {
-  it("highlights any /admin path", () => {
+  it("highlights /admin paths and Offers", () => {
     expect(isAdminSectionActive("/admin/audit-log")).toBe(true)
     expect(isAdminSectionActive("/admin/users")).toBe(true)
+    expect(isAdminSectionActive("/offers")).toBe(true)
+    expect(isAdminSectionActive("/offers/new")).toBe(true)
     expect(isAdminSectionActive("/dashboard")).toBe(false)
   })
 })
@@ -54,9 +60,10 @@ describe("Admin role visibility (T-044 Done When)", () => {
     expect(visibleAdminNavItems("viewer")).toEqual([])
   })
 
-  it("shows only Audit log to operators", () => {
+  it("shows Offers and Audit log to operators", () => {
     expect(canSeeAdminNav("operator")).toBe(true)
     expect(visibleAdminNavItems("operator").map((item) => item.title)).toEqual([
+      "Offers",
       "Audit log",
     ])
   })

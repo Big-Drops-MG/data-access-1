@@ -19,6 +19,7 @@ export type SendsListParams = {
   limit?: number
   cursor?: string
   status?: SendStatus
+  offer_id?: string
 }
 
 function toSearchParams(params: SendsListParams = {}): string {
@@ -31,6 +32,9 @@ function toSearchParams(params: SendsListParams = {}): string {
   }
   if (params.status) {
     search.set("status", params.status)
+  }
+  if (params.offer_id) {
+    search.set("offer_id", params.offer_id)
   }
   const text = search.toString()
   return text ? `?${text}` : ""

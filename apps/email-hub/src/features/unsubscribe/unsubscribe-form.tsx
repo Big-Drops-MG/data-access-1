@@ -15,11 +15,16 @@ import {
 type UnsubscribeFormProps = {
   token: string
   categoryName: string | null
+  logoUrl?: string | null
 }
 
 type ViewState = "confirm" | "done" | "error"
 
-export function UnsubscribeForm({ token, categoryName }: UnsubscribeFormProps) {
+export function UnsubscribeForm({
+  token,
+  categoryName,
+  logoUrl = null,
+}: UnsubscribeFormProps) {
   const copy = unsubscribeConfirmCopy(categoryName)
   const [scope, setScope] = useState<ApplyUnsubscribeScope>("category")
   const [view, setView] = useState<ViewState>("confirm")
@@ -72,6 +77,7 @@ export function UnsubscribeForm({ token, categoryName }: UnsubscribeFormProps) {
         <AuthCard
           title="You're unsubscribed"
           description={unsubscribeDoneMessage(appliedScope)}
+          logoUrl={logoUrl}
         >
           <p
             className="text-center text-sm text-fg-muted"
@@ -89,6 +95,7 @@ export function UnsubscribeForm({ token, categoryName }: UnsubscribeFormProps) {
       <AuthCard
         title="Unsubscribe"
         description={errorMessage ?? "Something went wrong."}
+        logoUrl={logoUrl}
       >
         <button
           type="button"
@@ -110,6 +117,7 @@ export function UnsubscribeForm({ token, categoryName }: UnsubscribeFormProps) {
       <AuthCard
         title="Unsubscribe"
         description="Choose what you want to stop receiving, then confirm."
+        logoUrl={logoUrl}
       >
         <fieldset className="space-y-3" data-testid="unsubscribe-scope">
           <legend className="sr-only">Unsubscribe scope</legend>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 
+import { ForbiddenPage } from "@/components/app/full-page-message"
 import { OffersPage } from "@/features/offers/offers-page"
-import { getSession } from "@/lib/auth"
+import { requireRoleForPage } from "@/lib/auth/require-role"
 import { hasAtLeastRole } from "@/lib/permissions"
 
 export const metadata: Metadata = {
@@ -9,8 +10,11 @@ export const metadata: Metadata = {
 }
 
 export default async function Page() {
-  const session = await getSession()
-  const canImportOffer = hasAtLeastRole(session, "admin")
+  const access = await requireRoleForPage("operator", { nextPath: "/offers" })
+  if ("forbidden" in access) {
+    return <ForbiddenPage />
+  }
+  const canImportOffer = hasAtLeastRole(access.user, "admin")
 
   return <OffersPage canImportOffer={canImportOffer} />
 }

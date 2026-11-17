@@ -7,6 +7,7 @@ import { AuthCard } from "@/components/auth/auth-card"
 import { loadUnsubscribeContext } from "@/features/unsubscribe/load-unsubscribe-context"
 import { unsubscribeExpiredMessage } from "@/features/unsubscribe/unsubscribe-copy"
 import { UnsubscribeForm } from "@/features/unsubscribe/unsubscribe-form"
+import { getPublicUnsubscribeLogoUrl } from "@/lib/unsubscribe-admin/settings-service"
 
 export const metadata: Metadata = {
   title: "Unsubscribe",
@@ -30,12 +31,15 @@ export default async function UnsubscribePage({
     notFound()
   }
 
+  const logoUrl = await getPublicUnsubscribeLogoUrl()
+
   if (verification.status === "expired") {
     return (
       <div data-testid="unsubscribe-expired">
         <AuthCard
           title="Link expired"
           description={unsubscribeExpiredMessage()}
+          logoUrl={logoUrl}
         >
           <p className="text-center text-sm text-fg-muted">
             You can close this page.
@@ -51,6 +55,7 @@ export default async function UnsubscribePage({
     <UnsubscribeForm
       token={token}
       categoryName={context?.categoryName ?? null}
+      logoUrl={logoUrl}
     />
   )
 }

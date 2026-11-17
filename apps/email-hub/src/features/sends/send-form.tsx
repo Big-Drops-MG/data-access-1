@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/app/confirm-dialog"
 import { EtDateTime } from "@/components/app/et-datetime"
 import { EtDateTimePicker } from "@/components/app/et-datetime-picker"
 import { FormField } from "@/components/app/form-field"
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { useMutationDisabledProps } from "@/components/app/online-status"
 import {
   createSend,
@@ -150,6 +151,7 @@ export function SendForm({
 }: SendFormProps) {
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
+  const { selectedOfferId } = useOfferSelection()
   const [scheduleValues, setScheduleValues] = useState<SendFormValues | null>(
     null
   )
@@ -159,7 +161,9 @@ export function SendForm({
   const offerOptions = buildOfferOptions(offers, initial)
 
   const form = useAppForm(sendFormSchema, {
-    defaultValues: sendFormDefaults(initial),
+    defaultValues: sendFormDefaults(initial, new Date(), {
+      defaultOfferId: selectedOfferId,
+    }),
   })
 
   const watched = form.watch()

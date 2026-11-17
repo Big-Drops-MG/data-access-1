@@ -5,6 +5,7 @@ import {
   buildOfferOptions,
   defaultScheduledFor,
   isScheduleLeadValid,
+  sendFormDefaults,
   sendFormSchema,
   toSendPayload,
 } from "@/features/sends/send-form-model"
@@ -46,6 +47,13 @@ describe("send form model", () => {
   it("defaults the schedule to at least an hour ahead on a 5 minute mark", () => {
     const now = new Date("2026-11-05T12:01:00.000Z")
     expect(defaultScheduledFor(now)).toBe("2026-11-05T13:05:00.000Z")
+  })
+
+  it("defaults new sends to the workspace-selected offer when provided", () => {
+    const defaults = sendFormDefaults(undefined, new Date(), {
+      defaultOfferId: id,
+    })
+    expect(defaults.offer_id).toBe(id)
   })
 
   it("always offers All offers first", () => {
