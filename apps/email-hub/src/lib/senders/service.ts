@@ -43,6 +43,7 @@ export type CreateSenderInput = {
   fromName: string
   localPart: string
   replyTo?: string | null
+  offerId?: string
 }
 
 export type UpdateSenderInput = {
@@ -245,6 +246,21 @@ export async function createSender(
   const domainRow = await requireVerifiedDomain(db, input.domainId)
   const fromEmail = composeFromEmail(input.localPart, domainRow.name)
 
+  let offerId: string | null = null
+  if (input.offerId) {
+    const [offerRow] = await db
+      .select({ id: offer.id })
+      .from(offer)
+      .where(eq(offer.id, input.offerId))
+      .limit(1)
+    if (!offerRow) {
+      throw AppError.validationFailed([
+        { path: "offer_id", message: "Offer not found" },
+      ])
+    }
+    offerId = offerRow.id
+  }
+
   try {
     return await db.transaction(async (tx) => {
       const [row] = await tx
@@ -256,6 +272,7 @@ export async function createSender(
           replyTo: input.replyTo ?? null,
           status: "active",
           version: 1,
+          offerId,
           createdBy: actor.userId,
         })
         .returning()

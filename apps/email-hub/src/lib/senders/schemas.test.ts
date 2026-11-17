@@ -39,6 +39,18 @@ describe("createSenderBodySchema", () => {
     })
   })
 
+  it("accepts optional offer_id on create", () => {
+    const offerId = "019a0000-0000-7000-8000-000000000099"
+    expect(
+      createSenderBodySchema.parse({
+        domain_id: domainId,
+        from_name: "Quotifii",
+        local_part: "noreply",
+        offer_id: offerId,
+      }).offer_id
+    ).toBe(offerId)
+  })
+
   it("rejects invalid reply_to", () => {
     expect(
       createSenderBodySchema.safeParse({

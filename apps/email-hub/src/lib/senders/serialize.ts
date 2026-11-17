@@ -12,6 +12,7 @@ export type SenderJson = {
   reply_to: string | null
   status: Sender["status"]
   version: number
+  offer_id: string | null
   active_route_count: number
   created_by: string | null
   created_at: string
@@ -31,6 +32,7 @@ export function serializeSender(
     reply_to: row.replyTo,
     status: row.status,
     version: row.version,
+    offer_id: row.offerId ?? null,
     active_route_count: extras.activeRouteCount ?? 0,
     created_by: row.createdBy,
     created_at: isoUtc(row.createdAt),

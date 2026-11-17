@@ -78,6 +78,7 @@ export type CreateSenderInput = {
   from_name: string
   local_part: string
   reply_to?: string | null
+  offer_id?: string
 }
 
 export function createSender(

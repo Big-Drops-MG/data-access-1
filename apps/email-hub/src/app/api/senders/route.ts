@@ -41,6 +41,7 @@ async function handlePost(request: Request): Promise<Response> {
       fromName: body.from_name,
       localPart: body.local_part,
       replyTo: body.reply_to,
+      offerId: body.offer_id,
     },
     {
       userId: session.id,
