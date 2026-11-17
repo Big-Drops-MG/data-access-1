@@ -5,6 +5,7 @@ import {
   domain,
   domainSetupStep,
   emailRoute,
+  offer,
   sender,
   type DnsRecord,
   type Domain,
@@ -65,6 +66,7 @@ export type DomainDetailJson = DomainSummaryJson & {
 export type CreateDomainInput = {
   name: string
   mailFromSubdomain?: string
+  offerId?: string
 }
 
 export type CreateDomainDeps = {
@@ -343,6 +345,21 @@ export async function createDomain(
   const writeCloudflareDns =
     deps.upsertCloudflareDns ?? upsertCloudflareDnsRecords
 
+  let offerId: string | null = null
+  if (input.offerId) {
+    const [offerRow] = await db
+      .select({ id: offer.id })
+      .from(offer)
+      .where(eq(offer.id, input.offerId))
+      .limit(1)
+    if (!offerRow) {
+      throw AppError.validationFailed([
+        { path: "offer_id", message: "Offer not found" },
+      ])
+    }
+    offerId = offerRow.id
+  }
+
   let provisioned: ProvisionedSesIdentity
   try {
     provisioned = await provision({
@@ -393,6 +410,7 @@ export async function createDomain(
           name: provisioned.emailIdentity,
           status: "pending",
           sesIdentityArn: provisioned.identityArn,
+          offerId,
           createdBy: actor.userId,
         })
         .returning()

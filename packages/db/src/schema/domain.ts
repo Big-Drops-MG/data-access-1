@@ -11,6 +11,7 @@ import {
 
 import { uuidv7PrimaryKey } from "./columns.js"
 
+import { offer } from "./offer.js"
 import { user } from "./user.js"
 
 export const domainStatus = pgEnum("domain_status", [
@@ -28,6 +29,9 @@ export const domain = pgTable(
     name: text("name").notNull(),
     sesIdentityArn: text("ses_identity_arn"),
     status: domainStatus("status").notNull().default("pending"),
+    offerId: uuid("offer_id").references(() => offer.id, {
+      onDelete: "set null",
+    }),
     createdBy: uuid("created_by").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -43,6 +47,7 @@ export const domain = pgTable(
     uniqueIndex("domain_name_unique").on(sql`lower(${table.name})`),
     index("domain_status_idx").on(table.status),
     index("domain_created_by_idx").on(table.createdBy),
+    index("domain_offer_id_idx").on(table.offerId),
   ]
 )
 

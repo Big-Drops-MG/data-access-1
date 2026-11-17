@@ -141,6 +141,13 @@
       "when": 1793600000000,
       "tag": "0019_unsubscribe_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0020_domain_offer_id",
+      "breakpoints": true
     }
   ]
 }
