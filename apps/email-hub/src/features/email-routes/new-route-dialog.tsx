@@ -53,6 +53,7 @@ type OptionSelectProps = {
   value: string
   options: SelectOption[]
   placeholder: string
+  emptyMessage?: string
   disabled?: boolean
   testId: string
   onChange: (value: string) => void
@@ -63,10 +64,13 @@ function OptionSelect({
   value,
   options,
   placeholder,
+  emptyMessage = "No options available",
   disabled,
   testId,
   onChange,
 }: OptionSelectProps) {
+  const isEmpty = options.length === 0
+
   return (
     <Select
       value={value || undefined}
@@ -93,15 +97,25 @@ function OptionSelect({
         alignItemWithTrigger
         className={emailRoutesSelectContentClass}
       >
-        {options.map((option) => (
-          <SelectItem
-            key={option.value}
-            value={option.value}
-            className={emailRoutesSelectItemClass}
+        {isEmpty ? (
+          <p
+            className="px-3 py-3 text-sm text-fg-muted"
+            data-testid={`${testId}-empty`}
+            role="status"
           >
-            {option.label}
-          </SelectItem>
-        ))}
+            {emptyMessage}
+          </p>
+        ) : (
+          options.map((option) => (
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              className={emailRoutesSelectItemClass}
+            >
+              {option.label}
+            </SelectItem>
+          ))
+        )}
       </SelectContent>
     </Select>
   )
@@ -271,8 +285,13 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               value={offerId}
               options={offerOptions}
               placeholder={
-                options.lookupsPending ? "Loading offers…" : "Select offer"
+                options.lookupsPending
+                  ? "Loading offers…"
+                  : offerOptions.length === 0
+                    ? "No offers available"
+                    : "Select offer"
               }
+              emptyMessage="No active offers. Import an offer first."
               disabled={options.lookupsPending}
               testId="new-route-offer"
               onChange={handleOfferChange}
@@ -299,8 +318,11 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
                     ? "Select email type first"
                     : options.isPending
                       ? "Loading templates…"
-                      : "Select template"
+                      : templateOptions.length === 0
+                        ? "No templates for this offer"
+                        : "Select template"
               }
+              emptyMessage="No published templates for this email type and offer."
               disabled={!offerId || !emailType || options.isPending}
               testId="new-route-template"
               onChange={setTemplateId}
@@ -325,8 +347,11 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
                   ? "Select offer first"
                   : options.lookupsPending
                     ? "Loading senders…"
-                    : "Select sender"
+                    : senderOptions.length === 0
+                      ? "No senders for this offer"
+                      : "Select sender"
               }
+              emptyMessage="No active senders linked to this offer."
               disabled={!offerId || options.lookupsPending}
               testId="new-route-sender"
               onChange={setSenderId}
