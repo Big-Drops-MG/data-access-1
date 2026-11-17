@@ -98,6 +98,7 @@ describe("ClickHouse provider_metrics and Data Cloud migration", () => {
       "complaint_rate",
       "trap_hits",
       "filter_result",
+      "ip_status",
     ])
     expect(PROVIDER_METRICS_BY_PROVIDER.jmrp).toEqual(["junk_reports"])
     expect(PROVIDER_METRICS_BY_PROVIDER.yahoo).toEqual(["complaint_rate"])
