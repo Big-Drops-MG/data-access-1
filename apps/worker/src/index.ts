@@ -25,6 +25,7 @@ import {
   markMessageSent,
   openSesAccountPausedAlert,
   releaseQueuedClaim,
+  resolveUnsubscribeOrigin,
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
@@ -324,7 +325,7 @@ async function main(): Promise<void> {
               releaseClaim: (messageId) => releaseQueuedClaim(db, messageId),
               transport,
               compliance: {
-                origin: env.BETTER_AUTH_URL,
+                origin: await resolveUnsubscribeOrigin(db, env.BETTER_AUTH_URL),
                 secret: env.UNSUBSCRIBE_TOKEN_SECRET,
               },
               pauseQueue: () => sendEmailQueue.pause(),

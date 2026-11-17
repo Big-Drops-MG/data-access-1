@@ -118,5 +118,13 @@ export { template, templateStatus, templateVersion } from "./template.js"
 export type { Template, TemplateVersion } from "./template.js"
 export { trustedDevice } from "./trusted-device.js"
 export type { TrustedDevice } from "./trusted-device.js"
+export {
+  unsubscribeCustomDomainStatus,
+  unsubscribeSettings,
+} from "./unsubscribe-settings.js"
+export type {
+  NewUnsubscribeSettings,
+  UnsubscribeSettings,
+} from "./unsubscribe-settings.js"
 export { user, userRole, userStatus } from "./user.js"
 export type { NewUser, User } from "./user.js"

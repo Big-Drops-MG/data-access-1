@@ -3,6 +3,12 @@ import { notFound } from "next/navigation"
 
 import { loadServerEnv, verifyUnsubscribeToken } from "@workspace/shared"
 
+import { AuthCard } from "@/components/auth/auth-card"
+import { loadUnsubscribeContext } from "@/features/unsubscribe/load-unsubscribe-context"
+import { unsubscribeExpiredMessage } from "@/features/unsubscribe/unsubscribe-copy"
+import { UnsubscribeForm } from "@/features/unsubscribe/unsubscribe-form"
+import { getPublicUnsubscribeLogoUrl } from "@/lib/unsubscribe-admin/settings-service"
+
 export const metadata: Metadata = {
   title: "Unsubscribe",
 }
@@ -25,15 +31,27 @@ export default async function UnsubscribePage({
     notFound()
   }
 
-  const detail =
-    verification.status === "expired"
-      ? "This unsubscribe link has expired."
-      : "This unsubscribe link is valid. Confirming it does not change email preferences yet."
+  const logoUrl = await getPublicUnsubscribeLogoUrl()
+
+  if (verification.status === "expired") {
+    return (
+      <div data-testid="unsubscribe-expired">
+        <AuthCard
+          title="Link expired"
+          description={unsubscribeExpiredMessage()}
+          logoUrl={logoUrl}
+        />
+      </div>
+    )
+  }
+
+  const context = await loadUnsubscribeContext(verification.messageId)
 
   return (
-    <section className="w-full max-w-md space-y-2 text-center">
-      <h1 className="text-xl font-medium">Unsubscribe</h1>
-      <p className="text-sm text-muted-foreground">{detail}</p>
-    </section>
+    <UnsubscribeForm
+      token={token}
+      categoryName={context?.categoryName ?? null}
+      logoUrl={logoUrl}
+    />
   )
 }
