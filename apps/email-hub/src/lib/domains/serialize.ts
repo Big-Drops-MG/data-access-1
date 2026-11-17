@@ -15,6 +15,7 @@ export type DomainJson = {
   name: string
   ses_identity_arn: string | null
   status: Domain["status"]
+  offer_id: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -60,6 +61,7 @@ export function serializeDomain(row: Domain): DomainJson {
     name: row.name,
     ses_identity_arn: row.sesIdentityArn,
     status: row.status,
+    offer_id: row.offerId ?? null,
     created_by: row.createdBy,
     created_at: isoUtc(row.createdAt),
     updated_at: isoUtc(row.updatedAt),

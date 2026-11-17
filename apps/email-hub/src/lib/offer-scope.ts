@@ -58,6 +58,7 @@ export function senderScopedToOffer(db: Db, offerId: string): SQL {
 
 export function domainScopedToOffer(db: Db, offerId: string): SQL {
   return or(
+    eq(domain.offerId, offerId),
     exists(
       db
         .select({ id: sender.id })
