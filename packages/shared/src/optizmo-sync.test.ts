@@ -368,4 +368,230 @@ describe("processOptizmoSyncJob", () => {
     expect(result).toEqual({ kind: "fanout", enqueued: 2 })
     expect(add).toHaveBeenCalledTimes(2)
   })
+
+  it("requires a sync queue for fan-out", async () => {
+    await expect(
+      processOptizmoSyncJob(
+        {},
+        {
+          db: { select: vi.fn() } as never,
+          env: {},
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({ name: "UnrecoverableError" })
+  })
+
+  it("rejects missing inactive and keyless offers", async () => {
+    const dbMissing = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [],
+          }),
+        }),
+      })),
+    }
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: dbMissing as never,
+          env: {},
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({ name: "UnrecoverableError" })
+
+    const dbInactive = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [
+              {
+                id: OFFER_ID,
+                status: "paused",
+                hasOptizmoMailerAccessKey: true,
+                optizmoMailerAccessKeyEncrypted: ENC,
+              },
+            ],
+          }),
+        }),
+      })),
+    }
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: dbInactive as never,
+          env: {},
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({ name: "UnrecoverableError" })
+
+    const dbNoKey = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [
+              {
+                id: OFFER_ID,
+                status: "active",
+                hasOptizmoMailerAccessKey: false,
+                optizmoMailerAccessKeyEncrypted: null,
+              },
+            ],
+          }),
+        }),
+      })),
+    }
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: dbNoKey as never,
+          env: {},
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({ name: "UnrecoverableError" })
+  })
+
+  it("fails permanently when OPTIZMO_API_KEY is missing", async () => {
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: ENC,
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [offerRow],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: () => ({
+          returning: async () => [{ id: "run-cfg" }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => ({
+            returning: async () => [{ id: "x" }],
+          }),
+        }),
+      })),
+    }
+
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: db as never,
+          env: {},
+          encryptionKey: KEY,
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({ name: "UnrecoverableError" })
+  })
+
+  it("fails permanently when mailer key cannot be decrypted", async () => {
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: "not.a.valid.payload",
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [offerRow],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: () => ({
+          returning: async () => [{ id: "run-dec" }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => ({
+            returning: async () => [{ id: "x" }],
+          }),
+        }),
+      })),
+    }
+
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: db as never,
+          env: { OPTIZMO_API_KEY: "api-secret" },
+          encryptionKey: KEY,
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({ name: "UnrecoverableError" })
+  })
+
+  it("rethrows retryable Optizmo HTTP errors for worker backoff", async () => {
+    server.use(
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
+        () => HttpResponse.text("busy", { status: 503 })
+      )
+    )
+
+    const offerRow = {
+      id: OFFER_ID,
+      status: "active",
+      hasOptizmoMailerAccessKey: true,
+      optizmoMailerAccessKeyEncrypted: ENC,
+    }
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [offerRow],
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: () => ({
+          returning: async () => [{ id: "run-retry" }],
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => ({
+            returning: async () => [{ id: "x" }],
+          }),
+        }),
+      })),
+    }
+
+    await expect(
+      processOptizmoSyncJob(
+        { offer_id: OFFER_ID },
+        {
+          db: db as never,
+          env: { OPTIZMO_API_KEY: "api-secret" },
+          encryptionKey: KEY,
+          permanentFailure,
+        }
+      )
+    ).rejects.toMatchObject({
+      name: "OptizmoClientError",
+      code: "http",
+      retryable: true,
+    })
+  })
 })
