@@ -215,8 +215,8 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
 
   return (
     <>
-      <div className="space-y-5 px-6 pt-6 pb-5">
-        <AlertDialogHeader className="place-items-start gap-2 text-left">
+      <div className="space-y-6 px-6 pt-6 pb-6">
+        <AlertDialogHeader className="place-items-start gap-1.5 text-left">
           <AlertDialogTitle className="text-lg leading-snug font-semibold tracking-tight text-fg">
             New route
           </AlertDialogTitle>
@@ -239,11 +239,12 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           />
         ) : null}
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <FormField
             id="new-route-email-type"
             label="Email type"
             required
+            className="gap-1.5"
             testIdPrefix="new-route"
             name="email_type"
           >
@@ -261,6 +262,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
             id="new-route-offer"
             label="Offer"
             required
+            className="gap-1.5"
             testIdPrefix="new-route"
             name="offer_id"
           >
@@ -280,6 +282,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
             label="Template"
             description="Published templates of this email type."
             required
+            className="gap-1.5"
             testIdPrefix="new-route"
             name="template_id"
           >
@@ -305,6 +308,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
             label="Sender"
             description="Active senders on active domains."
             required
+            className="gap-1.5"
             testIdPrefix="new-route"
             name="sender_id"
           >
@@ -323,7 +327,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
         </div>
       </div>
 
-      <AlertDialogFooter className="bg-surface-2/60">
+      <AlertDialogFooter className="m-0 gap-2 rounded-none border-t border-border bg-surface-2 px-6 py-4 group-data-[size=default]/alert-dialog-content:flex sm:justify-end">
         <AlertDialogCancel
           className={emailRoutesOutlineControl()}
           data-testid="new-route-cancel"
