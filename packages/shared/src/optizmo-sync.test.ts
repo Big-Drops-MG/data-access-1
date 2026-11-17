@@ -16,16 +16,31 @@ import { setupServer } from "msw/node"
 import { offer, suppressionEntry, suppressionSyncRun } from "@workspace/db"
 
 import { encryptWithAppKey } from "./app-encryption.js"
+import { hashEmail } from "./email.js"
 import { OPTIZMO_DEFAULT_BASE_URL } from "./optizmo-client.js"
 import {
   OPTIZMO_FIRST_DOWNLOAD_ALERT_TYPE,
   OPTIZMO_SYNC_ALERT_TYPE,
   collectEmailsFromCsvChunk,
+  collectSuppressionValuesFromCsvChunk,
   optizmoFirstDownloadAlertDedupeKey,
   optizmoSyncAlertDedupeKey,
   parseOptizmoEmailStream,
+  parseOptizmoSuppressionStream,
   processOptizmoSyncJob,
 } from "./optizmo-sync.js"
+
+function prepareSuccess(format: "plain" | "md5" = "plain") {
+  return HttpResponse.json({
+    result: "success",
+    format,
+    campaign_name: "Test",
+    download_link: `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}?token=api-secret&dcma=x`,
+    optout_link: "https://example.com/o",
+    delta_timestamp: 1,
+    help: "Use the download_link",
+  })
+}
 
 const OFFER_ID = "019a0000-0000-7000-8000-0000000000aa"
 const KEY = Buffer.alloc(32, 9).toString("base64")
@@ -77,14 +92,41 @@ describe("optizmo-sync helpers", () => {
     ).toEqual(["a@example.com", "b@example.com"])
   })
 
+  it("collects md5 hashes or email hashes for storage", () => {
+    expect(
+      collectSuppressionValuesFromCsvChunk(
+        [["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], ["not-a-hash"]],
+        null,
+        "md5"
+      )
+    ).toEqual(["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"])
+    expect(
+      collectSuppressionValuesFromCsvChunk([["a@example.com"]], null, "plain")
+    ).toEqual([hashEmail("a@example.com")])
+  })
+
   it("parses a streamed csv without loading the whole file", async () => {
     const stream = Readable.from([
       "email\n",
       "one@example.com\n",
       "two@example.com\n",
     ])
-    const emails = await parseOptizmoEmailStream(stream)
-    expect([...emails].sort()).toEqual(["one@example.com", "two@example.com"])
+    const hashes = await parseOptizmoEmailStream(stream)
+    expect([...hashes].sort()).toEqual(
+      [hashEmail("one@example.com"), hashEmail("two@example.com")].sort()
+    )
+  })
+
+  it("parses md5 suppression lines", async () => {
+    const stream = Readable.from([
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+    ])
+    const hashes = await parseOptizmoSuppressionStream(stream, "md5")
+    expect([...hashes].sort()).toEqual([
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    ])
   })
 })
 
@@ -99,11 +141,14 @@ describe("processOptizmoSyncJob", () => {
     server.use(
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
-        () => HttpResponse.text("ok")
+        () => prepareSuccess("plain")
       ),
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
-        () => HttpResponse.text("email\nalice@example.com\nbob@example.com\n")
+        () =>
+          HttpResponse.text("email\nalice@example.com\nbob@example.com\n", {
+            headers: { "content-type": "text/plain" },
+          })
       )
     )
 
@@ -204,11 +249,14 @@ describe("processOptizmoSyncJob", () => {
     server.use(
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
-        () => HttpResponse.text("ok")
+        () => prepareSuccess("plain")
       ),
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${MAILER_KEY}`,
-        () => HttpResponse.text("email\n")
+        () =>
+          HttpResponse.text("email\n", {
+            headers: { "content-type": "text/plain" },
+          })
       )
     )
 
@@ -546,7 +594,7 @@ describe("processOptizmoSyncJob", () => {
     server.use(
       http.get(
         `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${MAILER_KEY}`,
-        () => HttpResponse.text("busy", { status: 503 })
+        () => HttpResponse.json({ result: "error" }, { status: 503 })
       )
     )
 

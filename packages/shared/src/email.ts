@@ -4,11 +4,18 @@ export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-/** SHA-256 hex of the normalised email (suppression / recipient lookup). */
 export function hashEmail(email: string): string {
   return createHash("sha256")
     .update(normaliseEmail(email), "utf8")
     .digest("hex")
+}
+
+export function md5HashEmail(email: string): string {
+  return createHash("md5").update(normaliseEmail(email), "utf8").digest("hex")
+}
+
+export function isMd5Hex(value: string): boolean {
+  return /^[a-f0-9]{32}$/i.test(value.trim())
 }
 
 export function maskEmail(email: string): string {

@@ -17,7 +17,7 @@ import {
   readAppEncryptionKeyFromEnv,
 } from "./app-encryption.js"
 import { closeAlert, openAlert } from "./alerts.js"
-import { hashEmail, normaliseEmail } from "./email.js"
+import { hashEmail, isMd5Hex, normaliseEmail } from "./email.js"
 import {
   recordIntegrationResult,
   sanitizeIntegrationError,
@@ -126,6 +126,39 @@ function clientDeps(
   }
 }
 
+export function collectSuppressionValuesFromCsvChunk(
+  records: string[][],
+  emailColumnIndex: number | null,
+  format: "plain" | "md5"
+): string[] {
+  const values: string[] = []
+  for (const record of records) {
+    const raw =
+      emailColumnIndex === null
+        ? record[0]
+        : (record[emailColumnIndex] ?? record[0])
+    if (typeof raw !== "string") {
+      continue
+    }
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      continue
+    }
+    if (format === "md5") {
+      if (isMd5Hex(trimmed)) {
+        values.push(trimmed.toLowerCase())
+      }
+      continue
+    }
+    const normalised = normaliseEmail(trimmed)
+    if (!emailSchema.safeParse(normalised).success) {
+      continue
+    }
+    values.push(hashEmail(normalised))
+  }
+  return values
+}
+
 export function collectEmailsFromCsvChunk(
   records: string[][],
   emailColumnIndex: number | null
@@ -148,10 +181,11 @@ export function collectEmailsFromCsvChunk(
   return emails
 }
 
-export async function parseOptizmoEmailStream(
-  stream: NodeJS.ReadableStream
+export async function parseOptizmoSuppressionStream(
+  stream: NodeJS.ReadableStream,
+  format: "plain" | "md5"
 ): Promise<Set<string>> {
-  const emails = new Set<string>()
+  const hashes = new Set<string>()
   let headerResolved = false
   let emailColumnIndex: number | null = null
 
@@ -172,14 +206,39 @@ export async function parseOptizmoEmailStream(
         emailColumnIndex = idx
         continue
       }
+      if (
+        format === "md5" &&
+        record.length === 1 &&
+        isMd5Hex(record[0] ?? "")
+      ) {
+        for (const hash of collectSuppressionValuesFromCsvChunk(
+          [record],
+          null,
+          format
+        )) {
+          hashes.add(hash)
+        }
+        emailColumnIndex = null
+        continue
+      }
       emailColumnIndex = null
     }
-    for (const email of collectEmailsFromCsvChunk([record], emailColumnIndex)) {
-      emails.add(email)
+    for (const hash of collectSuppressionValuesFromCsvChunk(
+      [record],
+      emailColumnIndex,
+      format
+    )) {
+      hashes.add(hash)
     }
   }
 
-  return emails
+  return hashes
+}
+
+export async function parseOptizmoEmailStream(
+  stream: NodeJS.ReadableStream
+): Promise<Set<string>> {
+  return parseOptizmoSuppressionStream(stream, "plain")
 }
 
 async function markSyncFailed(
@@ -242,29 +301,29 @@ async function failOfferSync(
   })
 }
 
-async function upsertOptizmoEmails(
+async function upsertOptizmoHashes(
   db: Database,
   offerId: string,
   syncRunId: string,
-  emails: Set<string>
+  hashes: Set<string>
 ): Promise<{ rowsAdded: number; rowsRemoved: number }> {
-  const hashes = [...emails].map((email) => hashEmail(email))
-  const hashSet = new Set(hashes)
+  const hashList = [...hashes]
+  const hashSet = new Set(hashList)
   let rowsAdded = 0
 
   const recipientRows =
-    hashes.length === 0
+    hashList.length === 0
       ? []
       : await db
           .select({ id: recipient.id, emailHash: recipient.emailHash })
           .from(recipient)
-          .where(inArray(recipient.emailHash, hashes))
+          .where(inArray(recipient.emailHash, hashList))
   const recipientByHash = new Map(
     recipientRows.map((row) => [row.emailHash, row.id] as const)
   )
 
-  for (let i = 0; i < hashes.length; i += OPTIZMO_SYNC_CHUNK_SIZE) {
-    const chunk = hashes.slice(i, i + OPTIZMO_SYNC_CHUNK_SIZE)
+  for (let i = 0; i < hashList.length; i += OPTIZMO_SYNC_CHUNK_SIZE) {
+    const chunk = hashList.slice(i, i + OPTIZMO_SYNC_CHUNK_SIZE)
     const values = chunk.map((emailHash) => ({
       emailHash,
       recipientId: recipientByHash.get(emailHash) ?? null,
@@ -400,11 +459,14 @@ async function syncOneOffer(
   }
 
   try {
-    await prepareOptizmoDownload(mailerAccessKey, optizmo)
-    const stream = await streamOptizmoSuppressionFile(mailerAccessKey, optizmo)
-    const emails = await parseOptizmoEmailStream(stream)
+    const prepared = await prepareOptizmoDownload(mailerAccessKey, optizmo)
+    const stream = await streamOptizmoSuppressionFile(
+      prepared.downloadLink,
+      optizmo
+    )
+    const hashes = await parseOptizmoSuppressionStream(stream, prepared.format)
 
-    if (emails.size === 0) {
+    if (hashes.size === 0) {
       const message = "Optizmo suppression file was empty"
       await failOfferSync(db, {
         syncRunId: syncRun.id,
@@ -426,11 +488,11 @@ async function syncOneOffer(
       throwPermanent(deps, message)
     }
 
-    const { rowsAdded, rowsRemoved } = await upsertOptizmoEmails(
+    const { rowsAdded, rowsRemoved } = await upsertOptizmoHashes(
       db,
       offerId,
       syncRun.id,
-      emails
+      hashes
     )
 
     await db
@@ -470,7 +532,8 @@ async function syncOneOffer(
         offer_id: offerId,
         rows_added: rowsAdded,
         rows_removed: rowsRemoved,
-        emails_seen: emails.size,
+        emails_seen: hashes.size,
+        format: prepared.format,
       },
       "Optizmo sync completed"
     )
@@ -480,7 +543,7 @@ async function syncOneOffer(
       offerId,
       rowsAdded,
       rowsRemoved,
-      emailsSeen: emails.size,
+      emailsSeen: hashes.size,
     }
   } catch (error) {
     if (isPermanentFailure(error, deps)) {

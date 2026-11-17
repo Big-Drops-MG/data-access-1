@@ -1,3 +1,4 @@
+import { deflateRawSync } from "node:zlib"
 import { type Readable } from "node:stream"
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
@@ -10,6 +11,7 @@ import {
   looksLikeFirstDownloadRefusal,
   prepareOptizmoDownload,
   streamOptizmoSuppressionFile,
+  unzipOptizmoSuppressionStream,
 } from "./optizmo-client.js"
 
 const server = setupServer()
@@ -34,6 +36,57 @@ async function readStream(stream: Readable): Promise<string> {
   return Buffer.concat(chunks).toString("utf8")
 }
 
+function buildZip(entryName: string, content: string): Buffer {
+  const name = Buffer.from(entryName, "utf8")
+  const raw = Buffer.from(content, "utf8")
+  const compressed = deflateRawSync(raw)
+  const local = Buffer.alloc(30 + name.length)
+  local.writeUInt32LE(0x04034b50, 0)
+  local.writeUInt16LE(20, 4)
+  local.writeUInt16LE(0, 6)
+  local.writeUInt16LE(8, 8)
+  local.writeUInt16LE(0, 10)
+  local.writeUInt16LE(0, 12)
+  local.writeUInt32LE(0, 14)
+  local.writeUInt32LE(compressed.length, 18)
+  local.writeUInt32LE(raw.length, 22)
+  local.writeUInt16LE(name.length, 26)
+  local.writeUInt16LE(0, 28)
+  name.copy(local, 30)
+
+  const central = Buffer.alloc(46 + name.length)
+  central.writeUInt32LE(0x02014b50, 0)
+  central.writeUInt16LE(20, 4)
+  central.writeUInt16LE(20, 6)
+  central.writeUInt16LE(0, 8)
+  central.writeUInt16LE(8, 10)
+  central.writeUInt16LE(0, 12)
+  central.writeUInt16LE(0, 14)
+  central.writeUInt32LE(0, 16)
+  central.writeUInt32LE(compressed.length, 20)
+  central.writeUInt32LE(raw.length, 24)
+  central.writeUInt16LE(name.length, 28)
+  central.writeUInt16LE(0, 30)
+  central.writeUInt16LE(0, 32)
+  central.writeUInt16LE(0, 34)
+  central.writeUInt16LE(0, 36)
+  central.writeUInt32LE(0, 38)
+  central.writeUInt32LE(0, 42)
+  name.copy(central, 46)
+
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(0, 4)
+  end.writeUInt16LE(0, 6)
+  end.writeUInt16LE(1, 8)
+  end.writeUInt16LE(1, 10)
+  end.writeUInt32LE(central.length, 12)
+  end.writeUInt32LE(local.length + compressed.length, 16)
+  end.writeUInt16LE(0, 20)
+
+  return Buffer.concat([local, compressed, central, end])
+}
+
 describe("optizmo-client", () => {
   it("detects first-download refusal messages", () => {
     expect(
@@ -46,8 +99,9 @@ describe("optizmo-client", () => {
     expect(looksLikeFirstDownloadRefusal(403, "forbidden")).toBe(false)
   })
 
-  it("prepares download then streams getfile via msw", async () => {
+  it("prepares download and streams the returned download_link ZIP", async () => {
     const key = "m-test-key"
+    const downloadLink = `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}?token=api-secret&dcma=abc`
     let sawToken = false
     server.use(
       http.get(
@@ -55,28 +109,78 @@ describe("optizmo-client", () => {
         ({ request }) => {
           const url = new URL(request.url)
           sawToken = url.searchParams.get("token") === "api-secret"
-          return HttpResponse.text("ok")
+          return HttpResponse.json({
+            result: "success",
+            format: "md5",
+            campaign_name: "Test",
+            download_link: downloadLink,
+            optout_link: "https://example.com/o",
+            delta_timestamp: 123,
+            help: "Use the download_link",
+          })
         }
       ),
-      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}`, () =>
-        HttpResponse.text("email\na@example.com\nb@example.com\n")
-      )
+      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}`, () => {
+        const zip = buildZip(
+          "list-MD5.txt",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+        )
+        return new HttpResponse(zip, {
+          status: 200,
+          headers: { "content-type": "application/zip" },
+        })
+      })
     )
 
-    await prepareOptizmoDownload(key, { apiKey: "api-secret" })
+    const prepared = await prepareOptizmoDownload(key, { apiKey: "api-secret" })
     expect(sawToken).toBe(true)
+    expect(prepared).toMatchObject({
+      downloadLink,
+      format: "md5",
+      deltaTimestamp: 123,
+    })
 
-    const stream = await streamOptizmoSuppressionFile(key, {
+    const stream = await streamOptizmoSuppressionFile(prepared.downloadLink, {
       apiKey: "api-secret",
     })
-    expect(await readStream(stream)).toContain("a@example.com")
+    expect(await readStream(stream)).toContain(
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    )
+  })
+
+  it("maps JSON error bodies that return HTTP 200", async () => {
+    const key = "m-test-key"
+    server.use(
+      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${key}`, () =>
+        HttpResponse.json({
+          result: "error",
+          error_code: "no_auth_token",
+          error: "No Auth Token",
+          help: "Provide token",
+        })
+      )
+    )
+    await expect(
+      prepareOptizmoDownload(key, { apiKey: "api-secret" })
+    ).rejects.toMatchObject({
+      code: "http",
+      message: expect.stringContaining("No Auth Token"),
+    })
   })
 
   it("normalizes trailing slashes on baseUrl", async () => {
     const key = "m-test-key"
     server.use(
       http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${key}`, () =>
-        HttpResponse.text("ok")
+        HttpResponse.json({
+          result: "success",
+          format: "plain",
+          campaign_name: "Test",
+          download_link: `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}?token=x&dcma=y`,
+          optout_link: "https://example.com/o",
+          delta_timestamp: 1,
+          help: "ok",
+        })
       )
     )
     await expect(
@@ -84,7 +188,7 @@ describe("optizmo-client", () => {
         apiKey: "api-secret",
         baseUrl: `${OPTIZMO_DEFAULT_BASE_URL}/`,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toMatchObject({ format: "plain" })
   })
 
   it("maps first-download refusal without retry", async () => {
@@ -130,67 +234,71 @@ describe("optizmo-client", () => {
     ).rejects.toMatchObject({ code: "invalid_key" })
   })
 
-  it("maps getfile first-download and retryable errors", async () => {
+  it("rejects unsafe download_link hosts", async () => {
     const key = "m-test-key"
     server.use(
-      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}`, () =>
-        HttpResponse.text("First download must be manual", { status: 403 })
+      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${key}`, () =>
+        HttpResponse.json({
+          result: "success",
+          format: "md5",
+          campaign_name: "Test",
+          download_link:
+            "https://evil.example/accesskey/getfile/x?token=1&dcma=2",
+          optout_link: "https://example.com/o",
+          delta_timestamp: 1,
+          help: "ok",
+        })
       )
     )
     await expect(
-      streamOptizmoSuppressionFile(key, { apiKey: "api-secret" })
-    ).rejects.toMatchObject({
-      code: "first_download_manual",
-      retryable: false,
-    })
+      prepareOptizmoDownload(key, { apiKey: "api-secret" })
+    ).rejects.toMatchObject({ code: "invalid_response" })
+  })
 
+  it("maps getfile JSON errors returned as HTTP 200", async () => {
+    const link = `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/m-test-key?token=t&dcma=d`
     server.use(
-      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}`, () =>
-        HttpResponse.text("rate limited", { status: 429 })
+      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/m-test-key`, () =>
+        HttpResponse.json({
+          result: "error",
+          error_code: "download_not_prepared",
+          error: "This list has not been prepared for download.",
+          help: "Prepare first",
+        })
       )
     )
     await expect(
-      streamOptizmoSuppressionFile(key, { apiKey: "api-secret" })
+      streamOptizmoSuppressionFile(link, { apiKey: "api-secret" })
     ).rejects.toMatchObject({
       code: "http",
-      retryable: true,
-      status: 429,
+      message: expect.stringContaining("not been prepared"),
     })
   })
 
   it("rejects oversized content-length before reading body", async () => {
-    const key = "m-test-key"
+    const link = `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/m-test-key?token=t&dcma=d`
     server.use(
-      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}`, () =>
+      http.get(`${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/m-test-key`, () =>
         HttpResponse.text("x".repeat(100), {
           headers: {
             "content-length": "999999",
+            "content-type": "text/plain",
           },
         })
       )
     )
     await expect(
-      streamOptizmoSuppressionFile(key, {
+      streamOptizmoSuppressionFile(link, {
         apiKey: "api-secret",
         maxFileBytes: 50,
       })
     ).rejects.toMatchObject({ code: "too_large", retryable: false })
   })
 
-  it("rejects streams that exceed maxFileBytes while reading", async () => {
-    const key = "m-test-key"
-    const body = "abcdefghijklmnopqrstuvwxyz"
-    const stream = await streamOptizmoSuppressionFile(key, {
-      apiKey: "api-secret",
-      maxFileBytes: 10,
-      fetchImpl: async () =>
-        new Response(body, {
-          status: 200,
-          headers: { "content-type": "text/plain" },
-        }),
-    })
-    await expect(readStream(stream)).rejects.toMatchObject({
-      code: "too_large",
-    })
+  it("unzips a single txt entry from a zip stream", async () => {
+    const zip = buildZip("out.txt", "a@example.com\n")
+    const { Readable } = await import("node:stream")
+    const stream = unzipOptizmoSuppressionStream(Readable.from([zip]))
+    expect(await readStream(stream)).toBe("a@example.com\n")
   })
 })

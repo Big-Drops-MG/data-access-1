@@ -1,6 +1,12 @@
 export const PACKAGE_NAME = "@workspace/shared" as const
 
-export { hashEmail, maskEmail, normaliseEmail } from "./email.js"
+export {
+  hashEmail,
+  isMd5Hex,
+  maskEmail,
+  md5HashEmail,
+  normaliseEmail,
+} from "./email.js"
 export {
   writeAudit,
   type AuditActor,
@@ -158,8 +164,10 @@ export {
   looksLikeFirstDownloadRefusal,
   prepareOptizmoDownload,
   streamOptizmoSuppressionFile,
+  unzipOptizmoSuppressionStream,
   type OptizmoClientDeps,
   type OptizmoFetch,
+  type OptizmoPrepareResult,
 } from "./optizmo-client.js"
 export {
   OPTIZMO_FIRST_DOWNLOAD_ALERT_TYPE,
@@ -167,9 +175,11 @@ export {
   OPTIZMO_SYNC_ALERT_TYPE,
   OPTIZMO_SYNC_CHUNK_SIZE,
   collectEmailsFromCsvChunk,
+  collectSuppressionValuesFromCsvChunk,
   optizmoFirstDownloadAlertDedupeKey,
   optizmoSyncAlertDedupeKey,
   parseOptizmoEmailStream,
+  parseOptizmoSuppressionStream,
   processOptizmoSyncJob,
   type OptizmoSyncEnv,
   type OptizmoSyncResult,
