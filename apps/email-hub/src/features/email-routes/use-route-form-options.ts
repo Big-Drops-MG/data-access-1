@@ -14,22 +14,37 @@ import {
 } from "@/features/email-routes/api"
 import { listQueryOptions } from "@/lib/query-options"
 
-export function useRouteFormOptions(emailType: EmailRouteEmailType | "") {
+export function useRouteFormOptions(
+  emailType: EmailRouteEmailType | "",
+  offerId: string | null = null
+) {
+  const templateFilters = {
+    email_type: emailType || "thank_you",
+    offer_id: offerId ?? undefined,
+  }
+  const senderFilters = { offer_id: offerId ?? undefined }
+
   const templates = useQuery({
     ...listQueryOptions(
       "email-routes-form-templates",
       () =>
         fetchPublishedTemplatesForRoute({
           email_type: emailType || "thank_you",
+          offer_id: offerId ?? undefined,
         }),
-      { email_type: emailType || "thank_you" }
+      templateFilters
     ),
     enabled: Boolean(emailType),
   })
 
   const senders = useQuery({
-    ...listQueryOptions("email-routes-form-senders", () =>
-      fetchActiveSendersForRoute()
+    ...listQueryOptions(
+      "email-routes-form-senders",
+      () =>
+        fetchActiveSendersForRoute({
+          offer_id: offerId ?? undefined,
+        }),
+      senderFilters
     ),
   })
 

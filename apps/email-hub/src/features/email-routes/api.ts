@@ -114,12 +114,16 @@ export function updateEmailRoute(
 
 export function fetchPublishedTemplatesForRoute(options: {
   email_type: EmailRouteEmailType
+  offer_id?: string
 }): Promise<{ data: TemplateOptionRow[] }> {
   const search = new URLSearchParams({
     status: "active",
     email_type: options.email_type,
     limit: "100",
   })
+  if (options.offer_id) {
+    search.set("offer_id", options.offer_id)
+  }
   return apiJson<{ data: TemplateOptionRow[] }>(
     `/api/templates?${search.toString()}`
   )
@@ -137,13 +141,18 @@ export function fetchTemplatesForRouteLookup(options: {
   )
 }
 
-export function fetchActiveSendersForRoute(): Promise<{
+export function fetchActiveSendersForRoute(options?: {
+  offer_id?: string
+}): Promise<{
   data: SenderOptionRow[]
 }> {
   const search = new URLSearchParams({
     status: "active",
     limit: "100",
   })
+  if (options?.offer_id) {
+    search.set("offer_id", options.offer_id)
+  }
   return apiJson<{ data: SenderOptionRow[] }>(
     `/api/senders?${search.toString()}`
   )

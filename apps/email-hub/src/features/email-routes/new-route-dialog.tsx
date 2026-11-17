@@ -124,7 +124,8 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
   const [templateId, setTemplateId] = useState("")
   const [senderId, setSenderId] = useState("")
 
-  const options = useRouteFormOptions(emailType)
+  const selectedOfferId = offerValue === DEFAULT_OFFER_VALUE ? null : offerValue
+  const options = useRouteFormOptions(emailType, selectedOfferId)
 
   const emailTypeOptions = useMemo(
     () =>
@@ -201,6 +202,12 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
     setTemplateId("")
   }
 
+  function handleOfferChange(value: string) {
+    setOfferValue(value)
+    setTemplateId("")
+    setSenderId("")
+  }
+
   function handleSubmit() {
     if (!emailType || !templateId || !senderId) {
       return
@@ -273,14 +280,18 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               placeholder="Select offer"
               disabled={options.lookupsPending}
               testId="new-route-offer"
-              onChange={setOfferValue}
+              onChange={handleOfferChange}
             />
           </FormField>
 
           <FormField
             id="new-route-template"
             label="Template"
-            description="Published templates of this email type."
+            description={
+              selectedOfferId
+                ? "Published templates linked to this offer (or a default route)."
+                : "Published templates of this email type."
+            }
             required
             className="gap-1.5"
             testIdPrefix="new-route"
@@ -306,7 +317,11 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           <FormField
             id="new-route-sender"
             label="Sender"
-            description="Active senders on active domains."
+            description={
+              selectedOfferId
+                ? "Active senders linked to this offer (or a default route)."
+                : "Active senders on active domains."
+            }
             required
             className="gap-1.5"
             testIdPrefix="new-route"
