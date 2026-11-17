@@ -28,6 +28,7 @@ import {
   parseOptizmoEmailStream,
   parseOptizmoSuppressionStream,
   processOptizmoSyncJob,
+  streamOptizmoSuppressionHashes,
 } from "./optizmo-sync.js"
 
 function prepareSuccess(format: "plain" | "md5" = "plain") {
@@ -147,6 +148,28 @@ describe("optizmo-sync helpers", () => {
     expect([...hashes].sort()).toEqual([
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    ])
+  })
+
+  it("streams md5 hashes in fixed-size chunks", async () => {
+    const stream = Readable.from([
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+      "cccccccccccccccccccccccccccccccc\n",
+    ])
+    const chunks: string[][] = []
+    const seen = await streamOptizmoSuppressionHashes(
+      stream,
+      "md5",
+      async (chunk) => {
+        chunks.push([...chunk])
+      },
+      2
+    )
+    expect(seen).toBe(3)
+    expect(chunks).toEqual([
+      ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+      ["cccccccccccccccccccccccccccccccc"],
     ])
   })
 })
