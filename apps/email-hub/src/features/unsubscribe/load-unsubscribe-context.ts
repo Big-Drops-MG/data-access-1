@@ -13,7 +13,7 @@ export type UnsubscribeContext = {
   categoryName: string
 }
 
-/** Resolve the message’s email category for confirm-page copy. */
+/** Resolve the message's email category for confirm-page copy. */
 export async function loadUnsubscribeContext(
   messageId: string
 ): Promise<UnsubscribeContext | null> {

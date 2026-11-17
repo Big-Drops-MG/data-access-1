@@ -69,6 +69,8 @@ export {
   templateVersion,
   trustedDevice,
   twoFactor,
+  unsubscribeCustomDomainStatus,
+  unsubscribeSettings,
   user,
   userRole,
   userStatus,
@@ -128,6 +130,8 @@ export type {
   TemplateVersion,
   TrustedDevice,
   TwoFactor,
+  NewUnsubscribeSettings,
+  UnsubscribeSettings,
   User,
   Verification,
 } from "./schema/index.js"

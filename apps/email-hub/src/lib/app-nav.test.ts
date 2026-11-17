@@ -18,6 +18,7 @@ describe("APP_PRIMARY_TABS", () => {
       "Email routes",
       "Recipients",
       "Suppression",
+      "Unsubscribe",
       "Offers",
       "Domains",
       "Senders",
@@ -25,6 +26,9 @@ describe("APP_PRIMARY_TABS", () => {
       "Alerts",
       "Reports",
     ])
+    expect(
+      APP_PRIMARY_TABS.find((tab) => tab.title === "Unsubscribe")?.href
+    ).toBe("/unsubscribe")
     expect(APP_PRIMARY_TABS.find((tab) => tab.title === "Offers")?.href).toBe(
       "/offers"
     )

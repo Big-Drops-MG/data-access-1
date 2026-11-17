@@ -47,6 +47,7 @@ export {
   verifyUnsubscribeToken,
   type UnsubscribeTokenVerification,
 } from "./unsubscribe-token.js"
+export { resolveUnsubscribeOrigin } from "./unsubscribe-origin.js"
 export {
   applyUnsubscribe,
   LIST_UNSUBSCRIBE_ONE_CLICK_BODY,
