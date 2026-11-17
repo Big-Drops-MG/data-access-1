@@ -181,6 +181,7 @@ export {
   optizmoSyncAlertDedupeKey,
   parseOptizmoEmailStream,
   parseOptizmoSuppressionStream,
+  streamOptizmoSuppressionHashes,
   processOptizmoSyncJob,
   type OptizmoSyncEnv,
   type OptizmoSyncResult,

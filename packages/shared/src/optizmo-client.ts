@@ -49,6 +49,8 @@ export type OptizmoClientDeps = {
   getFileTimeoutMs?: number
   maxFileBytes?: number
   format?: "plain" | "md5"
+  deltas?: 0 | 1
+  deltaTimestamp?: number
 }
 
 export type OptizmoPrepareResult = {
@@ -201,6 +203,15 @@ export async function prepareOptizmoDownload(
   url.searchParams.set("token", apiKey)
   if (deps.format) {
     url.searchParams.set("format", deps.format)
+  }
+  if (deps.deltas === 1) {
+    url.searchParams.set("deltas", "1")
+    if (
+      typeof deps.deltaTimestamp === "number" &&
+      Number.isFinite(deps.deltaTimestamp)
+    ) {
+      url.searchParams.set("delta_timestamp", String(deps.deltaTimestamp))
+    }
   }
 
   const fetchImpl = deps.fetchImpl ?? fetch

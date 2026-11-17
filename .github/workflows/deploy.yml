@@ -1,12 +1,3 @@
-# Build → GHCR (amd64+arm64) → migrate → Coolify deploy (SD#13.6 / T-035).
-# Push to `dev` → Dev only (environment "development").
-# Push to `main` → Prod only (environment "production", required reviewers).
-# workflow_dispatch uses the selected branch the same way.
-#
-# Coolify on Hetzner listens on 127.0.0.1:8000 only. Deploy jobs SSH to the
-# host (deploy/ci-pin-coolify-app-image.sh): plaintext APP_IMAGE in .env.compose
-# for coolify-up.sh, PATCH /applications/{uuid}/envs (encrypted in Coolify DB),
-# then POST /api/v1/deploy. Never write plaintext into Coolify environment_variables.
 name: Deploy
 
 on:
@@ -18,7 +9,7 @@ on:
 
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.ref == 'refs/heads/dev' }}
 
 permissions:
   contents: read
@@ -33,7 +24,7 @@ env:
 jobs:
   build:
     name: Build and push GHCR image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     outputs:
       image: ${{ steps.meta.outputs.image }}
@@ -58,19 +49,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and push (linux/amd64,linux/arm64)
+      - name: Build and push (linux/arm64)
         id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -81,10 +69,10 @@ jobs:
           IMAGE: ${{ steps.meta.outputs.image }}:${{ github.sha }}
         run: |
           set -euo pipefail
-          docker pull --platform linux/amd64 "$IMAGE"
+          docker pull --platform linux/arm64 "$IMAGE"
           BYTES="$(docker image inspect "$IMAGE" --format '{{.Size}}')"
           MAX="$((400 * 1024 * 1024))"
-          echo "Image size (amd64): ${BYTES} bytes (limit ${MAX})"
+          echo "Image size (arm64): ${BYTES} bytes (limit ${MAX})"
           test "${BYTES}" -le "${MAX}"
 
   migrate-dev:

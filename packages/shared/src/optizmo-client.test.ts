@@ -99,6 +99,38 @@ describe("optizmo-client", () => {
     expect(looksLikeFirstDownloadRefusal(403, "forbidden")).toBe(false)
   })
 
+  it("passes format=md5 and deltas query params when requested", async () => {
+    const key = "m-test-key"
+    let query = ""
+    server.use(
+      http.get(
+        `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/download/${key}`,
+        ({ request }) => {
+          const url = new URL(request.url)
+          query = url.search
+          return HttpResponse.json({
+            result: "success",
+            format: "md5",
+            campaign_name: "Test",
+            download_link: `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}?token=t&dcma=d`,
+            optout_link: "https://example.com/o",
+            delta_timestamp: 99,
+            help: "ok",
+          })
+        }
+      )
+    )
+    await prepareOptizmoDownload(key, {
+      apiKey: "api-secret",
+      format: "md5",
+      deltas: 1,
+      deltaTimestamp: 1546300800,
+    })
+    expect(query).toContain("format=md5")
+    expect(query).toContain("deltas=1")
+    expect(query).toContain("delta_timestamp=1546300800")
+  })
+
   it("prepares download and streams the returned download_link ZIP", async () => {
     const key = "m-test-key"
     const downloadLink = `${OPTIZMO_DEFAULT_BASE_URL}/accesskey/getfile/${key}?token=api-secret&dcma=abc`
