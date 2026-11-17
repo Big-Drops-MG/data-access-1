@@ -10,6 +10,8 @@ import {
 import { getDb, type Database } from "@workspace/db/client"
 import { AppError, normaliseEmail } from "@workspace/shared"
 
+import { recipientScopedToOffer } from "@/lib/offer-scope"
+
 import {
   serializeRecipientListItem,
   serializeRecipientMessage,
@@ -24,6 +26,7 @@ export type ListRecipientsInput = {
   email?: string
   status?: Recipient["status"]
   optedOutCategoryId?: string
+  offerId?: string
 }
 
 export async function listRecipients(
@@ -37,6 +40,9 @@ export async function listRecipients(
   }
   if (input.status) {
     conditions.push(eq(recipient.status, input.status))
+  }
+  if (input.offerId) {
+    conditions.push(recipientScopedToOffer(db, input.offerId))
   }
   if (input.optedOutCategoryId) {
     const [category] = await db

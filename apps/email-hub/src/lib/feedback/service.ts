@@ -15,6 +15,8 @@ import {
 import { getContextLogger } from "@workspace/logger"
 import { AppError, isUniqueViolation, writeAudit } from "@workspace/shared"
 
+import { feedbackScopedToOffer } from "@/lib/offer-scope"
+
 import {
   serializeFeedback,
   type FeedbackClassificationJson,
@@ -32,6 +34,7 @@ export type ListFeedbackInput = {
   limit: number
   cursor?: string
   status?: FeedbackItem["status"]
+  offerId?: string
 }
 
 export type DecideFeedbackInput = {
@@ -161,6 +164,9 @@ export async function listFeedback(
   const conditions: SQL[] = []
   if (input.status) {
     conditions.push(eq(feedbackItem.status, input.status))
+  }
+  if (input.offerId) {
+    conditions.push(feedbackScopedToOffer(db, input.offerId))
   }
   if (input.cursor) {
     conditions.push(lt(feedbackItem.id, input.cursor))

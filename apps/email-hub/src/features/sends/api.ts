@@ -75,19 +75,29 @@ export const SEND_OPTIONS_SENDER_PARAMS = {
   limit: 100,
 } as const
 
-export function fetchPublishedTemplateRows(): Promise<{ data: TemplateRow[] }> {
+export function fetchPublishedTemplateRows(options?: {
+  offer_id?: string
+}): Promise<{ data: TemplateRow[] }> {
   const search = new URLSearchParams({
     status: SEND_OPTIONS_TEMPLATE_PARAMS.status,
     limit: String(SEND_OPTIONS_TEMPLATE_PARAMS.limit),
   })
+  if (options?.offer_id) {
+    search.set("offer_id", options.offer_id)
+  }
   return apiJson<{ data: TemplateRow[] }>(`/api/templates?${search.toString()}`)
 }
 
-export function fetchActiveSenderRows(): Promise<{ data: SenderRow[] }> {
+export function fetchActiveSenderRows(options?: {
+  offer_id?: string
+}): Promise<{ data: SenderRow[] }> {
   const search = new URLSearchParams({
     status: SEND_OPTIONS_SENDER_PARAMS.status,
     limit: String(SEND_OPTIONS_SENDER_PARAMS.limit),
   })
+  if (options?.offer_id) {
+    search.set("offer_id", options.offer_id)
+  }
   return apiJson<{ data: SenderRow[] }>(`/api/senders?${search.toString()}`)
 }
 

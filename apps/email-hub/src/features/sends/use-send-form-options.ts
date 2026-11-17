@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useMemo } from "react"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import {
   fetchActiveSenderRows,
   fetchOffers,
@@ -15,18 +16,34 @@ import { listQueryOptions } from "@/lib/query-options"
 const OFFERS_PARAMS = { status: "active" as const }
 
 export function useSendFormOptions() {
+  const { selectedOfferId } = useOfferSelection()
+  const templateParams = {
+    ...SEND_OPTIONS_TEMPLATE_PARAMS,
+    offer_id: selectedOfferId ?? undefined,
+  }
+  const senderParams = {
+    ...SEND_OPTIONS_SENDER_PARAMS,
+    offer_id: selectedOfferId ?? undefined,
+  }
+
   const templates = useQuery({
     ...listQueryOptions(
       "sends-form-templates",
-      () => fetchPublishedTemplateRows(),
-      SEND_OPTIONS_TEMPLATE_PARAMS
+      () =>
+        fetchPublishedTemplateRows({
+          offer_id: selectedOfferId ?? undefined,
+        }),
+      templateParams
     ),
   })
   const senders = useQuery({
     ...listQueryOptions(
       "sends-form-senders",
-      () => fetchActiveSenderRows(),
-      SEND_OPTIONS_SENDER_PARAMS
+      () =>
+        fetchActiveSenderRows({
+          offer_id: selectedOfferId ?? undefined,
+        }),
+      senderParams
     ),
   })
   const offers = useQuery({

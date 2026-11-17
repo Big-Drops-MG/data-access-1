@@ -22,6 +22,7 @@ export type TemplatesListParams = {
   status?: TemplateJson["status"]
   email_type?: TemplateJson["email_type"]
   category_id?: string
+  offer_id?: string
 }
 
 export type EmailType = TemplateJson["email_type"]
@@ -42,6 +43,9 @@ function toSearchParams(params: TemplatesListParams = {}): string {
   }
   if (params.category_id) {
     search.set("category_id", params.category_id)
+  }
+  if (params.offer_id) {
+    search.set("offer_id", params.offer_id)
   }
   const text = search.toString()
   return text ? `?${text}` : ""

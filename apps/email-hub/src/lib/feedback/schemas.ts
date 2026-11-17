@@ -14,6 +14,7 @@ export const feedbackListQuerySchema = paginationSchema
   .extend({
     cursor: uuidSchema.optional(),
     status: feedbackStatusSchema.optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

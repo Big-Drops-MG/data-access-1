@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useMemo } from "react"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
@@ -32,6 +33,7 @@ type FeedbackPageProps = {
 
 export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
   const router = useRouter()
+  const { selectedOfferId } = useOfferSelection()
   const tableState = useDataTableUrlState({ filterKeys: FILTER_KEYS })
   const selectedView = parseComplaintsView(tableState.filters.view)
   const selectedStatus = parseFeedbackStatusTab(tableState.filters.status)
@@ -44,12 +46,16 @@ export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
         selectedStatus === "all"
           ? undefined
           : (selectedStatus as FeedbackStatus),
+      offer_id: selectedOfferId ?? undefined,
     }),
-    [selectedStatus, tableState.cursor, tableState.limit]
+    [selectedOfferId, selectedStatus, tableState.cursor, tableState.limit]
   )
 
   const list = useFeedbackList(listParams)
-  const allForCounts = useFeedbackList({ limit: 200 })
+  const allForCounts = useFeedbackList({
+    limit: 200,
+    offer_id: selectedOfferId ?? undefined,
+  })
 
   const counts = useMemo(() => {
     const rows = allForCounts.data?.data ?? []
