@@ -40,8 +40,6 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 
-const DEFAULT_OFFER_VALUE = "__default__"
-
 type SelectOption = { value: string; label: string }
 
 type NewRouteDialogProps = {
@@ -118,13 +116,11 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
   const [emailType, setEmailType] = useState<EmailRouteEmailType | "">("")
-  const [offerValue, setOfferValue] = useState(
-    defaultOfferId?.trim() || DEFAULT_OFFER_VALUE
-  )
+  const [offerId, setOfferId] = useState(defaultOfferId?.trim() || "")
   const [templateId, setTemplateId] = useState("")
   const [senderId, setSenderId] = useState("")
 
-  const selectedOfferId = offerValue === DEFAULT_OFFER_VALUE ? null : offerValue
+  const selectedOfferId = offerId || null
   const options = useRouteFormOptions(emailType, selectedOfferId)
 
   const emailTypeOptions = useMemo(
@@ -136,18 +132,14 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
     []
   )
 
-  const offerOptions = useMemo(() => {
-    const rows: SelectOption[] = [
-      { value: DEFAULT_OFFER_VALUE, label: "Default (no offer)" },
-    ]
-    for (const offer of options.offers) {
-      rows.push({
+  const offerOptions = useMemo(
+    () =>
+      options.offers.map((offer) => ({
         value: offer.id,
         label: `${offer.external_ref} · ${offer.name}`,
-      })
-    }
-    return rows
-  }, [options.offers])
+      })),
+    [options.offers]
+  )
 
   const templateOptions = useMemo(
     () =>
@@ -192,6 +184,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
 
   const canSubmit =
     Boolean(emailType) &&
+    Boolean(offerId) &&
     Boolean(templateId) &&
     Boolean(senderId) &&
     !createMutation.isPending &&
@@ -203,18 +196,18 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
   }
 
   function handleOfferChange(value: string) {
-    setOfferValue(value)
+    setOfferId(value)
     setTemplateId("")
     setSenderId("")
   }
 
   function handleSubmit() {
-    if (!emailType || !templateId || !senderId) {
+    if (!emailType || !offerId || !templateId || !senderId) {
       return
     }
     createMutation.mutate({
       email_type: emailType,
-      offer_id: offerValue === DEFAULT_OFFER_VALUE ? null : offerValue,
+      offer_id: offerId,
       template_id: templateId,
       sender_id: senderId,
     })
@@ -275,9 +268,11 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           >
             <OptionSelect
               id="new-route-offer"
-              value={offerValue}
+              value={offerId}
               options={offerOptions}
-              placeholder="Select offer"
+              placeholder={
+                options.lookupsPending ? "Loading offers…" : "Select offer"
+              }
               disabled={options.lookupsPending}
               testId="new-route-offer"
               onChange={handleOfferChange}
@@ -287,11 +282,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           <FormField
             id="new-route-template"
             label="Template"
-            description={
-              selectedOfferId
-                ? "Published templates linked to this offer (or a default route)."
-                : "Published templates of this email type."
-            }
+            description="Published templates linked to this offer."
             required
             className="gap-1.5"
             testIdPrefix="new-route"
@@ -302,13 +293,15 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               value={templateId}
               options={templateOptions}
               placeholder={
-                emailType
-                  ? options.isPending
-                    ? "Loading templates…"
-                    : "Select template"
-                  : "Select email type first"
+                !offerId
+                  ? "Select offer first"
+                  : !emailType
+                    ? "Select email type first"
+                    : options.isPending
+                      ? "Loading templates…"
+                      : "Select template"
               }
-              disabled={!emailType || options.isPending}
+              disabled={!offerId || !emailType || options.isPending}
               testId="new-route-template"
               onChange={setTemplateId}
             />
@@ -317,11 +310,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           <FormField
             id="new-route-sender"
             label="Sender"
-            description={
-              selectedOfferId
-                ? "Active senders linked to this offer (or a default route)."
-                : "Active senders on active domains."
-            }
+            description="Active senders linked to this offer."
             required
             className="gap-1.5"
             testIdPrefix="new-route"
@@ -332,9 +321,13 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               value={senderId}
               options={senderOptions}
               placeholder={
-                options.lookupsPending ? "Loading senders…" : "Select sender"
+                !offerId
+                  ? "Select offer first"
+                  : options.lookupsPending
+                    ? "Loading senders…"
+                    : "Select sender"
               }
-              disabled={options.lookupsPending}
+              disabled={!offerId || options.lookupsPending}
               testId="new-route-sender"
               onChange={setSenderId}
             />

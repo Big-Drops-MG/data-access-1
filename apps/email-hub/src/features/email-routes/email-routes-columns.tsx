@@ -30,11 +30,7 @@ export const emailRoutesColumns: ColumnDef<EmailRouteRow, unknown>[] = [
     header: "Offer",
     cell: ({ row }) => {
       if (!row.original.offer_id) {
-        return (
-          <span className="text-fg-muted" title="Default route">
-            Default
-          </span>
-        )
+        return <span className="text-fg-muted">—</span>
       }
       return (
         <span

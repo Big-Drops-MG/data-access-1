@@ -96,7 +96,7 @@ export function EmailRoutesPage({ canWrite = false }: EmailRoutesPageProps) {
           : row.sender_id,
         offer_label: offer
           ? `${offer.external_ref} · ${offer.name}`
-          : (row.offer_id ?? "Default"),
+          : (row.offer_id ?? "—"),
       }
     })
   }, [
@@ -247,16 +247,13 @@ export function EmailRoutesPage({ canWrite = false }: EmailRoutesPageProps) {
             data-testid="email-routes-empty"
           >
             No routes in this view.
-            {canWrite
-              ? " Create a default or offer route to get started."
-              : null}
+            {canWrite ? " Create a route for an offer to get started." : null}
           </p>
         }
       />
 
       <p className="text-caption text-fg-muted">
-        Only one active route can exist for each email type and offer. A route
-        with no offer is the default for that email type.
+        Only one active route can exist for each email type and offer.
       </p>
 
       {canWrite ? (
