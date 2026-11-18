@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Install /etc/cron.d/emailhub-backups (America/New_York times from SD#13.8).
-# Prefer this when Coolify Scheduled Tasks are unavailable; both call the same scripts.
 set -euo pipefail
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -30,10 +28,10 @@ cat >/etc/cron.d/emailhub-backups <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 MAILTO=""
-# SD#13.8 — times are local droplet timezone (America/New_York).
+# SD#13.8 — times are local server timezone (America/New_York).
 0 2 * * * root BACKUPS_ENV_FILE=${ENV_FILE} ${BACKUPS_DIR}/run-postgres-backup.sh >>${LOG_DIR}/postgres.log 2>&1
 30 2 * * * root BACKUPS_ENV_FILE=${ENV_FILE} ${BACKUPS_DIR}/run-clickhouse-backup.sh >>${LOG_DIR}/clickhouse.log 2>&1
-0 3 * * 0 root BACKUPS_ENV_FILE=${ENV_FILE} ${BACKUPS_DIR}/run-droplet-snapshot.sh >>${LOG_DIR}/snapshot.log 2>&1
+0 3 * * 0 root BACKUPS_ENV_FILE=${ENV_FILE} ${BACKUPS_DIR}/run-server-snapshot.sh >>${LOG_DIR}/snapshot.log 2>&1
 EOF
 chmod 644 /etc/cron.d/emailhub-backups
 

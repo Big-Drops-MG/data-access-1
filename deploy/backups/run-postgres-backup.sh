@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Nightly Postgres backup → age → DigitalOcean Spaces (SD#13.8).
-# Schedule: 02:00 America/New_York.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
 load_backups_env
@@ -12,7 +11,7 @@ require_backup_config
 require_cmd docker
 require_cmd age
 require_cmd aws
-export_spaces_aws_env
+export_s3_aws_env
 
 PG_DAILY_KEEP="${PG_DAILY_KEEP:-30}"
 PG_MONTHLY_KEEP="${PG_MONTHLY_KEEP:-12}"
@@ -25,8 +24,8 @@ DB_USER="${POSTGRES_USER:-postgres}"
 
 RAW="${WORK_DIR}/postgres-${STAMP}.dump"
 AGED="${RAW}.age"
-DAILY_KEY="${SPACES_PREFIX}/postgres/daily/${DAY}.dump.age"
-MONTHLY_KEY="${SPACES_PREFIX}/postgres/monthly/${MONTH}.dump.age"
+DAILY_KEY="${S3_PREFIX}/postgres/daily/${DAY}.dump.age"
+MONTHLY_KEY="${S3_PREFIX}/postgres/monthly/${MONTH}.dump.age"
 
 cleanup() {
   rm -f "${RAW}" "${AGED}"
@@ -42,11 +41,10 @@ docker exec -e PGPASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}" \
 age_encrypt_file "${RAW}" "${AGED}"
 upload_age_object "${AGED}" "${DAILY_KEY}"
 
-# First successful backup of the UTC month also becomes the monthly copy.
-if ! list_prefix_keys "${SPACES_PREFIX}/postgres/monthly/${MONTH}" | grep -q .; then
+if ! list_prefix_keys "${S3_PREFIX}/postgres/monthly/${MONTH}" | grep -q .; then
   upload_age_object "${AGED}" "${MONTHLY_KEY}"
 fi
 
-prune_prefix_keep_newest "${SPACES_PREFIX}/postgres/daily/" "${PG_DAILY_KEEP}"
-prune_prefix_keep_newest "${SPACES_PREFIX}/postgres/monthly/" "${PG_MONTHLY_KEEP}"
+prune_prefix_keep_newest "${S3_PREFIX}/postgres/daily/" "${PG_DAILY_KEEP}"
+prune_prefix_keep_newest "${S3_PREFIX}/postgres/monthly/" "${PG_MONTHLY_KEEP}"
 log "postgres backup complete"

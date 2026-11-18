@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Local unit test for prune_prefix_keep_newest (no Spaces required).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +22,7 @@ s3() {
   fi
 }
 
-SPACES_BUCKET=test-bucket
+S3_BUCKET=test-bucket
 prune_prefix_keep_newest "backups/dev/postgres/daily/" 2
 
 [[ "${#DELETED[@]}" -eq 1 ]] || {

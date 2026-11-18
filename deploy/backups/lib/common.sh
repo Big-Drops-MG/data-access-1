@@ -49,6 +49,7 @@ load_compose_db_env() {
   env_file="$(compose_env_file)"
   [[ -f "${env_file}" ]] || die "compose env not found: ${env_file}"
   set -a
+  # shellcheck disable=SC1090
   source "${env_file}"
   set +a
 }
@@ -62,32 +63,32 @@ find_container() {
 }
 
 require_backup_config() {
-  [[ -n "${SPACES_BUCKET:-}" ]] || die "SPACES_BUCKET is required"
-  [[ -n "${SPACES_ENDPOINT:-}" ]] || die "SPACES_ENDPOINT is required"
-  [[ -n "${SPACES_ACCESS_KEY_ID:-}" ]] || die "SPACES_ACCESS_KEY_ID is required"
-  [[ -n "${SPACES_SECRET_ACCESS_KEY:-}" ]] || die "SPACES_SECRET_ACCESS_KEY is required"
+  [[ -n "${S3_BUCKET:-}" ]] || die "S3_BUCKET is required"
+  [[ -n "${S3_ENDPOINT:-}" ]] || die "S3_ENDPOINT is required"
+  [[ -n "${S3_ACCESS_KEY_ID:-}" ]] || die "S3_ACCESS_KEY_ID is required"
+  [[ -n "${S3_SECRET_ACCESS_KEY:-}" ]] || die "S3_SECRET_ACCESS_KEY is required"
   [[ -n "${AGE_RECIPIENT:-}" ]] || die "AGE_RECIPIENT is required (age public key)"
   EMAILHUB_ENV="${EMAILHUB_ENV:-dev}"
-  SPACES_PREFIX="${SPACES_PREFIX:-backups/${EMAILHUB_ENV}}"
-  SPACES_REGION="${SPACES_REGION:-sfo3}"
+  S3_PREFIX="${S3_PREFIX:-backups/${EMAILHUB_ENV}}"
+  S3_REGION="${S3_REGION:-fsn1}"
   WORK_DIR="${WORK_DIR:-/var/tmp/emailhub-backups}"
   mkdir -p "${WORK_DIR}"
   chmod 700 "${WORK_DIR}"
 }
 
-export_spaces_aws_env() {
-  export AWS_ACCESS_KEY_ID="${SPACES_ACCESS_KEY_ID}"
-  export AWS_SECRET_ACCESS_KEY="${SPACES_SECRET_ACCESS_KEY}"
-  export AWS_DEFAULT_REGION="${SPACES_REGION}"
+export_s3_aws_env() {
+  export AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID}"
+  export AWS_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY}"
+  export AWS_DEFAULT_REGION="${S3_REGION}"
   export AWS_EC2_METADATA_DISABLED=true
 }
 
 s3() {
-  aws --endpoint-url "${SPACES_ENDPOINT}" s3 "$@"
+  aws --endpoint-url "${S3_ENDPOINT}" s3 "$@"
 }
 
 s3api() {
-  aws --endpoint-url "${SPACES_ENDPOINT}" s3api "$@"
+  aws --endpoint-url "${S3_ENDPOINT}" s3api "$@"
 }
 
 age_encrypt_file() {
@@ -100,16 +101,14 @@ age_encrypt_file() {
 upload_age_object() {
   local local_path="$1"
   local key="$2"
-  s3 cp "${local_path}" "s3://${SPACES_BUCKET}/${key}" \
-    --only-show-errors \
-    --sse AES256
-  log "uploaded s3://${SPACES_BUCKET}/${key}"
+  s3 cp "${local_path}" "s3://${S3_BUCKET}/${key}" --only-show-errors
+  log "uploaded s3://${S3_BUCKET}/${key}"
 }
 
 list_prefix_keys() {
   local prefix="$1"
   s3api list-objects-v2 \
-    --bucket "${SPACES_BUCKET}" \
+    --bucket "${S3_BUCKET}" \
     --prefix "${prefix}" \
     --query 'Contents[].Key' \
     --output text 2>/dev/null | tr '\t' '\n' | sed '/^None$/d' | sed '/^$/d' || true
@@ -129,8 +128,8 @@ prune_prefix_keep_newest() {
   for ((i = keep; i < total; i++)); do
     local key="${keys[$i]}"
     [[ -n "${key}" ]] || continue
-    log "prune deleting s3://${SPACES_BUCKET}/${key}"
-    s3 rm "s3://${SPACES_BUCKET}/${key}" --only-show-errors
+    log "prune deleting s3://${S3_BUCKET}/${key}"
+    s3 rm "s3://${S3_BUCKET}/${key}" --only-show-errors
   done
 }
 

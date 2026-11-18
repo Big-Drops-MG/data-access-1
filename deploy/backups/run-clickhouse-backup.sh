@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Nightly ClickHouse backup via altinity/clickhouse-backup → age → Spaces (SD#13.8).
-# Schedule: 02:30 America/New_York.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +12,7 @@ require_cmd docker
 require_cmd age
 require_cmd aws
 require_cmd tar
-export_spaces_aws_env
+export_s3_aws_env
 
 CH_DAILY_KEEP="${CH_DAILY_KEEP:-14}"
 CH_BACKUP_IMAGE="${CH_BACKUP_IMAGE:-altinity/clickhouse-backup:2.6.24}"
@@ -27,7 +25,7 @@ BACKUP_NAME="ch-${STAMP}"
 LOCAL_DIR="${WORK_DIR}/clickhouse-${STAMP}"
 TAR_PATH="${LOCAL_DIR}.tar.gz"
 AGED="${TAR_PATH}.age"
-DAILY_KEY="${SPACES_PREFIX}/clickhouse/daily/${DAY}.tar.gz.age"
+DAILY_KEY="${S3_PREFIX}/clickhouse/daily/${DAY}.tar.gz.age"
 CFG_DIR="${LOCAL_DIR}/cfg"
 DATA_SHADOW="${LOCAL_DIR}/shadow"
 
@@ -56,7 +54,6 @@ clickhouse:
   data_path: /var/lib/clickhouse
 EOF
 
-# Share the ClickHouse network namespace and data dir so freeze+copy works.
 docker run --rm \
   --network "container:${CONTAINER}" \
   -v /data/clickhouse:/var/lib/clickhouse \
@@ -74,9 +71,8 @@ tar -C "$(dirname "${BACKUP_DIR}")" -czf "${TAR_PATH}" "$(basename "${BACKUP_DIR
 
 age_encrypt_file "${TAR_PATH}" "${AGED}"
 upload_age_object "${AGED}" "${DAILY_KEY}"
-prune_prefix_keep_newest "${SPACES_PREFIX}/clickhouse/daily/" "${CH_DAILY_KEEP}"
+prune_prefix_keep_newest "${S3_PREFIX}/clickhouse/daily/" "${CH_DAILY_KEEP}"
 
-# Best-effort local cleanup inside the shared data dir backup folder.
 docker run --rm \
   --network "container:${CONTAINER}" \
   -v /data/clickhouse:/var/lib/clickhouse \
