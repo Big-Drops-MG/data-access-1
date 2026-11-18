@@ -62,6 +62,10 @@ import { processEventsJob } from "./events-writer.js"
 import { handleOptizmoSyncJob } from "./optizmo-sync.js"
 import { processProviderMetricsPull } from "./provider-metrics-pull.js"
 import {
+  attachProcessFailureHandlers,
+  attachWorkerFailureHandlers,
+} from "./job-failure.js"
+import {
   QUEUE_WATCHDOG_JOB_NAME,
   processQueueWatchdogJob,
 } from "./queue-watchdog.js"
@@ -145,28 +149,15 @@ async function withJobLogs(
         "Job started"
       )
 
-      try {
-        await run()
-        scoped.info(
-          {
-            event: "job.completed",
-            queue: queueName,
-            duration_ms: Date.now() - started,
-          },
-          "Job completed"
-        )
-      } catch (error) {
-        scoped.error(
-          {
-            event: "job.failed",
-            queue: queueName,
-            duration_ms: Date.now() - started,
-            err: error,
-          },
-          "Job failed"
-        )
-        throw error
-      }
+      await run()
+      scoped.info(
+        {
+          event: "job.completed",
+          queue: queueName,
+          duration_ms: Date.now() - started,
+        },
+        "Job completed"
+      )
     },
     jobLogger
   )
@@ -178,6 +169,8 @@ async function main(): Promise<void> {
   const db = getDb()
   const transport = createMailTransport(env)
   const sesRegion = env.SES_REGION?.trim() || ""
+
+  attachProcessFailureHandlers()
 
   const connection = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null,
@@ -483,6 +476,10 @@ async function main(): Promise<void> {
       }
     )
   )
+
+  for (const worker of workers) {
+    attachWorkerFailureHandlers(worker, { db })
+  }
 
   const limiterLabel = sendOptions.limiter
     ? `${String(sendOptions.limiter.max)}/s`
