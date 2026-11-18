@@ -67,7 +67,6 @@ export function dnsValueMatches(
   return normalizeText(seen) === normalizeText(expected)
 }
 
-
 export function evaluateDnsRecord(
   record: Pick<DnsRecord, "purpose" | "recordType" | "expectedValue">,
   lookup: DnsLookupResult,
