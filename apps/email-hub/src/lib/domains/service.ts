@@ -22,13 +22,15 @@ import {
   type ProvisionedSesIdentity,
   type SesIdentityClient,
 } from "@workspace/emails"
-import { AppError, loadServerEnv, writeAudit } from "@workspace/shared"
-
 import {
-  domainStatusAfterCheck,
-  evaluateDnsRecord,
+  AppError,
+  enqueueDnsCheckJob,
+  loadServerEnv,
+  runDomainDnsCheck,
+  writeAudit,
   type DnsLookup,
-} from "./check-dns"
+} from "@workspace/shared"
+
 import {
   CloudflareDnsError,
   deleteCloudflareDnsRecords,
@@ -38,8 +40,7 @@ import {
   type CloudflareDnsRecordInput,
 } from "./cloudflare-dns"
 import { domainScopedToOffer } from "@/lib/offer-scope"
-
-import { createDnsLookup } from "./dns-resolver"
+import { getMonitoringQueue } from "@/lib/monitoring-queue"
 import {
   serializeDnsRecord,
   serializeDomain,
@@ -491,6 +492,29 @@ export async function createDomain(
   }
 }
 
+export type EnqueueDomainDnsCheckResult = {
+  status: "queued"
+  domain_id: string
+}
+
+/**
+ * Enqueue an on-demand dns-check job for the domain (Check now → 202).
+ */
+export async function enqueueDomainDnsCheck(
+  ref: string,
+  actor: DomainActor,
+  deps: { db?: Database } = {}
+): Promise<EnqueueDomainDnsCheckResult> {
+  const db = deps.db ?? getDb()
+  const row = await requireDomainByRef(db, ref)
+  await enqueueDnsCheckJob(getMonitoringQueue(), {
+    domainId: row.id,
+    trigger: "manual",
+    requestId: actor.requestId ?? undefined,
+  })
+  return { status: "queued", domain_id: row.id }
+}
+
 /**
  * Resolve every expected DNS record (via public DNS), persist the outcome, and
  * move the domain status and verification step to match.
@@ -501,101 +525,15 @@ export async function checkDomainDns(
   deps: CheckDomainDnsDeps = {}
 ): Promise<DomainDetailJson> {
   const db = deps.db ?? getDb()
-  const lookup = deps.lookup ?? createDnsLookup()
-  const now = deps.now ?? new Date()
-
   const row = await requireDomainByRef(db, ref)
-  const id = row.id
-  const records = await db
-    .select()
-    .from(dnsRecord)
-    .where(eq(dnsRecord.domainId, id))
-    .orderBy(dnsRecord.id)
-
-  const checked = await Promise.all(
-    records.map(async (record) => ({
-      record,
-      evaluation: evaluateDnsRecord(
-        record,
-        await lookup({ name: record.name, recordType: record.recordType }),
-        { domainCreatedAt: row.createdAt, now }
-      ),
-    }))
-  )
-
-  const nextRecordStatuses = checked.map(({ record, evaluation }) =>
-    evaluation.status === "unchanged" ? record.status : evaluation.status
-  )
-  const nextStatus = domainStatusAfterCheck(row.status, nextRecordStatuses)
-  const allPass =
-    nextRecordStatuses.length > 0 &&
-    nextRecordStatuses.every((status) => status === "pass")
-  const anyChecked = checked.some(
-    ({ evaluation }) => evaluation.status !== "unchanged"
-  )
-
-  await db.transaction(async (tx) => {
-    for (const { record, evaluation } of checked) {
-      if (evaluation.status === "unchanged") {
-        continue
-      }
-      await tx
-        .update(dnsRecord)
-        .set({
-          status: evaluation.status,
-          lastSeenValue: evaluation.lastSeenValue,
-          lastCheckedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(dnsRecord.id, record.id))
-    }
-
-    if (nextStatus !== row.status) {
-      await tx
-        .update(domain)
-        .set({
-          status: nextStatus,
-          updatedAt: now,
-          ...(nextStatus === "verified" && !row.verifiedAt
-            ? { verifiedAt: now }
-            : {}),
-        })
-        .where(eq(domain.id, id))
-    }
-
-    if (anyChecked) {
-      await tx
-        .update(domainSetupStep)
-        .set({
-          status: allPass ? "done" : "in_progress",
-          completedAt: allPass ? now : null,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(domainSetupStep.domainId, id),
-            eq(domainSetupStep.step, "verification")
-          )
-        )
-    }
-
-    await writeAudit(tx, {
-      actor: { type: "user", id: actor.userId },
-      action: "domain.check",
-      objectType: "domain",
-      objectId: id,
-      requestId: actor.requestId,
-      before: { status: row.status },
-      after: {
-        status: nextStatus,
-        record_count: checked.length,
-        passing_count: nextRecordStatuses.filter((status) => status === "pass")
-          .length,
-      },
-    })
+  await runDomainDnsCheck(row.id, {
+    db,
+    lookup: deps.lookup,
+    now: deps.now,
+    actor: { type: "user", id: actor.userId },
+    requestId: actor.requestId,
   })
-
-  return getDomain(id, db)
+  return getDomain(row.id, db)
 }
 
 export async function updateDomainStatus(

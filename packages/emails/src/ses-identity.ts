@@ -283,6 +283,52 @@ export async function provisionSesDomainIdentity(
   }
 }
 
+export type SesEmailIdentityVerification = {
+  verified: boolean
+  verificationStatus: string | null
+  dkimStatus: string | null
+}
+
+/**
+ * Read SES identity verification for dns-check (GetEmailIdentity).
+ * Returns null when the identity is missing.
+ */
+export async function getSesEmailIdentityVerification(input: {
+  domainName: string
+  region: string
+  client?: SesIdentityClient
+}): Promise<SesEmailIdentityVerification | null> {
+  const domainName = input.domainName.trim().toLowerCase()
+  const region = input.region.trim()
+  if (!domainName || !region) {
+    throw new SesIdentityError("domainName and region are required")
+  }
+
+  const client = input.client ?? defaultClient(region)
+  try {
+    const existing = (await client.send(
+      new GetEmailIdentityCommand({
+        EmailIdentity: domainName,
+      })
+    )) as GetEmailIdentityCommandOutput
+    const verificationStatus = existing.VerificationStatus ?? null
+    const dkimStatus = existing.DkimAttributes?.Status ?? null
+    return {
+      verified: verificationStatus === "SUCCESS",
+      verificationStatus,
+      dkimStatus,
+    }
+  } catch (error) {
+    if (isNotFound(error)) {
+      return null
+    }
+    throw new SesIdentityError(
+      `SES GetEmailIdentity failed: ${awsErrorDetail(error)}`,
+      { cause: error }
+    )
+  }
+}
+
 /**
  * Remove a domain identity from Amazon SES.
  * Missing identities are treated as already deleted (idempotent).

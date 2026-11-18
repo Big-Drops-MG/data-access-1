@@ -1,6 +1,9 @@
 import { getDb } from "@workspace/db/client"
 import { closeClickHouseClient } from "@workspace/db/clickhouse"
-import { createMailTransport } from "@workspace/emails"
+import {
+  createMailTransport,
+  getSesEmailIdentityVerification,
+} from "@workspace/emails"
 import {
   WORKER_SERVICE,
   createLogger,
@@ -15,8 +18,11 @@ import {
   CSV_INGEST_JOB_NAME,
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
+  DNS_CHECK_JOB_NAME,
+  DNS_CHECK_WORKER_CONCURRENCY,
   EVENTS_QUEUE_NAME,
   INTAKE_QUEUE_NAME,
+  MONITORING_QUEUE_NAME,
   OPTIZMO_SYNC_JOB_NAME,
   OPTIZMO_SYNC_WORKER_CONCURRENCY,
   SCHEDULE_PROMOTER_JOB_NAME,
@@ -28,6 +34,7 @@ import {
   markMessageFailed,
   markMessageSent,
   openSesAccountPausedAlert,
+  processDnsCheckJob,
   releaseQueuedClaim,
   resolveUnsubscribeOrigin,
   runSendEmailExclusive,
@@ -36,6 +43,7 @@ import {
   type ArohaaTierSyncJobData,
   type CsvIngestJobData,
   type DispatchSendJobData,
+  type DnsCheckJobData,
   type EventsJobData,
   type OptizmoSyncJobData,
   type SendEmailJobData,
@@ -153,11 +161,15 @@ async function withJobLogs(
 
 async function processJob(queueName: QueueName, job: Job): Promise<void> {
   await withJobLogs(queueName, job, async () => {
-    if (queueName === "monitoring" && job.name === PROVIDER_METRICS_PULL_JOB) {
-      const env = loadServerEnv("worker")
-      await processProviderMetricsPull({ db: getDb(), env })
-      return
-    }
+    logger.warn(
+      {
+        event: "job.unhandled",
+        queue: queueName,
+        job_name: job.name,
+        job_id: job.id,
+      },
+      "Ignoring unhandled job"
+    )
   })
 }
 
@@ -166,6 +178,7 @@ async function main(): Promise<void> {
   const sendOptions = sendEmailWorkerOptions(env)
   const db = getDb()
   const transport = createMailTransport(env)
+  const sesRegion = env.SES_REGION?.trim() || ""
 
   const connection = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null,
@@ -184,6 +197,7 @@ async function main(): Promise<void> {
   const managedQueues: Queue[] = [sendEmailQueue]
   let dispatchQueue: Queue | undefined
   let syncQueue: Queue | undefined
+  let monitoringQueue: Queue | undefined
   for (const name of QUEUE_NAMES) {
     if (name === SEND_EMAIL_QUEUE_NAME) {
       continue
@@ -199,9 +213,12 @@ async function main(): Promise<void> {
     if (name === SYNC_QUEUE_NAME) {
       syncQueue = queue
     }
+    if (name === MONITORING_QUEUE_NAME) {
+      monitoringQueue = queue
+    }
     if (
       name === DISPATCH_QUEUE_NAME ||
-      name === "monitoring" ||
+      name === MONITORING_QUEUE_NAME ||
       name === INTAKE_QUEUE_NAME ||
       name === SYNC_QUEUE_NAME ||
       name === "maintenance"
@@ -216,8 +233,12 @@ async function main(): Promise<void> {
   if (!syncQueue) {
     throw new Error("Sync queue failed to initialize")
   }
+  if (!monitoringQueue) {
+    throw new Error("Monitoring queue failed to initialize")
+  }
   const activeDispatchQueue = dispatchQueue
   const activeSyncQueue = syncQueue
+  const activeMonitoringQueue = monitoringQueue
 
   const schedulerIds = await registerJobSchedulers(
     schedulerQueues,
@@ -238,13 +259,59 @@ async function main(): Promise<void> {
       name !== EVENTS_QUEUE_NAME &&
       name !== DISPATCH_QUEUE_NAME &&
       name !== INTAKE_QUEUE_NAME &&
-      name !== SYNC_QUEUE_NAME
+      name !== SYNC_QUEUE_NAME &&
+      name !== MONITORING_QUEUE_NAME
   ).map(
     (name) =>
       new Worker(name, (job) => processJob(name, job), {
         connection,
         prefix: BULLMQ_PREFIX,
       })
+  )
+
+  workers.push(
+    new Worker(
+      MONITORING_QUEUE_NAME,
+      (job) =>
+        withJobLogs(MONITORING_QUEUE_NAME, job, async () => {
+          if (job.name === PROVIDER_METRICS_PULL_JOB) {
+            await processProviderMetricsPull({ db, env })
+            return
+          }
+          if (job.name === DNS_CHECK_JOB_NAME) {
+            await processDnsCheckJob(job.data as DnsCheckJobData, {
+              db,
+              monitoringQueue: activeMonitoringQueue,
+              getSesIdentityVerified: sesRegion
+                ? async (domainName) => {
+                    const identity = await getSesEmailIdentityVerification({
+                      domainName,
+                      region: sesRegion,
+                    })
+                    if (!identity) {
+                      return null
+                    }
+                    return identity.verified
+                  }
+                : undefined,
+            })
+            return
+          }
+          logger.warn(
+            {
+              event: "monitoring.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown monitoring job"
+          )
+        }),
+      {
+        connection,
+        prefix: BULLMQ_PREFIX,
+        concurrency: DNS_CHECK_WORKER_CONCURRENCY,
+      }
+    )
   )
 
   workers.push(
@@ -410,6 +477,7 @@ async function main(): Promise<void> {
       dispatch_concurrency: DISPATCH_WORKER_CONCURRENCY,
       intake_concurrency: INTAKE_WORKER_CONCURRENCY,
       sync_concurrency: OPTIZMO_SYNC_WORKER_CONCURRENCY,
+      monitoring_concurrency: DNS_CHECK_WORKER_CONCURRENCY,
     },
     "Worker ready"
   )

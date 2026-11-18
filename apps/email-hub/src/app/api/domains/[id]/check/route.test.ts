@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const getSession = vi.hoisted(() => vi.fn())
-const checkDomainDns = vi.hoisted(() => vi.fn())
+const enqueueDomainDnsCheck = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/auth", () => ({ getSession }))
 vi.mock("@/lib/domains/service", () => ({
-  checkDomainDns,
+  enqueueDomainDnsCheck,
 }))
 
 import { POST } from "./route"
@@ -27,7 +27,7 @@ const domainId = "019a0000-0000-7000-8000-0000000000aa"
 describe("POST /api/domains/{id}/check", () => {
   beforeEach(() => {
     getSession.mockReset()
-    checkDomainDns.mockReset()
+    enqueueDomainDnsCheck.mockReset()
   })
 
   it("rejects operator (admin-only)", async () => {
@@ -41,17 +41,11 @@ describe("POST /api/domains/{id}/check", () => {
     expect(response.status).toBe(403)
   })
 
-  it("checks DNS for an admin", async () => {
+  it("enqueues DNS check for an admin", async () => {
     getSession.mockResolvedValue(session("admin"))
-    checkDomainDns.mockResolvedValue({
-      id: domainId,
-      name: "send.example.com",
-      status: "pending",
-      dns_records: [],
-      setup_steps: [],
-      sender_count: 0,
-      ses_region: "us-east-1",
-      last_checked_at: null,
+    enqueueDomainDnsCheck.mockResolvedValue({
+      status: "queued",
+      domain_id: domainId,
     })
     const response = await POST(
       new Request(`http://localhost/api/domains/${domainId}/check`, {
@@ -60,8 +54,12 @@ describe("POST /api/domains/{id}/check", () => {
       }),
       { params: Promise.resolve({ id: domainId }) }
     )
-    expect(response.status).toBe(200)
-    expect(checkDomainDns).toHaveBeenCalledWith(domainId, {
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toEqual({
+      status: "queued",
+      domain_id: domainId,
+    })
+    expect(enqueueDomainDnsCheck).toHaveBeenCalledWith(domainId, {
       userId: session("admin").id,
       requestId: "req-check",
     })
