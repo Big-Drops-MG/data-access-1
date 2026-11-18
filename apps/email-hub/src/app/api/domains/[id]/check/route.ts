@@ -8,7 +8,6 @@ type RouteContext = {
   params: Promise<{ id: string }>
 }
 
-/** POST /api/domains/{id|fqdn}/check — enqueue dns-check (Admin). */
 async function handlePost(
   request: Request,
   context: RouteContext

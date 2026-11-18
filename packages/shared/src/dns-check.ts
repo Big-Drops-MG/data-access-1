@@ -207,10 +207,6 @@ async function updateSetupSteps(
   }
 }
 
-/**
- * Resolve every expected DNS record, persist outcomes, update domain status /
- * setup steps, and open or close DNS alerts.
- */
 export async function runDomainDnsCheck(
   domainId: string,
   deps: RunDomainDnsCheckDeps

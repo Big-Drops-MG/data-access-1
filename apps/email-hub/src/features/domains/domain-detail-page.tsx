@@ -34,9 +34,7 @@ import { detailQueryKey, listQueryKey } from "@/lib/query-keys"
 import { cn } from "@workspace/ui/lib/utils"
 
 type DomainDetailPageProps = {
-  /** UUID or FQDN from the route (`/domains/dev.quotifii.com`). */
   domainRef: string
-  /** Admin-only actions (check now, disable). */
   canManage?: boolean
 }
 

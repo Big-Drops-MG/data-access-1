@@ -38,7 +38,6 @@ export type DnsRecordDraft = {
 export type ProvisionedSesIdentity = {
   emailIdentity: string
   identityArn: string | null
-  /** Set only when the user opted into a custom MAIL FROM subdomain. */
   mailFromDomain: string | null
   dkimTokens: string[]
   dnsRecords: DnsRecordDraft[]
@@ -58,7 +57,6 @@ export type DeleteSesIdentityInput = {
 }
 
 export type DeleteSesIdentityResult = {
-  /** False when SES returned AccessDenied (dev IAM may lag Terraform). */
   deleted: boolean
   skippedBecauseAccessDenied: boolean
 }
@@ -94,7 +92,6 @@ function isAccessDenied(error: unknown): boolean {
   )
 }
 
-/** Suggested custom MAIL FROM label when the user opts in (SD#9.1 / SD#11.2). */
 export const DEFAULT_MAIL_FROM_SUBDOMAIN = "mail"
 
 export function mailFromDomainFor(
@@ -104,10 +101,6 @@ export function mailFromDomainFor(
   return `${subdomain}.${domainName}`
 }
 
-/**
- * Build DNS rows from SES Easy DKIM tokens.
- * MAIL FROM MX + SPF are included only when `mailFromDomain` is set.
- */
 export function buildDnsRecordsFromSes(input: {
   domainName: string
   region: string
@@ -184,12 +177,6 @@ function isNotFound(error: unknown): boolean {
   )
 }
 
-/**
- * Create SES domain identity with Easy DKIM (SD#11.2).
- * Custom MAIL FROM is set only when `mailFromSubdomain` is provided.
- * If the identity already exists, loads DKIM tokens via GetEmailIdentity.
- * Call before persisting domain rows so SES failure leaves no DB rows (T-049).
- */
 export async function provisionSesDomainIdentity(
   input: ProvisionSesIdentityInput
 ): Promise<ProvisionedSesIdentity> {
@@ -251,8 +238,6 @@ export async function provisionSesDomainIdentity(
       )
     } catch (error) {
       const detail = awsErrorDetail(error)
-      // Dev IAM may lag Terraform (infra/modules/ses_iam already lists this action).
-      // Still return DNS drafts so the domain can be created; fix IAM then re-set MAIL FROM.
       if (!isAccessDenied(error)) {
         throw new SesIdentityError(
           `SES PutEmailIdentityMailFromAttributes failed: ${detail}`,
@@ -266,7 +251,6 @@ export async function provisionSesDomainIdentity(
     throw new SesIdentityError("SES identity has no DKIM tokens")
   }
 
-  // SESv2 create response has no IdentityArn; store a stable ARN-shaped reference.
   const identityArn = `arn:aws:ses:${region}:identity/${domainName}`
 
   return {
@@ -289,10 +273,6 @@ export type SesEmailIdentityVerification = {
   dkimStatus: string | null
 }
 
-/**
- * Read SES identity verification for dns-check (GetEmailIdentity).
- * Returns null when the identity is missing.
- */
 export async function getSesEmailIdentityVerification(input: {
   domainName: string
   region: string
@@ -329,11 +309,6 @@ export async function getSesEmailIdentityVerification(input: {
   }
 }
 
-/**
- * Remove a domain identity from Amazon SES.
- * Missing identities are treated as already deleted (idempotent).
- * AccessDenied is soft-failed so app-side delete can finish when IAM lags Terraform.
- */
 export async function deleteSesDomainIdentity(
   input: DeleteSesIdentityInput
 ): Promise<DeleteSesIdentityResult> {

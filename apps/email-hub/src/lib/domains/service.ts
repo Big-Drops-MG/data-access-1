@@ -95,9 +95,7 @@ export type CheckDomainDnsDeps = {
 }
 
 export type DeleteDomainResult = {
-  /** False when SES AccessDenied skipped identity removal (IAM lag). */
   ses_deleted: boolean
-  /** False when Cloudflare DNS cleanup failed or was skipped. */
   cloudflare_deleted: boolean
 }
 
@@ -138,7 +136,6 @@ async function requireDomain(db: Db, id: string): Promise<Domain> {
   return row
 }
 
-/** Resolve a path param that may be a UUID or an FQDN. */
 async function requireDomainByRef(db: Db, ref: string): Promise<Domain> {
   const key = ref.trim()
   if (UUID_REF.test(key)) {
@@ -330,11 +327,6 @@ export async function getDomain(
   }
 }
 
-/**
- * Provision SES, optionally write DNS to Cloudflare, then persist domain rows.
- * SES failure → no DB rows (T-049 Done When).
- * Cloudflare is skipped when CLOUDFLARE_API_TOKEN is unset (manual DNS).
- */
 export async function createDomain(
   input: CreateDomainInput,
   actor: DomainActor,
@@ -497,9 +489,6 @@ export type EnqueueDomainDnsCheckResult = {
   domain_id: string
 }
 
-/**
- * Enqueue an on-demand dns-check job for the domain (Check now → 202).
- */
 export async function enqueueDomainDnsCheck(
   ref: string,
   actor: DomainActor,
@@ -515,10 +504,6 @@ export async function enqueueDomainDnsCheck(
   return { status: "queued", domain_id: row.id }
 }
 
-/**
- * Resolve every expected DNS record (via public DNS), persist the outcome, and
- * move the domain status and verification step to match.
- */
 export async function checkDomainDns(
   ref: string,
   actor: DomainActor,
@@ -606,11 +591,6 @@ export async function updateDomainStatus(
   })
 }
 
-/**
- * Delete SES identity first, then the domain row (DNS + setup steps cascade).
- * Blocked while any sender still references the domain (FK restrict).
- * SES AccessDenied soft-fails so the DB row can still be removed when IAM lags.
- */
 export async function deleteDomain(
   ref: string,
   actor: DomainActor,
