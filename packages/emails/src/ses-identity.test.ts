@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   buildDnsRecordsFromSes,
   deleteSesDomainIdentity,
+  getSesEmailIdentityVerification,
   mailFromDomainFor,
   provisionSesDomainIdentity,
   SesIdentityError,
@@ -248,6 +249,39 @@ describe("deleteSesDomainIdentity", () => {
     expect(send.mock.calls[0]?.[0]?.constructor.name).toBe(
       "DeleteEmailIdentityCommand"
     )
+  })
+
+  it("reads verification status via GetEmailIdentity", async () => {
+    const send = vi.fn(async () => ({
+      VerificationStatus: "SUCCESS",
+      DkimAttributes: { Status: "SUCCESS" },
+    }))
+    await expect(
+      getSesEmailIdentityVerification({
+        domainName: "example.com",
+        region: "us-east-1",
+        client: { send },
+      })
+    ).resolves.toEqual({
+      verified: true,
+      verificationStatus: "SUCCESS",
+      dkimStatus: "SUCCESS",
+    })
+  })
+
+  it("returns null when GetEmailIdentity identity is missing", async () => {
+    const send = vi.fn(async () => {
+      const err = new Error("gone")
+      err.name = "NotFoundException"
+      throw err
+    })
+    await expect(
+      getSesEmailIdentityVerification({
+        domainName: "missing.example.com",
+        region: "us-east-1",
+        client: { send },
+      })
+    ).resolves.toBeNull()
   })
 
   it("treats NotFound as success", async () => {
