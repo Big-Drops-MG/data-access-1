@@ -18,6 +18,7 @@ import {
   recordTwoFactorVerificationSuccess,
 } from "./two-factor-lockout"
 import { TWO_FACTOR_COOKIE_MAX_AGE_SECONDS } from "./two-factor-policy"
+import { consumeTwoFactorRateLimitFromEnv } from "./two-factor-rate-limit"
 import { tryConsumeTrustDevice } from "./two-factor-trust-device"
 
 const TWO_FACTOR_COOKIE_NAME = "two_factor"
@@ -69,8 +70,48 @@ async function resolveTwoFactorUserId(ctx: {
   return verification?.value
 }
 
+function throwTwoFactorRateLimit(result: "limited" | "unavailable"): never {
+  if (result === "unavailable") {
+    const error = new APIError("SERVICE_UNAVAILABLE", {
+      message: "Rate limiter unavailable",
+      code: "RATE_LIMIT_UNAVAILABLE",
+    })
+    error.headers["Retry-After"] = "60"
+    throw error
+  }
+  const error = new APIError("TOO_MANY_REQUESTS", {
+    message: "Too many two-factor verification attempts",
+    code: "RATE_LIMITED",
+  })
+  error.headers["Retry-After"] = "60"
+  throw error
+}
+
 /** Runs before Better Auth handlers: absolute session + 2FA gates. */
-export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
+export async function runTwoFactorBeforeHook(ctx: {
+  path: string
+  getSignedCookie: (
+    name: string,
+    secret: string
+  ) => Promise<string | false | null>
+  context: {
+    secret: string
+    session?: {
+      session?: { createdAt?: Date | string; token?: string } | null
+      user?: { id?: string } | null
+    } | null
+    createAuthCookie: (
+      name: string,
+      opts?: { maxAge?: number }
+    ) => { name: string }
+    internalAdapter: {
+      findVerificationValue: (
+        identifier: string
+      ) => Promise<{ value: string } | null>
+      deleteSession: (token: string) => Promise<void>
+    }
+  }
+}): Promise<void> {
   const activeSession = ctx.context.session?.session
   if (activeSession?.createdAt) {
     const createdAt = new Date(activeSession.createdAt)
@@ -78,7 +119,9 @@ export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
       if (activeSession.token) {
         await ctx.context.internalAdapter.deleteSession(activeSession.token)
       }
-      deleteSessionCookie(ctx)
+      deleteSessionCookie(
+        ctx as unknown as Parameters<typeof deleteSessionCookie>[0]
+      )
       throw new APIError("UNAUTHORIZED", {
         message: "Session expired",
         code: "SESSION_ABSOLUTE_EXPIRED",
@@ -101,8 +144,18 @@ export const twoFactorBeforeHook = createAuthMiddleware(async (ctx) => {
   if (!userId) {
     return
   }
+
+  const rate = await consumeTwoFactorRateLimitFromEnv(userId)
+  if (rate !== "ok") {
+    throwTwoFactorRateLimit(rate)
+  }
+
   await assertTwoFactorVerifyAllowed(userId)
-})
+}
+
+export const twoFactorBeforeHook = createAuthMiddleware((ctx) =>
+  runTwoFactorBeforeHook(ctx)
+)
 
 type TwoFactorAfterHookContext = {
   path: string
@@ -203,10 +256,6 @@ async function skipChallengeForTrustedDevice(
   return false
 }
 
-/**
- * After verify/enable/OAuth: lockout counters, trusted-device cookie, and
- * Google SSO 2FA challenge redirect.
- */
 export async function runTwoFactorAfterHook(
   ctx: TwoFactorAfterHookContext
 ): Promise<void> {
