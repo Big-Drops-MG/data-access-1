@@ -52,18 +52,31 @@ import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
 import { handleArohaaTierSyncJob } from "./arohaa-tier-sync.js"
+import {
+  CLEANUP_EXPIRED_JOB_NAME,
+  processCleanupExpiredJob,
+} from "./cleanup-expired.js"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
 import { handleOptizmoSyncJob } from "./optizmo-sync.js"
 import { processProviderMetricsPull } from "./provider-metrics-pull.js"
+import {
+  QUEUE_WATCHDOG_JOB_NAME,
+  processQueueWatchdogJob,
+} from "./queue-watchdog.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
-import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
+import {
+  registerJobSchedulers,
+  schedulersForEnv,
+  type SchedulerQueueMap,
+} from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
 
 const DISPATCH_WORKER_CONCURRENCY = 2
 const INTAKE_WORKER_CONCURRENCY = 1
+const MAINTENANCE_WORKER_CONCURRENCY = 1
 const PROVIDER_METRICS_PULL_JOB = "provider-metrics-pull"
 
 const logger = createLogger({ service: WORKER_SERVICE })
@@ -159,20 +172,6 @@ async function withJobLogs(
   )
 }
 
-async function processJob(queueName: QueueName, job: Job): Promise<void> {
-  await withJobLogs(queueName, job, async () => {
-    logger.warn(
-      {
-        event: "job.unhandled",
-        queue: queueName,
-        job_name: job.name,
-        job_id: job.id,
-      },
-      "Ignoring unhandled job"
-    )
-  })
-}
-
 async function main(): Promise<void> {
   const env = loadServerEnv("worker")
   const sendOptions = sendEmailWorkerOptions(env)
@@ -253,20 +252,42 @@ async function main(): Promise<void> {
     "Job schedulers registered"
   )
 
-  const workers: Worker[] = QUEUE_NAMES.filter(
-    (name) =>
-      name !== SEND_EMAIL_QUEUE_NAME &&
-      name !== EVENTS_QUEUE_NAME &&
-      name !== DISPATCH_QUEUE_NAME &&
-      name !== INTAKE_QUEUE_NAME &&
-      name !== SYNC_QUEUE_NAME &&
-      name !== MONITORING_QUEUE_NAME
-  ).map(
-    (name) =>
-      new Worker(name, (job) => processJob(name, job), {
+  const workers: Worker[] = []
+
+  workers.push(
+    new Worker(
+      "maintenance",
+      (job) =>
+        withJobLogs("maintenance", job, async () => {
+          if (job.name === QUEUE_WATCHDOG_JOB_NAME) {
+            await processQueueWatchdogJob({
+              db,
+              queues: managedQueues,
+              sendEmailQueue,
+              redis: connection,
+              schedulers: schedulersForEnv(env.EMAILHUB_ENV),
+            })
+            return
+          }
+          if (job.name === CLEANUP_EXPIRED_JOB_NAME) {
+            await processCleanupExpiredJob({ db })
+            return
+          }
+          logger.warn(
+            {
+              event: "maintenance.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown maintenance job"
+          )
+        }),
+      {
         connection,
         prefix: BULLMQ_PREFIX,
-      })
+        concurrency: MAINTENANCE_WORKER_CONCURRENCY,
+      }
+    )
   )
 
   workers.push(
@@ -478,6 +499,7 @@ async function main(): Promise<void> {
       intake_concurrency: INTAKE_WORKER_CONCURRENCY,
       sync_concurrency: OPTIZMO_SYNC_WORKER_CONCURRENCY,
       monitoring_concurrency: DNS_CHECK_WORKER_CONCURRENCY,
+      maintenance_concurrency: MAINTENANCE_WORKER_CONCURRENCY,
     },
     "Worker ready"
   )
