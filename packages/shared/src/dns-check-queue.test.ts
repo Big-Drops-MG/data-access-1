@@ -68,6 +68,22 @@ describe("dns-check-queue", () => {
     ).resolves.toBeUndefined()
   })
 
+  it("rethrows non-duplicate enqueue failures", async () => {
+    const add = vi.fn(async () => {
+      throw new Error("redis down")
+    })
+    await expect(
+      enqueueDnsCheckJob(
+        { add, getJob: vi.fn() },
+        {
+          domainId: DOMAIN_ID,
+          trigger: "manual",
+          now: new Date("2026-11-18T08:00:00.000Z"),
+        }
+      )
+    ).rejects.toThrow("redis down")
+  })
+
   it("re-enqueues manual checks after completed jobs", async () => {
     const add = vi
       .fn()
@@ -88,6 +104,37 @@ describe("dns-check-queue", () => {
 
     expect(remove).toHaveBeenCalledTimes(1)
     expect(add).toHaveBeenCalledTimes(2)
+  })
+
+  it("leaves in-flight manual jobs alone and no-ops when duplicate vanishes", async () => {
+    const addWaiting = vi.fn(async () => {
+      throw new Error("Job dns-... already exists")
+    })
+    const getState = vi.fn(async () => "active" as const)
+    const remove = vi.fn(async () => undefined)
+    await enqueueDnsCheckJob(
+      { add: addWaiting, getJob: vi.fn(async () => ({ getState, remove })) },
+      {
+        domainId: DOMAIN_ID,
+        trigger: "manual",
+        now: new Date("2026-11-18T08:00:00.000Z"),
+      }
+    )
+    expect(remove).not.toHaveBeenCalled()
+
+    const addGone = vi.fn(async () => {
+      throw new Error("Job dns-... duplicated")
+    })
+    await expect(
+      enqueueDnsCheckJob(
+        { add: addGone, getJob: vi.fn(async () => undefined) },
+        {
+          domainId: DOMAIN_ID,
+          trigger: "manual",
+          now: new Date("2026-11-18T08:00:00.000Z"),
+        }
+      )
+    ).resolves.toBeUndefined()
   })
 
   it("binds createEnqueueDnsCheck to a queue", async () => {
