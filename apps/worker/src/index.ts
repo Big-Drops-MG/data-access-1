@@ -11,6 +11,7 @@ import {
   setFallbackLogger,
 } from "@workspace/logger"
 import {
+  AROHAA_TIER_SYNC_JOB_NAME,
   CSV_INGEST_JOB_NAME,
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
@@ -32,6 +33,7 @@ import {
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
+  type ArohaaTierSyncJobData,
   type CsvIngestJobData,
   type DispatchSendJobData,
   type EventsJobData,
@@ -41,6 +43,7 @@ import {
 import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
+import { handleArohaaTierSyncJob } from "./arohaa-tier-sync.js"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
@@ -254,6 +257,13 @@ async function main(): Promise<void> {
               db,
               env,
               syncQueue: activeSyncQueue,
+            })
+            return
+          }
+          if (job.name === AROHAA_TIER_SYNC_JOB_NAME) {
+            await handleArohaaTierSyncJob(job.data as ArohaaTierSyncJobData, {
+              db,
+              enqueueSendEmail,
             })
             return
           }
