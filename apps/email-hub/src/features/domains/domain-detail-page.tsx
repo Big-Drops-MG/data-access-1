@@ -18,7 +18,7 @@ import {
   fetchDomainDetail,
   type DomainDetailResponse,
 } from "@/features/domains/api"
-import { CopyButton } from "@/features/domains/copy-button"
+import { CopyButton } from "@/components/app/copy-button"
 import { DnsRecordStatusBadge } from "@/features/domains/dns-status"
 import { DomainSendersCard } from "@/features/domains/domain-senders-card"
 import { domainStatusToBadge } from "@/features/domains/domain-status"
