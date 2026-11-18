@@ -25,7 +25,7 @@ export const AROHAA_TIER_SYNC_JOB_OPTIONS = {
 } satisfies JobsOptions
 
 export function arohaaTierSyncJobId(eventId: string): string {
-  return `tier:${eventId}`
+  return `tier-${eventId}`
 }
 
 type SyncQueue = {

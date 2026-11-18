@@ -13,7 +13,7 @@ const REQUEST_ID = "019a0000-0000-7000-8000-0000000000ff"
 
 describe("arohaa-queue", () => {
   it("builds tier job ids and retry options", () => {
-    expect(arohaaTierSyncJobId(EVENT_ID)).toBe(`tier:${EVENT_ID}`)
+    expect(arohaaTierSyncJobId(EVENT_ID)).toBe(`tier-${EVENT_ID}`)
     expect(AROHAA_TIER_SYNC_JOB_OPTIONS.attempts).toBe(5)
     expect(AROHAA_TIER_SYNC_JOB_OPTIONS.backoff).toEqual({
       type: "exponential",
@@ -46,7 +46,7 @@ describe("arohaa-queue", () => {
         request_id: REQUEST_ID,
       },
       expect.objectContaining({
-        jobId: `tier:${EVENT_ID}`,
+        jobId: `tier-${EVENT_ID}`,
         attempts: 5,
       })
     )
@@ -54,7 +54,7 @@ describe("arohaa-queue", () => {
 
   it("treats duplicate job ids as a no-op enqueue", async () => {
     const add = vi.fn(async () => {
-      throw new Error("Job tier:evt already exists")
+      throw new Error("Job tier-evt already exists")
     })
     await expect(
       enqueueArohaaTierSyncJob(
@@ -81,7 +81,7 @@ describe("arohaa-queue", () => {
     expect(add).toHaveBeenCalledWith(
       AROHAA_TIER_SYNC_JOB_NAME,
       expect.objectContaining({ tier: "standard" }),
-      expect.objectContaining({ jobId: `tier:${EVENT_ID}` })
+      expect.objectContaining({ jobId: `tier-${EVENT_ID}` })
     )
   })
 })

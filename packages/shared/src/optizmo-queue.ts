@@ -28,7 +28,7 @@ export function optizmoSyncJobId(
   offerId: string,
   day: string = formatEtDate(new Date())
 ): string {
-  return `optizmo:${offerId}:${day}`
+  return `optizmo-${offerId}-${day}`
 }
 
 type SyncQueue = Pick<Queue<OptizmoSyncJobData>, "add" | "getJob">

@@ -111,7 +111,7 @@ describe("processArohaaTierSyncJob", () => {
       expect.objectContaining({
         email: "jane@example.com",
         emailType: "feedback_request",
-        idempotencyKey: "tier:evt_2",
+        idempotencyKey: "tier-evt_2",
         offerId: null,
       }),
       { enqueueSendEmail }
