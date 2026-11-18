@@ -157,6 +157,22 @@ export {
   type OptizmoSyncTrigger,
 } from "./optizmo-queue.js"
 export {
+  AROHAA_TIER_SYNC_JOB_NAME,
+  AROHAA_TIER_SYNC_JOB_OPTIONS,
+  RECIPIENT_TIERS,
+  arohaaTierSyncJobId,
+  createEnqueueArohaaTierSync,
+  enqueueArohaaTierSyncJob,
+  type ArohaaTierSyncJobData,
+  type RecipientTierValue,
+} from "./arohaa-queue.js"
+export {
+  AROHAA_WEBHOOK_INTEGRATION_NAME,
+  processArohaaTierSyncJob,
+  type ArohaaTierSyncResult,
+  type ProcessArohaaTierSyncDeps,
+} from "./arohaa-tier-sync.js"
+export {
   OPTIZMO_DEFAULT_BASE_URL,
   OPTIZMO_GETFILE_TIMEOUT_MS,
   OPTIZMO_HTTP_TIMEOUT_MS,
