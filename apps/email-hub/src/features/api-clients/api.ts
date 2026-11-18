@@ -1,4 +1,4 @@
-import type { MachineScope } from "@/lib/auth/machine-hmac"
+import type { MachineScope } from "@/lib/auth/machine-scopes"
 import { apiJson } from "@/lib/api-client"
 import type {
   ApiClientJson,

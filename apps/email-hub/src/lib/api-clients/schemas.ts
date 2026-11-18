@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { MACHINE_SCOPES } from "@/lib/auth/machine-hmac"
+import { MACHINE_SCOPES } from "@/lib/auth/machine-scopes"
 
 import { normaliseIpAllowlist } from "./ip"
 

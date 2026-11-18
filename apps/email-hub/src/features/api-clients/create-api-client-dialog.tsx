@@ -15,7 +15,7 @@ import {
   apiClientsOutlineControl,
   apiClientsPrimaryControl,
 } from "@/features/api-clients/api-clients-ui"
-import { MACHINE_SCOPES, type MachineScope } from "@/lib/auth/machine-hmac"
+import { MACHINE_SCOPES, type MachineScope } from "@/lib/auth/machine-scopes"
 import { isApiError } from "@/lib/api-client"
 import { listQueryKey } from "@/lib/query-keys"
 import {

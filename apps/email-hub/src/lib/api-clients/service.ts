@@ -8,11 +8,8 @@ import { AppError, writeAudit } from "@workspace/shared"
 import { desc, eq, sql } from "drizzle-orm"
 import { v7 as uuidv7 } from "uuid"
 
-import {
-  MACHINE_SCOPES,
-  type MachineScope,
-  previousSecretExpiresAt,
-} from "@/lib/auth/machine-hmac"
+import { MACHINE_SCOPES, type MachineScope } from "@/lib/auth/machine-scopes"
+import { previousSecretExpiresAt } from "@/lib/auth/machine-hmac"
 import {
   encryptWithAppKey,
   readAppEncryptionKeyFromEnv,
