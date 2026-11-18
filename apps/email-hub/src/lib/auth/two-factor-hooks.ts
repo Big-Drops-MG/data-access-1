@@ -43,7 +43,7 @@ async function resolveTwoFactorUserId(ctx: {
   ) => Promise<string | false | null>
   context: {
     secret: string
-    session?: { user?: { id?: string } } | null
+    session?: { user?: { id?: string } | null } | null
     createAuthCookie: (
       name: string,
       opts?: { maxAge?: number }
@@ -72,22 +72,17 @@ async function resolveTwoFactorUserId(ctx: {
 
 function throwTwoFactorRateLimit(result: "limited" | "unavailable"): never {
   if (result === "unavailable") {
-    const error = new APIError("SERVICE_UNAVAILABLE", {
+    throw new APIError("SERVICE_UNAVAILABLE", {
       message: "Rate limiter unavailable",
       code: "RATE_LIMIT_UNAVAILABLE",
     })
-    error.headers["Retry-After"] = "60"
-    throw error
   }
-  const error = new APIError("TOO_MANY_REQUESTS", {
+  throw new APIError("TOO_MANY_REQUESTS", {
     message: "Too many two-factor verification attempts",
     code: "RATE_LIMITED",
   })
-  error.headers["Retry-After"] = "60"
-  throw error
 }
 
-/** Runs before Better Auth handlers: absolute session + 2FA gates. */
 export async function runTwoFactorBeforeHook(ctx: {
   path: string
   getSignedCookie: (
