@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const getSession = vi.hoisted(() => vi.fn())
 
@@ -26,16 +26,52 @@ describe("isMachineAuthAttempt", () => {
 })
 
 describe("assertStaffApiCaller", () => {
-  it("allows session-only staff requests", () => {
+  const previousAuthUrl = process.env.BETTER_AUTH_URL
+
+  beforeEach(() => {
+    process.env.BETTER_AUTH_URL = "http://localhost:3000"
+  })
+
+  afterEach(() => {
+    if (previousAuthUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL
+    } else {
+      process.env.BETTER_AUTH_URL = previousAuthUrl
+    }
+  })
+
+  it("allows session-only staff GET requests", () => {
     expect(() =>
-      assertStaffApiCaller(new Request("http://localhost/api/admin"))
+      assertStaffApiCaller(new Request("http://localhost:3000/api/admin"))
     ).not.toThrow()
+  })
+
+  it("allows same-origin staff POST requests", () => {
+    expect(() =>
+      assertStaffApiCaller(
+        new Request("http://localhost:3000/api/admin", {
+          method: "POST",
+          headers: { Origin: "http://localhost:3000" },
+        })
+      )
+    ).not.toThrow()
+  })
+
+  it("rejects cross-origin staff POST requests", () => {
+    expect(() =>
+      assertStaffApiCaller(
+        new Request("http://localhost:3000/api/admin", {
+          method: "POST",
+          headers: { Origin: "https://evil.example" },
+        })
+      )
+    ).toThrow(AppError)
   })
 
   it("rejects machine keys on staff APIs", () => {
     expect(() =>
       assertStaffApiCaller(
-        new Request("http://localhost/api/admin", {
+        new Request("http://localhost:3000/api/admin", {
           headers: { "X-Key-Id": "k1", "X-Signature": "sig" },
         })
       )

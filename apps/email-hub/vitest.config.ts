@@ -17,6 +17,9 @@ export default mergeConfig(
     },
     test: {
       name: "email-hub",
+      env: {
+        BETTER_AUTH_URL: "http://localhost",
+      },
     },
   })
 )
