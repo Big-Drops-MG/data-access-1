@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.1169.0",
-    "@aws-sdk/client-sesv2": "^3.1158.0",
+    "@aws-sdk/client-sesv2": "^3.1169.0",
     "@workspace/db": "workspace:*",
     "@workspace/emails": "workspace:*",
     "@workspace/logger": "workspace:*",
