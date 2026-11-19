@@ -19,7 +19,7 @@ await client.connect()
 try {
   const result = await seedDev(drizzle({ client, schema }))
   process.stdout.write(
-    `Dev seed ready: ${result.categories} categories, ${result.frequencyRules} frequency rules, ${result.offers} offer, ${result.recipients} recipients.\n`
+    `Dev seed ready: ${result.categories} categories, ${result.frequencyRules} frequency rules, ${result.offers} offer, ${result.recipients} recipients, ${result.messages} offer messages.\n`
   )
 } finally {
   await client.end()

@@ -1,6 +1,10 @@
 import { z } from "zod"
 
-import { emailSchema, paginationSchema, uuidSchema } from "@workspace/shared"
+import {
+  emailSchema,
+  paginationSchema,
+  uuidSchema,
+} from "@workspace/shared/client"
 
 /**
  * Email local-part: lowercase, 1–64 chars, alnum with interior `. _ + -`.

@@ -1,10 +1,22 @@
-import { and, asc, desc, eq, lt, type SQL } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  exists,
+  inArray,
+  lt,
+  type SQL,
+} from "drizzle-orm"
 
 import {
   emailCategory,
   message,
   recipient,
   recipientPreference,
+  type Message,
   type Recipient,
 } from "@workspace/db"
 import { getDb, type Database } from "@workspace/db/client"
@@ -20,11 +32,19 @@ import {
   type RecipientListItemJson,
 } from "./serialize"
 
+export type RecipientStatusCounts = {
+  all: number
+  active: number
+  bounced: number
+  unsubscribed: number
+}
+
 export type ListRecipientsInput = {
   limit: number
   cursor?: string
   email?: string
   status?: Recipient["status"]
+  unsubscribed?: boolean
   optedOutCategoryId?: string
   offerId?: string
 }
@@ -32,7 +52,11 @@ export type ListRecipientsInput = {
 export async function listRecipients(
   input: ListRecipientsInput,
   db: Database = getDb()
-): Promise<{ data: RecipientListItemJson[]; next_cursor: string | null }> {
+): Promise<{
+  data: RecipientListItemJson[]
+  next_cursor: string | null
+  status_counts: RecipientStatusCounts
+}> {
   const conditions: SQL[] = []
 
   if (input.email) {
@@ -43,6 +67,9 @@ export async function listRecipients(
   }
   if (input.offerId) {
     conditions.push(recipientScopedToOffer(db, input.offerId))
+  }
+  if (input.unsubscribed) {
+    conditions.push(recipientHasOptOut(db))
   }
   if (input.optedOutCategoryId) {
     const [category] = await db
@@ -74,33 +101,136 @@ export async function listRecipients(
         ? conditions[0]
         : and(...conditions)
 
-  const query = input.optedOutCategoryId
-    ? db
-        .select({ recipient })
-        .from(recipient)
-        .innerJoin(
-          recipientPreference,
-          eq(recipientPreference.recipientId, recipient.id)
-        )
-        .where(where)
-        .orderBy(desc(recipient.id))
-        .limit(input.limit + 1)
-    : db
-        .select({ recipient })
-        .from(recipient)
-        .where(where)
-        .orderBy(desc(recipient.id))
-        .limit(input.limit + 1)
+  const needsPreferenceJoin = Boolean(input.optedOutCategoryId)
 
-  const rows = await query
+  const [rows, statusCounts] = await Promise.all([
+    needsPreferenceJoin
+      ? db
+          .select({ recipient })
+          .from(recipient)
+          .innerJoin(
+            recipientPreference,
+            eq(recipientPreference.recipientId, recipient.id)
+          )
+          .where(where)
+          .orderBy(desc(recipient.id))
+          .limit(input.limit + 1)
+      : db
+          .select({ recipient })
+          .from(recipient)
+          .where(where)
+          .orderBy(desc(recipient.id))
+          .limit(input.limit + 1),
+    countRecipientsByStatus(db, {
+      email: input.email,
+      offerId: input.offerId,
+    }),
+  ])
+
   const page = rows.slice(0, input.limit)
   const last = page.at(-1)
   const next = rows.length > input.limit ? (last?.recipient.id ?? null) : null
+  const lastMessages = await loadLastMessagesByRecipientIds(
+    db,
+    page.map((row) => row.recipient.id)
+  )
 
   return {
-    data: page.map((row) => serializeRecipientListItem(row.recipient)),
+    data: page.map((row) =>
+      serializeRecipientListItem(
+        row.recipient,
+        lastMessages.get(row.recipient.id) ?? null
+      )
+    ),
     next_cursor: next,
+    status_counts: statusCounts,
   }
+}
+
+function recipientHasOptOut(db: Database): SQL {
+  return exists(
+    db
+      .select({ id: recipientPreference.id })
+      .from(recipientPreference)
+      .where(
+        and(
+          eq(recipientPreference.recipientId, recipient.id),
+          eq(recipientPreference.optedOut, true)
+        )
+      )
+  )
+}
+
+async function countRecipientsByStatus(
+  db: Database,
+  input: { email?: string; offerId?: string }
+): Promise<RecipientStatusCounts> {
+  const conditions: SQL[] = []
+  if (input.email) {
+    conditions.push(eq(recipient.email, normaliseEmail(input.email)))
+  }
+  if (input.offerId) {
+    conditions.push(recipientScopedToOffer(db, input.offerId))
+  }
+  const where =
+    conditions.length === 0
+      ? undefined
+      : conditions.length === 1
+        ? conditions[0]
+        : and(...conditions)
+
+  const unsubscribedWhere =
+    where == null ? recipientHasOptOut(db) : and(where, recipientHasOptOut(db))
+
+  const [statusRows, unsubscribedRows] = await Promise.all([
+    db
+      .select({ status: recipient.status, total: count() })
+      .from(recipient)
+      .where(where)
+      .groupBy(recipient.status),
+    db
+      .select({ total: countDistinct(recipient.id) })
+      .from(recipient)
+      .where(unsubscribedWhere),
+  ])
+
+  const counts: RecipientStatusCounts = {
+    all: 0,
+    active: 0,
+    bounced: 0,
+    unsubscribed: Number(unsubscribedRows[0]?.total ?? 0),
+  }
+
+  for (const row of statusRows) {
+    counts[row.status] = Number(row.total) || 0
+    counts.all += Number(row.total) || 0
+  }
+
+  return counts
+}
+
+async function loadLastMessagesByRecipientIds(
+  db: Database,
+  recipientIds: string[]
+): Promise<Map<string, Message>> {
+  const map = new Map<string, Message>()
+  if (recipientIds.length === 0) {
+    return map
+  }
+
+  const rows = await db
+    .select()
+    .from(message)
+    .where(inArray(message.recipientId, recipientIds))
+    .orderBy(desc(message.createdAt), desc(message.id))
+
+  for (const row of rows) {
+    if (!map.has(row.recipientId)) {
+      map.set(row.recipientId, row)
+    }
+  }
+
+  return map
 }
 
 export async function getRecipientDetail(
@@ -140,7 +270,7 @@ export async function getRecipientDetail(
   )
 
   return {
-    ...serializeRecipientListItem(row),
+    ...serializeRecipientListItem(row, messages[0] ?? null),
     preferences: categories.map((category) =>
       serializeRecipientPreference({
         category,
