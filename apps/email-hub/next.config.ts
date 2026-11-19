@@ -1,6 +1,7 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  distDir: process.env.E2E === "1" ? ".next-e2e" : ".next",
   transpilePackages: ["@workspace/ui", "@workspace/shared"],
   experimental: {
     agentUpgrade: "security",

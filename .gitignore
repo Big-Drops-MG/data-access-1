@@ -13,10 +13,13 @@ node_modules
 # testing
 coverage
 tmp/t054-evidence/
+playwright-report/
+test-results/
 packages/emails/src/render-worker.js
 
 # next.js
 .next/
+.next-e2e/
 out/
 
 # production

@@ -11,7 +11,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "node scripts/run-t100-e2e.mjs"
   },
   "dependencies": {
     "@bull-board/api": "^9.11.0",
@@ -44,6 +45,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/mailparser": "^3.9.0",
     "@types/node": "^24",
@@ -52,6 +54,7 @@
     "@types/react-dom": "^19",
     "@workspace/config": "workspace:*",
     "eslint": "^10",
+    "otplib": "12.0.1",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }

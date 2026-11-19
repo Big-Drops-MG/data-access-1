@@ -1,4 +1,4 @@
-import { ALLOWED_SSO_EMAIL_DOMAIN } from "@/lib/auth/admin-emails"
+import { ALLOWED_SSO_EMAIL_DOMAIN } from "@/lib/auth/sso-domain"
 
 /** Known `/login?error=` values (generic copy only — details stay in logs). */
 export type LoginErrorCode = "unprovisioned" | "sso_failed"
