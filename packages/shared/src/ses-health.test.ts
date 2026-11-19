@@ -15,6 +15,7 @@ import {
   latestReputationPercent,
   parseSesSendingSafety,
   planSesHealthFailure,
+  publicAwsFailureName,
   sendRatesMatch,
   serializeSesSendingSafety,
   type MetricObservation,
@@ -371,11 +372,69 @@ describe("SES health failure plan", () => {
     ).toBe("access_denied")
     expect(
       classifyAwsFailure(
+        Object.assign(new Error("forbidden"), {
+          name: "Error",
+          $metadata: { httpStatusCode: 401 },
+        })
+      )
+    ).toBe("access_denied")
+    expect(
+      classifyAwsFailure(
         Object.assign(new Error("Could not load credentials"), {
           name: "CredentialsProviderError",
         })
       )
     ).toBe("credentials")
+    expect(classifyAwsFailure(new Error("missing credentials from env"))).toBe(
+      "credentials"
+    )
+  })
+
+  it("classifies timeout, network, and unknown AWS failures", () => {
+    expect(
+      classifyAwsFailure(
+        Object.assign(new Error("aborted"), { name: "TimeoutError" })
+      )
+    ).toBe("timeout")
+    expect(
+      classifyAwsFailure(new Error("request timeout while calling SES"))
+    ).toBe("timeout")
+    expect(
+      classifyAwsFailure(
+        Object.assign(new Error("offline"), { name: "NetworkingError" })
+      )
+    ).toBe("network")
+    expect(classifyAwsFailure(new Error("getaddrinfo ENOTFOUND"))).toBe(
+      "network"
+    )
+    expect(classifyAwsFailure(new Error("something else"))).toBe("unknown")
+    expect(classifyAwsFailure("not-an-error")).toBe("unknown")
+  })
+
+  it("ignores non-finite reputation rates instead of treating them as zero", () => {
+    const plan = evaluate({
+      bounce: rate(Number.NaN),
+      complaint: rate(Number.POSITIVE_INFINITY),
+      previousReasons: ["bounce_critical"],
+    })
+    expect(plan.reasons).toEqual(["bounce_critical"])
+    expect(plan.pause).toBe(true)
+    expect(closed(plan, SES_HEALTH_ALERTS.bounceCritical.type)).toBeUndefined()
+    expect(
+      closed(plan, SES_HEALTH_ALERTS.complaintCritical.type)
+    ).toBeUndefined()
+  })
+
+  it("reports a stable public AWS failure name", () => {
+    expect(
+      publicAwsFailureName(
+        Object.assign(new Error("x"), { name: "AccessDeniedException" })
+      )
+    ).toBe("AccessDeniedException")
+    expect(
+      publicAwsFailureName(Object.assign(new Error("x"), { name: "  " }))
+    ).toBe("Error")
+    expect(publicAwsFailureName("plain")).toBe("Error")
   })
 
   it("keeps previous pause reasons and does not replace them", () => {
