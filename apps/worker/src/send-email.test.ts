@@ -10,6 +10,7 @@ import {
   processSendEmailJob,
   renderQueuedEmail,
   SEND_EMAIL_WORKER_CONCURRENCY,
+  SendingSafetyBlockedError,
   sendEmailWorkerOptions,
   type QueuedSendContext,
   type SendEmailJobDeps,
@@ -253,6 +254,10 @@ describe("classifySendFailure", () => {
       classifySendFailure(sesError("AccountSendingPausedException", 400))
     ).toBe("account_paused")
   })
+
+  it("retries when SES sending safety blocks dispatch", () => {
+    expect(classifySendFailure(new SendingSafetyBlockedError())).toBe("retry")
+  })
 })
 
 describe("processSendEmailJob", () => {
@@ -465,5 +470,50 @@ describe("processSendEmailJob", () => {
       "queued message is missing template, sender, or recipient"
     )
     expect(jobDeps.send).not.toHaveBeenCalled()
+  })
+
+  it("does not dispatch while SES sending safety is blocked", async () => {
+    const jobDeps = deps({
+      sendingBlocked: vi.fn(async () => true),
+    })
+
+    await expect(
+      processSendEmailJob({ message_id: MESSAGE_ID }, jobDeps)
+    ).rejects.toBeInstanceOf(SendingSafetyBlockedError)
+    expect(jobDeps.send).not.toHaveBeenCalled()
+    expect(jobDeps.claim).not.toHaveBeenCalled()
+    expect(jobDeps.markFailed).not.toHaveBeenCalled()
+  })
+
+  it("releases an in-flight claim when safety blocks just before dispatch", async () => {
+    let checks = 0
+    const jobDeps = deps({
+      sendingBlocked: vi.fn(async () => {
+        checks += 1
+        return checks > 1
+      }),
+    })
+
+    await expect(
+      processSendEmailJob({ message_id: MESSAGE_ID }, jobDeps)
+    ).rejects.toBeInstanceOf(SendingSafetyBlockedError)
+    expect(jobDeps.claim).toHaveBeenCalledOnce()
+    expect(jobDeps.releaseClaim).toHaveBeenCalledWith(MESSAGE_ID)
+    expect(jobDeps.send).not.toHaveBeenCalled()
+    expect(jobDeps.markFailed).not.toHaveBeenCalled()
+  })
+
+  it("fails closed when the safety state cannot be read", async () => {
+    const jobDeps = deps({
+      sendingBlocked: vi.fn(async () =>
+        Promise.reject(new Error("redis down"))
+      ),
+    })
+
+    await expect(
+      processSendEmailJob({ message_id: MESSAGE_ID }, jobDeps)
+    ).rejects.toBeInstanceOf(SendingSafetyBlockedError)
+    expect(jobDeps.send).not.toHaveBeenCalled()
+    expect(jobDeps.claim).not.toHaveBeenCalled()
   })
 })

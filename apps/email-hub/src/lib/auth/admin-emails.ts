@@ -1,7 +1,8 @@
 import { normaliseEmail } from "@workspace/shared/client"
 
-/** Google SSO is limited to this Workspace domain. */
-export const ALLOWED_SSO_EMAIL_DOMAIN = "bigdropsmarketing.com"
+import { ALLOWED_SSO_EMAIL_DOMAIN } from "./sso-domain"
+
+export { ALLOWED_SSO_EMAIL_DOMAIN }
 
 /** Parse `ADMIN_EMAILS` (comma-separated) into a normalised allowlist. */
 export function parseAdminEmails(

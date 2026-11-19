@@ -112,7 +112,10 @@ function isWaitingStatus(status: string | undefined): boolean {
 
 export async function assertBullBoardMutationAllowed(
   mutation: BullBoardMutation,
-  queues: ReadonlyMap<string, Queue>
+  queues: ReadonlyMap<string, Queue>,
+  options?: {
+    sesSendingBlocked?: () => Promise<boolean>
+  }
 ): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
   if (
     mutation.kind === "update_data" ||
@@ -160,6 +163,28 @@ export async function assertBullBoardMutationAllowed(
         ok: false,
         status: 403,
         message: "Deleting waiting send-email jobs is not allowed",
+      }
+    }
+  }
+
+  if (
+    options?.sesSendingBlocked &&
+    mutation.kind === "resume" &&
+    (mutation.queueName === undefined ||
+      mutation.queueName === SEND_EMAIL_QUEUE_NAME)
+  ) {
+    let blocked: boolean
+    try {
+      blocked = await options.sesSendingBlocked()
+    } catch {
+      blocked = true
+    }
+    if (blocked) {
+      return {
+        ok: false,
+        status: 409,
+        message:
+          "send-email stays paused while SES safety restrictions are active",
       }
     }
   }
