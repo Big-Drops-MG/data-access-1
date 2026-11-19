@@ -1,5 +1,8 @@
+export { maskEmail, normaliseEmail } from "./email-format.js"
 export { isErrorCode, type AppErrorDetail, type ErrorCode } from "./errors.js"
 export { JOB_TITLES, type JobTitle } from "./job-title.js"
+export { buildMergeTagsRecord, extractMergeTagNames } from "./merge-tags.js"
+export { emailSchema, paginationSchema, uuidSchema } from "./schemas.js"
 export {
   ET_TIME_ZONE,
   formatEtDate,

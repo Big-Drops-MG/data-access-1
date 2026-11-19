@@ -162,6 +162,13 @@
       "when": 1793900000000,
       "tag": "0022_cleanup_expired_audit_purge",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0023_recipient_names",
+      "breakpoints": true
     }
   ]
 }

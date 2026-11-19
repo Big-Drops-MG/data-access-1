@@ -8,12 +8,7 @@ import {
   databaseUrlIdentity,
 } from "./connection-policy.js"
 import { loadEmailCatalog, seedEmailCatalog } from "./email-catalog-seed.js"
-import {
-  feedbackClassification,
-  offer,
-  recipient,
-  user,
-} from "./schema/index.js"
+import { feedbackClassification, offer, user } from "./schema/index.js"
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"])
 
@@ -53,12 +48,6 @@ export const DEV_OFFER = {
   status: "active",
 } as const
 
-export const DEV_RECIPIENTS = [
-  { email: "ada@example.com", tier: "standard", externalUserId: "dev-ada" },
-  { email: "blair@example.com", tier: "premium", externalUserId: "dev-blair" },
-  { email: "casey@example.com", tier: "standard", externalUserId: "dev-casey" },
-] as const
-
 export const DEV_FEEDBACK_CLASSIFICATIONS = [
   { key: "didnt_sign_up", label: "Didn't sign up" },
   { key: "spam", label: "Spam / unwanted" },
@@ -71,6 +60,7 @@ export type DevSeedResult = {
   frequencyRules: number
   offers: number
   recipients: number
+  messages: number
   feedbackClassifications: number
 }
 
@@ -95,14 +85,14 @@ export async function seedDev(db: Database): Promise<DevSeedResult> {
     reconcile: false,
   })
   await ensureOffer(db)
-  await ensureRecipients(db)
   await ensureFeedbackClassifications(db, userId)
 
   return {
     categories: catalogResult.categories,
     frequencyRules: catalogResult.frequencyRules,
     offers: 1,
-    recipients: DEV_RECIPIENTS.length,
+    recipients: 0,
+    messages: 0,
     feedbackClassifications: DEV_FEEDBACK_CLASSIFICATIONS.length,
   }
 }
@@ -135,8 +125,8 @@ async function ensureUser(db: Database): Promise<string> {
   return existing.id
 }
 
-async function ensureOffer(db: Database): Promise<void> {
-  await db
+async function ensureOffer(db: Database): Promise<string> {
+  const [inserted] = await db
     .insert(offer)
     .values({
       name: DEV_OFFER.name,
@@ -144,20 +134,23 @@ async function ensureOffer(db: Database): Promise<void> {
       status: DEV_OFFER.status,
     })
     .onConflictDoNothing({ target: offer.externalRef })
-}
+    .returning({ id: offer.id })
 
-async function ensureRecipients(db: Database): Promise<void> {
-  for (const row of DEV_RECIPIENTS) {
-    await db
-      .insert(recipient)
-      .values({
-        email: row.email,
-        emailHash: hashNormalisedEmail(row.email),
-        externalUserId: row.externalUserId,
-        tier: row.tier,
-      })
-      .onConflictDoNothing({ target: recipient.email })
+  if (inserted) {
+    return inserted.id
   }
+
+  const [existing] = await db
+    .select({ id: offer.id })
+    .from(offer)
+    .where(eq(offer.externalRef, DEV_OFFER.externalRef))
+    .limit(1)
+
+  if (!existing) {
+    throw new Error("Dev offer was not inserted.")
+  }
+
+  return existing.id
 }
 
 async function ensureFeedbackClassifications(

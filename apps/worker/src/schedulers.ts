@@ -1,4 +1,8 @@
-import { ET_TIME_ZONE } from "@workspace/shared"
+import {
+  ET_TIME_ZONE,
+  SES_HEALTH_INTERVAL_MS,
+  SES_HEALTH_JOB_NAME,
+} from "@workspace/shared"
 import type { JobsOptions, Queue } from "bullmq"
 
 import type { QueueName } from "./queues.js"
@@ -30,10 +34,10 @@ export const SCHEDULER_DEFINITIONS: readonly SchedulerDefinition[] = [
     opts: { attempts: 1, ...SCHEDULER_DEFAULT_JOB_OPTIONS },
   },
   {
-    id: "ses-health",
+    id: SES_HEALTH_JOB_NAME,
     queue: "monitoring",
-    jobName: "ses-health",
-    repeat: { every: 5 * 60_000 },
+    jobName: SES_HEALTH_JOB_NAME,
+    repeat: { every: SES_HEALTH_INTERVAL_MS },
     enabledInDev: true,
     opts: { attempts: 1, ...SCHEDULER_DEFAULT_JOB_OPTIONS },
   },

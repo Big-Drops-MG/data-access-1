@@ -33,15 +33,24 @@ describe("GET /api/recipients", () => {
         {
           id: "019a0000-0000-7000-8000-0000000000aa",
           email: "ada@example.com",
+          first_name: "Ada",
+          last_name: "Lovelace",
           status: "active",
           tier: "standard",
           external_user_id: "dev-ada",
           created_at: "2026-11-06T12:00:00.000Z",
           updated_at: "2026-11-06T12:00:00.000Z",
           last_emailed_at: null,
+          last_message: null,
         },
       ],
       next_cursor: "019a0000-0000-7000-8000-0000000000aa",
+      status_counts: {
+        all: 1,
+        active: 1,
+        bounced: 0,
+        unsubscribed: 0,
+      },
     })
 
     const response = await GET(
@@ -60,6 +69,12 @@ describe("GET /api/recipients", () => {
         }),
       ],
       next_cursor: "019a0000-0000-7000-8000-0000000000aa",
+      status_counts: {
+        all: 1,
+        active: 1,
+        bounced: 0,
+        unsubscribed: 0,
+      },
     })
     expect(body.data[0]).not.toHaveProperty("email_hash")
     expect(listRecipients).toHaveBeenCalledWith(
@@ -67,6 +82,31 @@ describe("GET /api/recipients", () => {
         limit: 2,
         status: "active",
         email: "ada@example.com",
+        unsubscribed: false,
+      })
+    )
+  })
+
+  it("passes unsubscribed filter through to the service", async () => {
+    getSession.mockResolvedValue(session("operator"))
+    listRecipients.mockResolvedValue({
+      data: [],
+      next_cursor: null,
+      status_counts: {
+        all: 0,
+        active: 0,
+        bounced: 0,
+        unsubscribed: 0,
+      },
+    })
+
+    const response = await GET(
+      new Request("http://localhost/api/recipients?unsubscribed=true")
+    )
+    expect(response.status).toBe(200)
+    expect(listRecipients).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unsubscribed: true,
       })
     )
   })
@@ -76,6 +116,12 @@ describe("GET /api/recipients", () => {
     listRecipients.mockResolvedValue({
       data: [{ email: "ada@example.com" }],
       next_cursor: null,
+      status_counts: {
+        all: 1,
+        active: 1,
+        bounced: 0,
+        unsubscribed: 0,
+      },
     })
 
     const response = await GET(new Request("http://localhost/api/recipients"))
@@ -83,6 +129,12 @@ describe("GET /api/recipients", () => {
     await expect(response.json()).resolves.toEqual({
       data: [{ email: "ada@example.com" }],
       next_cursor: null,
+      status_counts: {
+        all: 1,
+        active: 1,
+        bounced: 0,
+        unsubscribed: 0,
+      },
     })
   })
 

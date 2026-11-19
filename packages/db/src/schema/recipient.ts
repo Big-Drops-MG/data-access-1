@@ -19,6 +19,8 @@ export const recipient = pgTable(
     id: uuidv7PrimaryKey(),
     email: citext("email").notNull(),
     emailHash: text("email_hash").notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
     externalUserId: text("external_user_id"),
     tier: recipientTier("tier").notNull().default("standard"),
     tierUpdatedAt: timestamp("tier_updated_at", {

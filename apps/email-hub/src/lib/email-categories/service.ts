@@ -1,18 +1,30 @@
 import { asc, eq } from "drizzle-orm"
 
-import { emailCategory } from "@workspace/db"
+import { emailCategory, frequencyRule } from "@workspace/db"
 import { getDb, type Database } from "@workspace/db/client"
 
-import { serializeEmailCategory, type EmailCategoryJson } from "./serialize"
+import {
+  serializeEmailCategory,
+  serializeFrequencyRule,
+  type EmailCategoryJson,
+  type FrequencyRuleJson,
+} from "./serialize"
 
-export async function listEmailCategories(
-  db: Database = getDb()
-): Promise<{ data: EmailCategoryJson[] }> {
-  const rows = await db
-    .select()
-    .from(emailCategory)
-    .where(eq(emailCategory.isActive, true))
-    .orderBy(asc(emailCategory.key))
+export async function listEmailCategories(db: Database = getDb()): Promise<{
+  data: EmailCategoryJson[]
+  frequency_rules: FrequencyRuleJson[]
+}> {
+  const [categories, rules] = await Promise.all([
+    db
+      .select()
+      .from(emailCategory)
+      .where(eq(emailCategory.isActive, true))
+      .orderBy(asc(emailCategory.key)),
+    db.select().from(frequencyRule).orderBy(asc(frequencyRule.kind)),
+  ])
 
-  return { data: rows.map(serializeEmailCategory) }
+  return {
+    data: categories.map(serializeEmailCategory),
+    frequency_rules: rules.map(serializeFrequencyRule),
+  }
 }

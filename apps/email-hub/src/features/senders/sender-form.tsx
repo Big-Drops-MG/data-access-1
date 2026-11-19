@@ -22,7 +22,7 @@ import {
 import { applyServerErrors, useAppForm } from "@/lib/form"
 import { listQueryKey, detailQueryKey } from "@/lib/query-keys"
 import { localPartSchema } from "@/lib/senders/schemas"
-import { emailSchema } from "@workspace/shared"
+import { emailSchema } from "@workspace/shared/client"
 import { cn } from "@workspace/ui/lib/utils"
 
 const formCardClass =

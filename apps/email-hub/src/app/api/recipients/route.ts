@@ -18,6 +18,7 @@ async function handleGet(request: Request): Promise<Response> {
     cursor: query.cursor,
     email: query.email,
     status: query.status,
+    unsubscribed: query.unsubscribed === "true",
     optedOutCategoryId: query.opted_out_category_id,
     offerId: query.offer_id,
   })

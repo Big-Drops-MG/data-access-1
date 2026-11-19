@@ -39,6 +39,13 @@ const THROTTLE_NAMES = new Set([
   "LimitExceededException",
 ])
 
+export class SendingSafetyBlockedError extends Error {
+  constructor() {
+    super("send-email blocked by SES sending safety")
+    this.name = "SendingSafetyBlockedError"
+  }
+}
+
 export type SendEmailJobDeps = {
   load: (messageId: string) => Promise<LoadQueuedSendResult>
   skipIfSendChecksFail: (
@@ -55,6 +62,7 @@ export type SendEmailJobDeps = {
   transport: MailTransport
   pauseQueue: () => Promise<void>
   openAccountPausedAlert: () => Promise<void>
+  sendingBlocked?: () => Promise<boolean>
   compliance?: {
     origin?: string
     secret?: string
@@ -130,6 +138,9 @@ export async function renderQueuedEmail(
 }
 
 export function classifySendFailure(error: unknown): SendFailureKind {
+  if (error instanceof SendingSafetyBlockedError) {
+    return "retry"
+  }
   if (hasTemplateRenderError(error)) {
     return "rejected"
   }
@@ -193,6 +204,14 @@ export async function processSendEmailJob(
     return
   }
 
+  if (await sendingIsBlocked(deps)) {
+    getContextLogger().warn(
+      { event: "message.send_blocked", message_id: messageId },
+      "Send blocked by SES sending safety"
+    )
+    throw new SendingSafetyBlockedError()
+  }
+
   const environment =
     loaded.context.environment ?? data.environment ?? "production"
   getContextLogger().info(
@@ -211,9 +230,12 @@ export async function processSendEmailJob(
 
   let acceptedId: string | undefined
   try {
-    const result = await deps.transport.send(
-      await renderQueuedEmail(loaded.context, deps.compliance)
-    )
+    const rendered = await renderQueuedEmail(loaded.context, deps.compliance)
+    if (await sendingIsBlocked(deps)) {
+      await deps.releaseClaim(messageId)
+      throw new SendingSafetyBlockedError()
+    }
+    const result = await deps.transport.send(rendered)
     const providerMessageId = result.providerMessageId.trim()
     if (providerMessageId === "") {
       throw new MailTransportError("send did not return a message id")
@@ -239,6 +261,24 @@ export async function processSendEmailJob(
     const reason = sendFailureReason(error)
     await deps.markFailed(messageId, reason)
     throw new UnrecoverableError(reason)
+  }
+}
+
+async function sendingIsBlocked(deps: SendEmailJobDeps): Promise<boolean> {
+  if (!deps.sendingBlocked) {
+    return false
+  }
+  try {
+    return await deps.sendingBlocked()
+  } catch (error) {
+    getContextLogger().warn(
+      {
+        event: "message.send_safety_unreadable",
+        error_name: error instanceof Error ? error.name : "Error",
+      },
+      "SES sending safety state could not be read"
+    )
+    return true
   }
 }
 

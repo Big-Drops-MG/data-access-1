@@ -342,7 +342,7 @@
 
 @layer components {
   .status-badge {
-    background: color-mix(in srgb, currentColor 13%, var(--surface));
-    border-color: color-mix(in srgb, currentColor 28%, transparent);
+    background: color-mix(in srgb, currentColor 14%, var(--surface));
+    border-color: color-mix(in srgb, currentColor 32%, transparent);
   }
 }

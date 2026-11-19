@@ -1,4 +1,4 @@
-import { normaliseEmail } from "@workspace/shared"
+import { normaliseEmail } from "@workspace/shared/client"
 
 import { ALLOWED_SSO_EMAIL_DOMAIN } from "./sso-domain"
 
