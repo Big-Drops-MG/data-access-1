@@ -42,6 +42,9 @@ export default defineConfig({
         "apps/email-hub/src/lib/data-table/use-data-table-url-state.ts",
         // Integration-test SNS fixture. The coverage job does not run *.int.test.ts.
         "apps/email-hub/src/lib/ses-webhook-test-signature.ts",
+        // Playwright login harness. The coverage job does not run test:e2e.
+        "apps/email-hub/src/lib/e2e/**",
+        "apps/email-hub/src/app/api/e2e/**",
       ],
       thresholds: {
         // packages/shared — 90%
