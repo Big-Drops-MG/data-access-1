@@ -9,15 +9,27 @@ function isoUtc(value: Date): string {
   return value.toISOString()
 }
 
+export type RecipientLastMessageJson = {
+  status: Message["status"]
+  email_type: Message["emailType"]
+  skip_reason: Message["skipReason"]
+  failure_reason: string | null
+  sent_at: string | null
+  created_at: string
+}
+
 export type RecipientListItemJson = {
   id: string
   email: string
+  first_name: string | null
+  last_name: string | null
   status: Recipient["status"]
   tier: Recipient["tier"]
   external_user_id: string | null
   created_at: string
   updated_at: string
   last_emailed_at: string | null
+  last_message: RecipientLastMessageJson | null
 }
 
 export type RecipientPreferenceJson = {
@@ -48,18 +60,37 @@ export type RecipientDetailJson = RecipientListItemJson & {
   messages: RecipientMessageJson[]
 }
 
+export function serializeRecipientLastMessage(
+  row: Message
+): RecipientLastMessageJson {
+  return {
+    status: row.status,
+    email_type: row.emailType,
+    skip_reason: row.skipReason,
+    failure_reason: row.failureReason,
+    sent_at: row.sentAt ? isoUtc(row.sentAt) : null,
+    created_at: isoUtc(row.createdAt),
+  }
+}
+
 export function serializeRecipientListItem(
-  row: Recipient
+  row: Recipient,
+  lastMessage: Message | null = null
 ): RecipientListItemJson {
   return {
     id: row.id,
     email: row.email,
+    first_name: row.firstName,
+    last_name: row.lastName,
     status: row.status,
     tier: row.tier,
     external_user_id: row.externalUserId,
     created_at: isoUtc(row.createdAt),
     updated_at: isoUtc(row.updatedAt),
     last_emailed_at: row.lastEmailedAt ? isoUtc(row.lastEmailedAt) : null,
+    last_message: lastMessage
+      ? serializeRecipientLastMessage(lastMessage)
+      : null,
   }
 }
 

@@ -1,6 +1,5 @@
 import type { RecipientListItem } from "@/features/recipients/api"
 import type { RecipientMessageJson } from "@/lib/recipients/serialize"
-import type { StatusBadgeStatus } from "@/components/app/status-badge"
 
 export function shortRecipientId(id: string): string {
   return `rcp_${id.replaceAll("-", "").slice(-6)}`
@@ -29,7 +28,7 @@ export function messageStatusLabel(
     case "delivered":
       return "Delivered"
     case "bounced":
-      return "Bounced"
+      return "Hard bounce"
     case "complained":
       return "Complained"
     case "skipped":
@@ -38,28 +37,6 @@ export function messageStatusLabel(
       return "Failed"
     default:
       return status
-  }
-}
-
-export function messageStatusBadge(
-  status: RecipientMessageJson["status"]
-): StatusBadgeStatus | null {
-  switch (status) {
-    case "queued":
-      return "queued"
-    case "sending":
-      return "dispatching"
-    case "sent":
-    case "delivered":
-      return "sent"
-    case "skipped":
-      return "skipped"
-    case "failed":
-    case "bounced":
-    case "complained":
-      return "failed"
-    default:
-      return null
   }
 }
 

@@ -1,11 +1,13 @@
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { getRequestId } from "@workspace/logger"
 import { AppError, enqueueCsvIngestJob } from "@workspace/shared"
 import {
   RECIPIENT_IMPORT_MAX_BYTES,
-  assertCsvHasEmailColumn,
+  assertCsvImportHeaders,
+  assertSafeRecipientImportBytes,
+  assertSafeUploadFilename,
   recipientImportsDir,
 } from "@workspace/shared/recipient-csv-ingest"
 import { v7 as uuidv7 } from "uuid"
@@ -25,40 +27,59 @@ const CSV_CONTENT_TYPES = new Set([
   "application/octet-stream",
 ])
 
-function isCsvFilename(name: string): boolean {
-  return name.toLowerCase().endsWith(".csv")
+const BLOCKED_CONTENT_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel.sheet.macroenabled.12",
+  "application/vnd.ms-excel.sheet.binary.macroenabled.12",
+])
+
+function validationFailed(message: string): never {
+  throw AppError.validationFailed([{ path: "file", message }])
+}
+
+async function removeUpload(filePath: string): Promise<void> {
+  await unlink(filePath).catch(() => undefined)
 }
 
 export async function importRecipientsCsv(
   file: File,
   actor: ImportRecipientsActor
 ): Promise<{ upload_id: string }> {
-  if (!isCsvFilename(file.name)) {
-    throw AppError.validationFailed([
-      { path: "file", message: "Only .csv files are accepted" },
-    ])
+  try {
+    assertSafeUploadFilename(file.name)
+  } catch (error) {
+    validationFailed(
+      error instanceof Error ? error.message : "Invalid file name"
+    )
   }
 
   const contentType = (file.type || "").toLowerCase().split(";")[0]?.trim()
+  if (contentType && BLOCKED_CONTENT_TYPES.has(contentType)) {
+    validationFailed(
+      "Excel workbooks are not accepted. Export as a plain CSV file."
+    )
+  }
   if (contentType && !CSV_CONTENT_TYPES.has(contentType)) {
-    throw AppError.validationFailed([
-      { path: "file", message: "Content type must be CSV" },
-    ])
+    validationFailed("Content type must be CSV")
   }
 
   if (file.size <= 0) {
-    throw AppError.validationFailed([
-      { path: "file", message: "File is empty" },
-    ])
+    validationFailed("File is empty")
   }
 
   if (file.size > RECIPIENT_IMPORT_MAX_BYTES) {
-    throw AppError.validationFailed([
-      {
-        path: "file",
-        message: `File must be at most ${RECIPIENT_IMPORT_MAX_BYTES} bytes (50 MB)`,
-      },
-    ])
+    validationFailed(
+      `File must be at most ${RECIPIENT_IMPORT_MAX_BYTES} bytes (50 MB)`
+    )
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  try {
+    assertSafeRecipientImportBytes(buffer)
+  } catch (error) {
+    validationFailed(
+      error instanceof Error ? error.message : "File is not a valid CSV"
+    )
   }
 
   const uploadId = uuidv7().toLowerCase()
@@ -66,15 +87,15 @@ export async function importRecipientsCsv(
   await mkdir(dir, { recursive: true })
   const filePath = path.join(dir, `${uploadId}.csv`)
 
-  const buffer = Buffer.from(await file.arrayBuffer())
   await writeFile(filePath, buffer)
 
   try {
-    await assertCsvHasEmailColumn(filePath)
-  } catch {
-    throw AppError.validationFailed([
-      { path: "file", message: "CSV must include an email column" },
-    ])
+    await assertCsvImportHeaders(filePath)
+  } catch (error) {
+    await removeUpload(filePath)
+    validationFailed(
+      error instanceof Error ? error.message : "CSV headers are invalid"
+    )
   }
 
   try {
@@ -85,6 +106,7 @@ export async function importRecipientsCsv(
       request_id: actor.requestId ?? getRequestId(),
     })
   } catch (error) {
+    await removeUpload(filePath)
     throw AppError.unavailable([
       {
         path: "queue",

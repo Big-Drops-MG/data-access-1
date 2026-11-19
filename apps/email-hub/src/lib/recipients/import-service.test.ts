@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
@@ -63,7 +63,7 @@ describe("importRecipientsCsv", () => {
     )
   })
 
-  it("rejects non-csv and missing email column before enqueue", async () => {
+  it("rejects non-csv, excel bytes, unknown columns, and cleans up", async () => {
     await expect(
       importRecipientsCsv(new File(["x"], "list.txt", { type: "text/plain" }), {
         userId: "u1",
@@ -72,11 +72,37 @@ describe("importRecipientsCsv", () => {
 
     await expect(
       importRecipientsCsv(
-        new File(["name\nada\n"], "list.csv", { type: "text/csv" }),
+        new File([Buffer.from([0x50, 0x4b, 0x03, 0x04])], "list.csv", {
+          type: "text/csv",
+        }),
         { userId: "u1" }
       )
-    ).rejects.toMatchObject({ status: 422 })
+    ).rejects.toMatchObject({
+      status: 422,
+      details: [
+        expect.objectContaining({
+          message: expect.stringMatching(/xlsx/i),
+        }),
+      ],
+    })
 
+    await expect(
+      importRecipientsCsv(
+        new File(["email,phone\nada@example.com,1\n"], "list.csv", {
+          type: "text/csv",
+        }),
+        { userId: "u1" }
+      )
+    ).rejects.toMatchObject({
+      status: 422,
+      details: [
+        expect.objectContaining({
+          message: expect.stringMatching(/Unknown column/),
+        }),
+      ],
+    })
+
+    expect(await readdir(dir)).toEqual([])
     expect(enqueueCsvIngestJob).not.toHaveBeenCalled()
   })
 })

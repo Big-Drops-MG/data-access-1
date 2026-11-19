@@ -33,12 +33,15 @@ describe("GET /api/recipients/{id}", () => {
     getRecipientDetail.mockResolvedValue({
       id: recipientId,
       email: "ada@example.com",
+      first_name: "Ada",
+      last_name: "Lovelace",
       status: "active",
       tier: "standard",
       external_user_id: "dev-ada",
       created_at: "2026-11-06T12:00:00.000Z",
       updated_at: "2026-11-06T12:00:00.000Z",
       last_emailed_at: null,
+      last_message: null,
       preferences: [
         {
           category_id: "019a0000-0000-7000-8000-0000000000bb",

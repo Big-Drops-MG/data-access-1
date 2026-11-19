@@ -10,12 +10,11 @@ import { StatusBadge } from "@/components/app/status-badge"
 import {
   emailTypeLabel,
   messageDetail,
-  messageStatusBadge,
-  messageStatusLabel,
   recipientStatusLabel,
-  recipientTierLabel,
   shortRecipientId,
 } from "@/features/recipients/labels"
+import { RecipientMessageStatusBadge } from "@/features/recipients/recipient-message-status-badge"
+import { RecipientTierBadge } from "@/features/recipients/recipient-tier-badge"
 import { useRecipientDetail } from "@/features/recipients/use-recipient-detail"
 import { isApiError } from "@/lib/api-client"
 import { cn } from "@workspace/ui/lib/utils"
@@ -114,7 +113,8 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">
-            {row.email}
+            {[row.first_name, row.last_name].filter(Boolean).join(" ") ||
+              row.email}
           </h1>
           {row.status === "active" ? (
             <StatusBadge status="active" />
@@ -123,12 +123,12 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
               {recipientStatusLabel(row.status)}
             </StatusBadge>
           )}
-          <span className="inline-flex rounded-full border border-border bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-fg">
-            {recipientTierLabel(row.tier)}
-          </span>
+          <RecipientTierBadge tier={row.tier} />
         </div>
         <p className="text-sm text-fg-muted">
           {shortId}
+          {" · "}
+          {row.email}
           {row.external_user_id ? ` · ${row.external_user_id}` : ""}
           {" · "}
           first seen{" "}
@@ -204,38 +204,29 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {row.messages.map((message) => {
-                    const badge = messageStatusBadge(message.status)
-                    return (
-                      <tr
-                        key={message.id}
-                        className="border-t border-border"
-                        data-testid="recipient-message-row"
-                      >
-                        <td className="px-4 py-2.5 text-fg-muted">
-                          <EtDateTime
-                            value={message.sent_at ?? message.created_at}
-                            className="text-[13px] text-fg-muted"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-fg">
-                          {emailTypeLabel(message.email_type)}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {badge ? (
-                            <StatusBadge status={badge} />
-                          ) : (
-                            <StatusBadge variant="neutral">
-                              {messageStatusLabel(message.status)}
-                            </StatusBadge>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-fg-muted">
-                          {messageDetail(message)}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {row.messages.map((message) => (
+                    <tr
+                      key={message.id}
+                      className="border-t border-border"
+                      data-testid="recipient-message-row"
+                    >
+                      <td className="px-4 py-2.5 text-fg-muted">
+                        <EtDateTime
+                          value={message.sent_at ?? message.created_at}
+                          className="text-[13px] text-fg-muted"
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 text-fg">
+                        {emailTypeLabel(message.email_type)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <RecipientMessageStatusBadge status={message.status} />
+                      </td>
+                      <td className="px-4 py-2.5 text-fg-muted">
+                        {messageDetail(message)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

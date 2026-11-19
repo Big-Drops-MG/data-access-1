@@ -11,9 +11,24 @@ import type {
 export type RecipientListItem = RecipientListItemJson
 export type RecipientDetail = RecipientDetailJson
 
+export type RecipientStatusCounts = {
+  all: number
+  active: number
+  bounced: number
+  unsubscribed: number
+}
+
+export const EMPTY_RECIPIENT_STATUS_COUNTS: RecipientStatusCounts = {
+  all: 0,
+  active: 0,
+  bounced: 0,
+  unsubscribed: 0,
+}
+
 export type RecipientListResponse = {
   data: RecipientListItem[]
   next_cursor: string | null
+  status_counts: RecipientStatusCounts
 }
 
 export type RecipientListParams = {
@@ -21,6 +36,7 @@ export type RecipientListParams = {
   cursor?: string
   email?: string
   status?: "active" | "bounced"
+  unsubscribed?: boolean
   opted_out_category_id?: string
   offer_id?: string
 }
@@ -43,6 +59,9 @@ function toSearchParams(params: RecipientListParams = {}): string {
   }
   if (params.status) {
     search.set("status", params.status)
+  }
+  if (params.unsubscribed) {
+    search.set("unsubscribed", "true")
   }
   if (params.opted_out_category_id) {
     search.set("opted_out_category_id", params.opted_out_category_id)
@@ -70,6 +89,27 @@ export function fetchEmailCategories(): Promise<EmailCategoriesResponse> {
   return apiJson<EmailCategoriesResponse>("/api/email-categories")
 }
 
+export type RecipientImportInvalidRow = {
+  row: number
+  column: string
+  problem: string
+}
+
+export type RecipientImportLatest = {
+  upload_id: string
+  completed_at: string
+  rows_read: number
+  added: number
+  updated: number
+  skipped: number
+  invalid: number
+  invalid_rows: RecipientImportInvalidRow[]
+}
+
+export type RecipientImportLatestResponse = {
+  data: RecipientImportLatest | null
+}
+
 export async function importRecipientsCsv(
   file: File
 ): Promise<{ upload_id: string }> {
@@ -79,4 +119,8 @@ export async function importRecipientsCsv(
     method: "POST",
     body,
   })
+}
+
+export function fetchLatestRecipientImport(): Promise<RecipientImportLatestResponse> {
+  return apiJson<RecipientImportLatestResponse>("/api/recipients/import/latest")
 }

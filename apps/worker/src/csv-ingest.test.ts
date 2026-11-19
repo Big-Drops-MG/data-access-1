@@ -37,6 +37,7 @@ describe("processCsvIngestJob", () => {
       updated: 1,
       skipped: 1,
       invalid: 1,
+      invalid_rows: [{ row: 2, column: "email", problem: "Empty" }],
     }
     const ingestFile = vi.fn(async () => counts)
     const db = {} as never
