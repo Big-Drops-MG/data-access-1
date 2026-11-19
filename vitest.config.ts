@@ -7,8 +7,9 @@ import { defineConfig } from "vitest/config"
  */
 export default defineConfig({
   test: {
-    // Default pool concurrency. The emails project pins maxWorkers: 1 because
-    // its render-worker 5s deadline includes process startup.
+    // The render worker's 5s deadline includes process startup. Running the
+    // emails and worker projects at the same time makes that startup exceed 5s.
+    maxWorkers: 1,
     projects: ["packages/*/vitest.config.ts", "apps/*/vitest.config.ts"],
     coverage: {
       provider: "v8",
@@ -23,8 +24,6 @@ export default defineConfig({
       exclude: [
         "**/*.{test,spec,int.test}.{ts,tsx}",
         "**/index.ts",
-        // Browser-safe re-export barrel; covered via email-format / schemas tests.
-        "packages/shared/src/client.ts",
         "**/*.d.ts",
         "**/node_modules/**",
         "**/dist/**",
