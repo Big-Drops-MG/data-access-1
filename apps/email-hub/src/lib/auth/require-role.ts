@@ -3,10 +3,23 @@ import { redirect } from "next/navigation"
 import { AppError } from "@workspace/shared"
 
 import { getSession, type SessionUser } from "@/lib/auth"
+import { consumeStaffRateLimitFromEnv } from "@/lib/auth/staff-rate-limit"
 import { buildLoginPath } from "@/lib/login/login-path"
 import { hasAtLeastRole, type AppRole } from "@/lib/permissions"
+import type { RateLimitResult } from "@/lib/rate-limit/sliding-window-redis"
 
-/** Require an authenticated staff session (API). Throws 401. */
+export type RequireRoleOptions = {
+  consumeStaffRateLimit?: (userId: string) => Promise<RateLimitResult>
+}
+
+function applyStaffRateLimit(result: RateLimitResult): void {
+  if (result === "limited") {
+    throw AppError.rateLimited([
+      { path: "rate_limit", message: "Too many requests for this user" },
+    ])
+  }
+}
+
 export async function requireSession(): Promise<SessionUser> {
   const session = await getSession()
   if (!session) {
@@ -15,22 +28,19 @@ export async function requireSession(): Promise<SessionUser> {
   return session
 }
 
-/**
- * Require session with at least `minimum` role (API).
- * 401 when unauthenticated, 403 when role is too low (SD#14.3).
- */
-export async function requireRole(minimum: AppRole): Promise<SessionUser> {
+export async function requireRole(
+  minimum: AppRole,
+  options?: RequireRoleOptions
+): Promise<SessionUser> {
   const session = await requireSession()
   if (!hasAtLeastRole(session, minimum)) {
     throw AppError.forbidden()
   }
+  const consume = options?.consumeStaffRateLimit ?? consumeStaffRateLimitFromEnv
+  applyStaffRateLimit(await consume(session.id))
   return session
 }
 
-/**
- * Page / server-component guard (SD#14.3).
- * Unauthenticated → redirect to login. Under-privileged → `forbidden`.
- */
 export async function requireRoleForPage(
   minimum: AppRole,
   options?: { nextPath?: string }

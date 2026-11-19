@@ -73,7 +73,7 @@ export function StatusBadge(props: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "status-badge inline-flex h-[22px] items-center gap-1.5 rounded-sm border px-2 text-caption font-medium whitespace-nowrap",
+        "status-badge inline-flex h-6 items-center gap-1.5 rounded-md border px-2.5 text-caption font-medium whitespace-nowrap",
         statusBadgeVariants[resolved.variant],
         className
       )}
@@ -86,7 +86,10 @@ export function StatusBadge(props: StatusBadgeProps) {
           aria-hidden
         />
       ) : (
-        <span className="size-1.5 rounded-full bg-current" aria-hidden />
+        <span
+          className="size-1.5 shrink-0 rounded-full bg-current"
+          aria-hidden
+        />
       )}
       <span>{resolved.label}</span>
     </span>

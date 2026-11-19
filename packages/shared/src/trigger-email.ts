@@ -79,11 +79,111 @@ export type TriggerEmailResult = {
   created: boolean
 }
 
+export type FindOrCreateRecipientOptions = {
+  externalUserId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+}
+
+const RECIPIENT_NAME_MAX = 100
+
+/** Non-empty trimmed person name from merge_data / profile fields. */
+export function optionalRecipientName(value: unknown): string | undefined {
+  if (value == null) {
+    return undefined
+  }
+  const trimmed = String(value).trim()
+  if (!trimmed) {
+    return undefined
+  }
+  return trimmed.length > RECIPIENT_NAME_MAX
+    ? trimmed.slice(0, RECIPIENT_NAME_MAX)
+    : trimmed
+}
+
+/** Pull first/last name from flat merge_data when present. */
+export function recipientNamesFromMergeData(
+  mergeData: MergeData | null | undefined
+): { firstName?: string; lastName?: string } {
+  if (!mergeData) {
+    return {}
+  }
+  const firstName = optionalRecipientName(
+    mergeData.first_name ?? mergeData.firstName
+  )
+  const lastName = optionalRecipientName(
+    mergeData.last_name ?? mergeData.lastName
+  )
+  return {
+    ...(firstName !== undefined ? { firstName } : {}),
+    ...(lastName !== undefined ? { lastName } : {}),
+  }
+}
+
+function normalizeFindOrCreateOptions(
+  input?: string | null | FindOrCreateRecipientOptions
+): FindOrCreateRecipientOptions {
+  if (input == null) {
+    return {}
+  }
+  if (typeof input === "string") {
+    return { externalUserId: input }
+  }
+  return input
+}
+
+async function applyRecipientProfile(
+  db: EmailHubDb | EmailHubTx,
+  row: Recipient,
+  options: FindOrCreateRecipientOptions
+): Promise<Recipient> {
+  const firstName = optionalRecipientName(options.firstName)
+  const lastName = optionalRecipientName(options.lastName)
+  const patch: {
+    firstName?: string | null
+    lastName?: string | null
+    externalUserId?: string | null
+    updatedAt: Date
+  } = { updatedAt: new Date() }
+
+  if (firstName !== undefined && firstName !== row.firstName) {
+    patch.firstName = firstName
+  }
+  if (lastName !== undefined && lastName !== row.lastName) {
+    patch.lastName = lastName
+  }
+  if (
+    options.externalUserId != null &&
+    options.externalUserId !== row.externalUserId
+  ) {
+    const external = options.externalUserId.trim()
+    if (external.length > 0 && external !== row.externalUserId) {
+      patch.externalUserId = external
+    }
+  }
+
+  if (
+    patch.firstName === undefined &&
+    patch.lastName === undefined &&
+    patch.externalUserId === undefined
+  ) {
+    return row
+  }
+
+  const [updated] = await db
+    .update(recipient)
+    .set(patch)
+    .where(eq(recipient.id, row.id))
+    .returning()
+  return updated ?? row
+}
+
 export async function findOrCreateRecipient(
   db: EmailHubDb | EmailHubTx,
   email: string,
-  externalUserId?: string | null
+  options?: string | null | FindOrCreateRecipientOptions
 ): Promise<Recipient> {
+  const profile = normalizeFindOrCreateOptions(options)
   const normalised = normaliseEmail(email)
   const parsed = emailSchema.safeParse(normalised)
   if (!parsed.success) {
@@ -104,17 +204,21 @@ export async function findOrCreateRecipient(
     .limit(1)
 
   if (existing[0]) {
-    return existing[0]
+    return applyRecipientProfile(db, existing[0], profile)
   }
 
   const emailHash = hashEmail(normalised)
+  const firstName = optionalRecipientName(profile.firstName) ?? null
+  const lastName = optionalRecipientName(profile.lastName) ?? null
   try {
     const [created] = await db
       .insert(recipient)
       .values({
         email: normalised,
         emailHash,
-        externalUserId: externalUserId ?? null,
+        firstName,
+        lastName,
+        externalUserId: profile.externalUserId ?? null,
       })
       .returning()
     if (!created) {
@@ -133,7 +237,7 @@ export async function findOrCreateRecipient(
     if (!raced[0]) {
       throw new AppError("internal")
     }
-    return raced[0]
+    return applyRecipientProfile(db, raced[0], profile)
   }
 }
 
@@ -434,11 +538,12 @@ export async function triggerEmail(
   const requestedVersionId = input.templateVersionId ?? null
   const sendId = input.sendId ?? null
   const requestedSenderId = input.senderId ?? null
-  const foundRecipient = await findOrCreateRecipient(
-    db,
-    input.email,
-    externalUserId
-  )
+  const names = recipientNamesFromMergeData(mergeData)
+  const foundRecipient = await findOrCreateRecipient(db, input.email, {
+    externalUserId,
+    firstName: names.firstName,
+    lastName: names.lastName,
+  })
 
   const result = await db.transaction(async (tx) => {
     await lockRecipientTx(tx, foundRecipient.id)

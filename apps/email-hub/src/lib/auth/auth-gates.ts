@@ -1,4 +1,4 @@
-import { normaliseEmail } from "@workspace/shared"
+import { normaliseEmail } from "@workspace/shared/client"
 import { APIError } from "better-auth/api"
 
 import { isAllowedSsoEmailDomain, isBootstrapAdminEmail } from "./admin-emails"

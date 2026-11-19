@@ -121,6 +121,8 @@ function queuedContext(messageId: string): QueuedSendContext {
       id: "0192f6c0-7a3e-7c1e-8d2b-3f6a5b8c1d45",
       email: "t046-active@example.com",
       emailHash: "hash",
+      firstName: null,
+      lastName: null,
       externalUserId: null,
       tier: "standard",
       tierUpdatedAt: now,

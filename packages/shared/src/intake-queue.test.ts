@@ -20,7 +20,7 @@ describe("intake-queue", () => {
     }
   }
 
-  it("enqueues csv-ingest with jobId csv:{upload_id}", async () => {
+  it("enqueues csv-ingest with jobId csv-{upload_id}", async () => {
     const add = vi.fn(async () => undefined)
     const uploadId = "01900000-0000-7000-8000-000000000100"
 
@@ -31,7 +31,7 @@ describe("intake-queue", () => {
       actor_user_id: "01900000-0000-7000-8000-000000000001",
     })
 
-    expect(csvIngestJobId(uploadId)).toBe(`csv:${uploadId}`)
+    expect(csvIngestJobId(uploadId)).toBe(`csv-${uploadId}`)
     expect(add).toHaveBeenCalledWith(
       CSV_INGEST_JOB_NAME,
       {
@@ -41,7 +41,7 @@ describe("intake-queue", () => {
         request_id: "req-import",
       },
       {
-        jobId: `csv:${uploadId}`,
+        jobId: `csv-${uploadId}`,
         ...CSV_INGEST_JOB_OPTIONS,
       }
     )
@@ -65,7 +65,7 @@ describe("intake-queue", () => {
         request_id: "req-context",
       },
       expect.objectContaining({
-        jobId: "csv:01900000-0000-7000-8000-000000000101",
+        jobId: "csv-01900000-0000-7000-8000-000000000101",
       })
     )
   })
@@ -73,7 +73,7 @@ describe("intake-queue", () => {
   it("ignores an in-flight duplicate jobId", async () => {
     const add = vi.fn(async () => {
       throw Object.assign(new Error("Job already exists"), {
-        message: "Job csv:x already exists",
+        message: "Job csv-x already exists",
       })
     })
 

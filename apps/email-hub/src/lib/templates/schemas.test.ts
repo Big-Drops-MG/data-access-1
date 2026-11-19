@@ -37,6 +37,18 @@ describe("template schemas", () => {
     ).toBe(false)
   })
 
+  it("accepts optional offer_id on create", () => {
+    const offerId = "019a0000-0000-7000-8000-000000000099"
+    expect(
+      createTemplateBodySchema.parse({
+        name: "A",
+        category_id: "019a0000-0000-7000-8000-000000000010",
+        email_type: "thank_you",
+        offer_id: offerId,
+      }).offer_id
+    ).toBe(offerId)
+  })
+
   it("requires at least one patch field", () => {
     expect(updateTemplateBodySchema.safeParse({}).success).toBe(false)
     expect(

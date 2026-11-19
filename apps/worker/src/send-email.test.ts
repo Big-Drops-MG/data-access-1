@@ -24,6 +24,8 @@ function recipient(): Recipient {
     id: "01900000-0000-7000-8000-000000000047",
     email: "ada@example.com",
     emailHash: "hash",
+    firstName: null,
+    lastName: null,
     externalUserId: null,
     tier: "standard",
     tierUpdatedAt: now,

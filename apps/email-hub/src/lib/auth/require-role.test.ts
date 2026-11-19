@@ -2,8 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const getSession = vi.hoisted(() => vi.fn())
 const redirect = vi.hoisted(() => vi.fn())
+const consumeStaffRateLimitFromEnv = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/auth", () => ({ getSession }))
 vi.mock("next/navigation", () => ({ redirect }))
+vi.mock("@/lib/auth/staff-rate-limit", () => ({
+  consumeStaffRateLimitFromEnv,
+}))
 
 import { type AppError } from "@workspace/shared"
 
@@ -30,6 +34,8 @@ describe("requireSession / requireRole", () => {
   beforeEach(() => {
     getSession.mockReset()
     redirect.mockReset()
+    consumeStaffRateLimitFromEnv.mockReset()
+    consumeStaffRateLimitFromEnv.mockResolvedValue("ok")
     redirect.mockImplementation((url: string) => {
       throw new Error(`REDIRECT:${url}`)
     })
@@ -49,6 +55,7 @@ describe("requireSession / requireRole", () => {
       code: "forbidden",
       status: 403,
     } satisfies Partial<AppError>)
+    expect(consumeStaffRateLimitFromEnv).not.toHaveBeenCalled()
   })
 
   it("requireRole returns the session when the role is sufficient", async () => {
@@ -56,6 +63,23 @@ describe("requireSession / requireRole", () => {
     getSession.mockResolvedValue(session)
     await expect(requireRole("operator")).resolves.toBe(session)
     await expect(requireRole("viewer")).resolves.toBe(session)
+    expect(consumeStaffRateLimitFromEnv).toHaveBeenCalledWith("u1")
+  })
+
+  it("requireRole throws 429 when the staff rate limit is exceeded", async () => {
+    getSession.mockResolvedValue(user("admin"))
+    consumeStaffRateLimitFromEnv.mockResolvedValue("limited")
+    await expect(requireRole("admin")).rejects.toMatchObject({
+      code: "rate_limited",
+      status: 429,
+    } satisfies Partial<AppError>)
+  })
+
+  it("requireRole continues when the staff rate limiter is unavailable", async () => {
+    const session = user("admin")
+    getSession.mockResolvedValue(session)
+    consumeStaffRateLimitFromEnv.mockResolvedValue("unavailable")
+    await expect(requireRole("admin")).resolves.toBe(session)
   })
 
   it("requireRoleForPage redirects when unauthenticated", async () => {

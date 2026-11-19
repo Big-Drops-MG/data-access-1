@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 
 import { ForbiddenPage } from "@/components/app/full-page-message"
-import { ModulePlaceholderPage } from "@/components/app/module-placeholder-page"
+import { ApiClientsPage } from "@/features/api-clients/api-clients-page"
 import { requireRoleForPage } from "@/lib/auth/require-role"
 
 export const metadata: Metadata = {
@@ -15,5 +16,18 @@ export default async function Page() {
   if ("forbidden" in access) {
     return <ForbiddenPage />
   }
-  return <ModulePlaceholderPage title="API clients" />
+
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="h-40 animate-pulse rounded-md bg-surface-2"
+          data-testid="api-clients-list-loading"
+          aria-hidden
+        />
+      }
+    >
+      <ApiClientsPage />
+    </Suspense>
+  )
 }

@@ -18,7 +18,7 @@ import {
   fetchDomainDetail,
   type DomainDetailResponse,
 } from "@/features/domains/api"
-import { CopyButton } from "@/features/domains/copy-button"
+import { CopyButton } from "@/components/app/copy-button"
 import { DnsRecordStatusBadge } from "@/features/domains/dns-status"
 import { DomainSendersCard } from "@/features/domains/domain-senders-card"
 import { domainStatusToBadge } from "@/features/domains/domain-status"
@@ -34,9 +34,7 @@ import { detailQueryKey, listQueryKey } from "@/lib/query-keys"
 import { cn } from "@workspace/ui/lib/utils"
 
 type DomainDetailPageProps = {
-  /** UUID or FQDN from the route (`/domains/dev.quotifii.com`). */
   domainRef: string
-  /** Admin-only actions (check now, disable). */
   canManage?: boolean
 }
 
@@ -68,14 +66,26 @@ export function DomainDetailPage({
   const check = useMutation({
     mutationFn: () => checkDomainDns(domainRef),
     meta: { skipConflictDialog: true },
-    onSuccess: async (updated) => {
-      queryClient.setQueryData(detailQueryKey("domains", domainRef), updated)
-      await queryClient.invalidateQueries({ queryKey: listQueryKey("domains") })
-      toast.success("DNS records checked")
+    onSuccess: async () => {
+      toast.success("DNS check queued")
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: detailQueryKey("domains", domainRef),
+        }),
+        queryClient.invalidateQueries({ queryKey: listQueryKey("domains") }),
+      ])
+      window.setTimeout(() => {
+        void queryClient.invalidateQueries({
+          queryKey: detailQueryKey("domains", domainRef),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: listQueryKey("domains"),
+        })
+      }, 2500)
     },
     onError: (error) => {
       toast.error(
-        isApiError(error) ? error.message : "Could not check DNS records"
+        isApiError(error) ? error.message : "Could not queue DNS check"
       )
     },
   })

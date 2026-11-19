@@ -16,6 +16,7 @@ import {
   findOrCreateRecipient,
   lockRecipientTx,
   noRouteAlertDedupeKey,
+  recipientNamesFromMergeData,
   requiredMergeTagNames,
   resolveEmailRoute,
   triggerEmail,
@@ -36,6 +37,8 @@ const recipientRow = {
   id: "01900000-0000-7000-8000-000000000001",
   email: "jane@example.com",
   emailHash: "abc",
+  firstName: null,
+  lastName: null,
   externalUserId: null,
   tier: "standard",
   tierUpdatedAt: new Date(),
@@ -130,6 +133,19 @@ function createChain(result: SelectResult) {
   return chain
 }
 
+/** Outer-db update used when findOrCreateRecipient patches names. */
+function createRecipientUpdateMock(base: Recipient = recipientRow) {
+  return vi.fn(() => {
+    const chain = createChain([base])
+    chain.set = vi.fn((patch: Record<string, unknown>) => {
+      const merged = { ...base, ...patch } as Recipient
+      chain.returning = vi.fn(async () => [merged])
+      return chain
+    })
+    return chain
+  })
+}
+
 describe("findOrCreateRecipient", () => {
   it("rejects an invalid email", async () => {
     const db = {
@@ -177,6 +193,75 @@ describe("findOrCreateRecipient", () => {
         emailHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       })
     )
+  })
+
+  it("inserts first and last name from options", async () => {
+    const selectChain = createChain([])
+    const insertChain = createChain([
+      { ...recipientRow, firstName: "Jane", lastName: "Doe" },
+    ])
+    const db = {
+      select: vi.fn(() => selectChain),
+      insert: vi.fn(() => insertChain),
+      update: vi.fn(),
+    } as unknown as EmailHubDb
+
+    await findOrCreateRecipient(db, "jane@example.com", {
+      externalUserId: "ext-1",
+      firstName: "Jane",
+      lastName: "Doe",
+    })
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstName: "Jane",
+        lastName: "Doe",
+        externalUserId: "ext-1",
+      })
+    )
+    expect(db.update).not.toHaveBeenCalled()
+  })
+
+  it("updates names on an existing recipient when provided", async () => {
+    const selectChain = createChain([recipientRow])
+    const updated = {
+      ...recipientRow,
+      firstName: "Jane",
+      lastName: "Doe",
+    }
+    const updateChain = createChain([updated])
+    const db = {
+      select: vi.fn(() => selectChain),
+      insert: vi.fn(),
+      update: vi.fn(() => updateChain),
+    } as unknown as EmailHubDb
+
+    await expect(
+      findOrCreateRecipient(db, "jane@example.com", {
+        firstName: "Jane",
+        lastName: "Doe",
+      })
+    ).resolves.toEqual(updated)
+    expect(db.insert).not.toHaveBeenCalled()
+    expect(updateChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstName: "Jane",
+        lastName: "Doe",
+        updatedAt: expect.any(Date),
+      })
+    )
+  })
+
+  it("reads names from merge_data keys", () => {
+    expect(
+      recipientNamesFromMergeData({
+        first_name: "Alex",
+        last_name: "Rivera",
+      })
+    ).toEqual({ firstName: "Alex", lastName: "Rivera" })
+    expect(recipientNamesFromMergeData({ firstName: "Ada" })).toEqual({
+      firstName: "Ada",
+    })
+    expect(recipientNamesFromMergeData({ first_name: "  " })).toEqual({})
   })
 
   it("rethrows non-unique insert errors", async () => {
@@ -489,6 +574,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -565,6 +651,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -620,6 +707,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -682,6 +770,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (inner: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -752,6 +841,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (inner: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -802,6 +892,7 @@ describe("triggerEmail", () => {
       return {
         select: vi.fn(() => selectRecipient),
         insert: vi.fn(),
+        update: createRecipientUpdateMock(),
         transaction: vi.fn(
           async (fn: (inner: EmailHubTx) => Promise<unknown>) => fn(tx)
         ),
@@ -873,6 +964,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -939,6 +1031,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),
@@ -1005,6 +1098,7 @@ describe("triggerEmail", () => {
     const db = {
       select: vi.fn(() => selectRecipient),
       insert: vi.fn(),
+      update: createRecipientUpdateMock(),
       transaction: vi.fn(async (fn: (tx: EmailHubTx) => Promise<unknown>) =>
         fn(tx)
       ),

@@ -98,7 +98,7 @@ function useTheme() {
   return { resolvedTheme, setTheme }
 }
 
-function ThemeBoot() {
+function ThemeBoot({ nonce }: { nonce?: string | null }) {
   const insertedRef = React.useRef(false)
 
   useServerInsertedHTML(() => {
@@ -106,13 +106,23 @@ function ThemeBoot() {
       return null
     }
     insertedRef.current = true
-    return <script id="emailhub-theme">{themeBootScript}</script>
+    return (
+      <script id="emailhub-theme" nonce={nonce ?? undefined}>
+        {themeBootScript}
+      </script>
+    )
   })
 
   return null
 }
 
-function ThemeProvider({ children }: { children: React.ReactNode }) {
+function ThemeProvider({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode
+  nonce?: string | null
+}) {
   React.useEffect(() => {
     applyStoredTheme()
 
@@ -139,7 +149,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <ThemeBoot />
+      <ThemeBoot nonce={nonce} />
       <ThemeHotkey />
       {children}
     </>

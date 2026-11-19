@@ -1,6 +1,9 @@
 import { getDb } from "@workspace/db/client"
 import { closeClickHouseClient } from "@workspace/db/clickhouse"
-import { createMailTransport } from "@workspace/emails"
+import {
+  createMailTransport,
+  getSesEmailIdentityVerification,
+} from "@workspace/emails"
 import {
   WORKER_SERVICE,
   createLogger,
@@ -11,11 +14,15 @@ import {
   setFallbackLogger,
 } from "@workspace/logger"
 import {
+  AROHAA_TIER_SYNC_JOB_NAME,
   CSV_INGEST_JOB_NAME,
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
+  DNS_CHECK_JOB_NAME,
+  DNS_CHECK_WORKER_CONCURRENCY,
   EVENTS_QUEUE_NAME,
   INTAKE_QUEUE_NAME,
+  MONITORING_QUEUE_NAME,
   OPTIZMO_SYNC_JOB_NAME,
   OPTIZMO_SYNC_WORKER_CONCURRENCY,
   SCHEDULE_PROMOTER_JOB_NAME,
@@ -28,14 +35,17 @@ import {
   markMessageSent,
   isSesSendingBlocked,
   openSesAccountPausedAlert,
+  processDnsCheckJob,
   releaseQueuedClaim,
   SES_HEALTH_JOB_NAME,
   resolveUnsubscribeOrigin,
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
+  type ArohaaTierSyncJobData,
   type CsvIngestJobData,
   type DispatchSendJobData,
+  type DnsCheckJobData,
   type EventsJobData,
   type OptizmoSyncJobData,
   type SendEmailJobData,
@@ -43,14 +53,31 @@ import {
 import { Queue, Worker, type Job } from "bullmq"
 import { Redis } from "ioredis"
 
+import { handleArohaaTierSyncJob } from "./arohaa-tier-sync.js"
+import {
+  CLEANUP_EXPIRED_JOB_NAME,
+  processCleanupExpiredJob,
+} from "./cleanup-expired.js"
 import { processCsvIngestJob } from "./csv-ingest.js"
 import { processDispatchSendJob } from "./dispatch-send.js"
 import { processEventsJob } from "./events-writer.js"
 import { handleOptizmoSyncJob } from "./optizmo-sync.js"
 import { processProviderMetricsPull } from "./provider-metrics-pull.js"
+import {
+  attachProcessFailureHandlers,
+  attachWorkerFailureHandlers,
+} from "./job-failure.js"
+import {
+  QUEUE_WATCHDOG_JOB_NAME,
+  processQueueWatchdogJob,
+} from "./queue-watchdog.js"
 import { BULLMQ_PREFIX, QUEUE_NAMES, type QueueName } from "./queues.js"
 import { processSchedulePromoterJob } from "./schedule-promoter.js"
-import { registerJobSchedulers, type SchedulerQueueMap } from "./schedulers.js"
+import {
+  registerJobSchedulers,
+  schedulersForEnv,
+  type SchedulerQueueMap,
+} from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
 import {
   enforcePersistedSesSendingPause,
@@ -60,16 +87,8 @@ import {
 
 const DISPATCH_WORKER_CONCURRENCY = 2
 const INTAKE_WORKER_CONCURRENCY = 1
+const MAINTENANCE_WORKER_CONCURRENCY = 1
 const PROVIDER_METRICS_PULL_JOB = "provider-metrics-pull"
-
-type WorkerRuntime = {
-  env: ReturnType<typeof loadServerEnv>
-  db: ReturnType<typeof getDb>
-  redis: SesHealthRedis
-  sendEmailQueue: Queue
-}
-
-let workerRuntime: WorkerRuntime | undefined
 
 const logger = createLogger({ service: WORKER_SERVICE })
 setFallbackLogger(logger)
@@ -154,53 +173,18 @@ async function withJobLogs(
         "Job started"
       )
 
-      try {
-        await run()
-        scoped.info(
-          {
-            event: "job.completed",
-            queue: queueName,
-            duration_ms: Date.now() - started,
-          },
-          "Job completed"
-        )
-      } catch (error) {
-        scoped.error(
-          {
-            event: "job.failed",
-            queue: queueName,
-            duration_ms: Date.now() - started,
-            err: error,
-          },
-          "Job failed"
-        )
-        throw error
-      }
+      await run()
+      scoped.info(
+        {
+          event: "job.completed",
+          queue: queueName,
+          duration_ms: Date.now() - started,
+        },
+        "Job completed"
+      )
     },
     jobLogger
   )
-}
-
-async function processJob(queueName: QueueName, job: Job): Promise<void> {
-  await withJobLogs(queueName, job, async () => {
-    if (queueName === "monitoring" && job.name === PROVIDER_METRICS_PULL_JOB) {
-      const env = loadServerEnv("worker")
-      await processProviderMetricsPull({ db: getDb(), env })
-      return
-    }
-    if (queueName === "monitoring" && job.name === SES_HEALTH_JOB_NAME) {
-      const runtime = workerRuntime
-      if (!runtime) {
-        throw new Error("SES health runtime is not ready")
-      }
-      await processSesHealthJob({
-        env: runtime.env,
-        db: runtime.db,
-        redis: runtime.redis,
-        pauseSendEmail: () => runtime.sendEmailQueue.pause(),
-      })
-    }
-  })
 }
 
 async function main(): Promise<void> {
@@ -208,6 +192,9 @@ async function main(): Promise<void> {
   const sendOptions = sendEmailWorkerOptions(env)
   const db = getDb()
   const transport = createMailTransport(env)
+  const sesRegion = env.SES_REGION?.trim() || ""
+
+  attachProcessFailureHandlers()
 
   const connection = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null,
@@ -222,12 +209,6 @@ async function main(): Promise<void> {
   })
   const enqueueSendEmail = createEnqueueSendEmail(sendEmailQueue)
   const sesRedis = sesHealthRedis(connection)
-  workerRuntime = {
-    env,
-    db,
-    redis: sesRedis,
-    sendEmailQueue,
-  }
   if (env.MAIL_TRANSPORT === "ses") {
     const restored = await enforcePersistedSesSendingPause(sesRedis, () =>
       sendEmailQueue.pause()
@@ -244,6 +225,7 @@ async function main(): Promise<void> {
   const managedQueues: Queue[] = [sendEmailQueue]
   let dispatchQueue: Queue | undefined
   let syncQueue: Queue | undefined
+  let monitoringQueue: Queue | undefined
   for (const name of QUEUE_NAMES) {
     if (name === SEND_EMAIL_QUEUE_NAME) {
       continue
@@ -259,9 +241,12 @@ async function main(): Promise<void> {
     if (name === SYNC_QUEUE_NAME) {
       syncQueue = queue
     }
+    if (name === MONITORING_QUEUE_NAME) {
+      monitoringQueue = queue
+    }
     if (
       name === DISPATCH_QUEUE_NAME ||
-      name === "monitoring" ||
+      name === MONITORING_QUEUE_NAME ||
       name === INTAKE_QUEUE_NAME ||
       name === SYNC_QUEUE_NAME ||
       name === "maintenance"
@@ -276,8 +261,12 @@ async function main(): Promise<void> {
   if (!syncQueue) {
     throw new Error("Sync queue failed to initialize")
   }
+  if (!monitoringQueue) {
+    throw new Error("Monitoring queue failed to initialize")
+  }
   const activeDispatchQueue = dispatchQueue
   const activeSyncQueue = syncQueue
+  const activeMonitoringQueue = monitoringQueue
 
   const schedulerIds = await registerJobSchedulers(
     schedulerQueues,
@@ -292,19 +281,96 @@ async function main(): Promise<void> {
     "Job schedulers registered"
   )
 
-  const workers: Worker[] = QUEUE_NAMES.filter(
-    (name) =>
-      name !== SEND_EMAIL_QUEUE_NAME &&
-      name !== EVENTS_QUEUE_NAME &&
-      name !== DISPATCH_QUEUE_NAME &&
-      name !== INTAKE_QUEUE_NAME &&
-      name !== SYNC_QUEUE_NAME
-  ).map(
-    (name) =>
-      new Worker(name, (job) => processJob(name, job), {
+  const workers: Worker[] = []
+
+  workers.push(
+    new Worker(
+      "maintenance",
+      (job) =>
+        withJobLogs("maintenance", job, async () => {
+          if (job.name === QUEUE_WATCHDOG_JOB_NAME) {
+            await processQueueWatchdogJob({
+              db,
+              queues: managedQueues,
+              sendEmailQueue,
+              redis: connection,
+              schedulers: schedulersForEnv(env.EMAILHUB_ENV),
+            })
+            return
+          }
+          if (job.name === CLEANUP_EXPIRED_JOB_NAME) {
+            await processCleanupExpiredJob({ db })
+            return
+          }
+          logger.warn(
+            {
+              event: "maintenance.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown maintenance job"
+          )
+        }),
+      {
         connection,
         prefix: BULLMQ_PREFIX,
-      })
+        concurrency: MAINTENANCE_WORKER_CONCURRENCY,
+      }
+    )
+  )
+
+  workers.push(
+    new Worker(
+      MONITORING_QUEUE_NAME,
+      (job) =>
+        withJobLogs(MONITORING_QUEUE_NAME, job, async () => {
+          if (job.name === PROVIDER_METRICS_PULL_JOB) {
+            await processProviderMetricsPull({ db, env })
+            return
+          }
+          if (job.name === SES_HEALTH_JOB_NAME) {
+            await processSesHealthJob({
+              env,
+              db,
+              redis: sesRedis,
+              pauseSendEmail: () => sendEmailQueue.pause(),
+            })
+            return
+          }
+          if (job.name === DNS_CHECK_JOB_NAME) {
+            await processDnsCheckJob(job.data as DnsCheckJobData, {
+              db,
+              monitoringQueue: activeMonitoringQueue,
+              getSesIdentityVerified: sesRegion
+                ? async (domainName) => {
+                    const identity = await getSesEmailIdentityVerification({
+                      domainName,
+                      region: sesRegion,
+                    })
+                    if (!identity) {
+                      return null
+                    }
+                    return identity.verified
+                  }
+                : undefined,
+            })
+            return
+          }
+          logger.warn(
+            {
+              event: "monitoring.unknown_job",
+              job_name: job.name,
+              job_id: job.id,
+            },
+            "Ignoring unknown monitoring job"
+          )
+        }),
+      {
+        connection,
+        prefix: BULLMQ_PREFIX,
+        concurrency: DNS_CHECK_WORKER_CONCURRENCY,
+      }
+    )
   )
 
   workers.push(
@@ -317,6 +383,13 @@ async function main(): Promise<void> {
               db,
               env,
               syncQueue: activeSyncQueue,
+            })
+            return
+          }
+          if (job.name === AROHAA_TIER_SYNC_JOB_NAME) {
+            await handleArohaaTierSyncJob(job.data as ArohaaTierSyncJobData, {
+              db,
+              enqueueSendEmail,
             })
             return
           }
@@ -452,6 +525,10 @@ async function main(): Promise<void> {
     )
   )
 
+  for (const worker of workers) {
+    attachWorkerFailureHandlers(worker, { db })
+  }
+
   const limiterLabel = sendOptions.limiter
     ? `${String(sendOptions.limiter.max)}/s`
     : "off"
@@ -466,6 +543,8 @@ async function main(): Promise<void> {
       dispatch_concurrency: DISPATCH_WORKER_CONCURRENCY,
       intake_concurrency: INTAKE_WORKER_CONCURRENCY,
       sync_concurrency: OPTIZMO_SYNC_WORKER_CONCURRENCY,
+      monitoring_concurrency: DNS_CHECK_WORKER_CONCURRENCY,
+      maintenance_concurrency: MAINTENANCE_WORKER_CONCURRENCY,
     },
     "Worker ready"
   )

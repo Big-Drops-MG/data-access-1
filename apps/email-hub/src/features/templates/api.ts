@@ -71,6 +71,7 @@ export type CreateTemplateInput = {
   name: string
   category_id: string
   email_type: EmailType
+  offer_id?: string
 }
 
 export function createTemplate(

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { FormField } from "@/components/app/form-field"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { useMutationDisabledProps } from "@/components/app/online-status"
@@ -139,6 +140,7 @@ export function TemplateEditorPage({
   const router = useRouter()
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
+  const { selectedOfferId } = useOfferSelection()
 
   const detailQuery = useQuery({
     ...detailQueryOptions("templates", templateId ?? "", () =>
@@ -300,6 +302,7 @@ export function TemplateEditorPage({
         name: values.name,
         category_id: category.id,
         email_type: emailType,
+        ...(selectedOfferId ? { offer_id: selectedOfferId } : {}),
       })
       await createTemplateVersion(created.id, {
         subject: values.subject,

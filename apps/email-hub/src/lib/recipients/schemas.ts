@@ -9,6 +9,7 @@ export const recipientListQuerySchema = paginationSchema
     cursor: uuidSchema.optional(),
     email: emailSchema.optional(),
     status: recipientStatusFilterSchema.optional(),
+    unsubscribed: z.enum(["true", "false"]).optional(),
     opted_out_category_id: uuidSchema.optional(),
     offer_id: uuidSchema.optional(),
   })

@@ -149,4 +149,13 @@ describe("domainStatusAfterCheck", () => {
   it("never reactivates an inactive domain", () => {
     expect(domainStatusAfterCheck("inactive", ["pass"])).toBe("inactive")
   })
+
+  it("keeps verifying when DNS passes but SES is not verified", () => {
+    expect(domainStatusAfterCheck("pending", ["pass", "pass"], false)).toBe(
+      "verifying"
+    )
+    expect(domainStatusAfterCheck("verifying", ["pass"], false)).toBe(
+      "verifying"
+    )
+  })
 })

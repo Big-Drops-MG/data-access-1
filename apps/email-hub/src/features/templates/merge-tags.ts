@@ -1,4 +1,4 @@
-import { extractMergeTagNames } from "@workspace/shared"
+import { extractMergeTagNames } from "@workspace/shared/client"
 
 import type { EmailType } from "@/features/templates/api"
 

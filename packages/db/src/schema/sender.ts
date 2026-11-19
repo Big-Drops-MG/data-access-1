@@ -11,6 +11,7 @@ import {
 
 import { citext, uuidv7PrimaryKey } from "./columns.js"
 import { domain } from "./domain.js"
+import { offer } from "./offer.js"
 import { user } from "./user.js"
 
 export const senderStatus = pgEnum("sender_status", [
@@ -32,6 +33,9 @@ export const sender = pgTable(
     postalAddress: text("postal_address"),
     status: senderStatus("status").notNull().default("pending_verification"),
     version: integer("version").notNull().default(1),
+    offerId: uuid("offer_id").references(() => offer.id, {
+      onDelete: "set null",
+    }),
     createdBy: uuid("created_by").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -50,6 +54,7 @@ export const sender = pgTable(
     uniqueIndex("sender_from_email_unique").on(table.fromEmail),
     index("sender_domain_id_status_idx").on(table.domainId, table.status),
     index("sender_created_by_idx").on(table.createdBy),
+    index("sender_offer_id_idx").on(table.offerId),
   ]
 )
 

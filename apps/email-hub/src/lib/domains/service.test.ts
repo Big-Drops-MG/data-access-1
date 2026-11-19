@@ -52,6 +52,7 @@ describe("createDomain", () => {
       name: "example.com",
       sesIdentityArn: "arn:aws:ses:us-east-1:1:identity/example.com",
       status: "pending" as const,
+      offerId: null,
       createdBy: "019a0000-0000-7000-8000-000000000001",
       createdAt: new Date("2026-10-30T00:00:00.000Z"),
       updatedAt: new Date("2026-10-30T00:00:00.000Z"),
@@ -184,6 +185,7 @@ describe("createDomain", () => {
       name: "example.com",
       sesIdentityArn: "arn:aws:ses:us-east-1:1:identity/example.com",
       status: "pending" as const,
+      offerId: null,
       createdBy: "019a0000-0000-7000-8000-000000000001",
       createdAt: new Date("2026-10-30T00:00:00.000Z"),
       updatedAt: new Date("2026-10-30T00:00:00.000Z"),
@@ -323,6 +325,130 @@ describe("createDomain", () => {
       })
     )
   })
+
+  it("assigns the selected offer on create", async () => {
+    const offerId = "019a0000-0000-7000-8000-000000000099"
+    const domainRow = {
+      id: "019a0000-0000-7000-8000-0000000000aa",
+      name: "example.com",
+      sesIdentityArn: "arn:aws:ses:us-east-1:1:identity/example.com",
+      status: "pending" as const,
+      offerId,
+      createdBy: "019a0000-0000-7000-8000-000000000001",
+      createdAt: new Date("2026-10-30T00:00:00.000Z"),
+      updatedAt: new Date("2026-10-30T00:00:00.000Z"),
+      verifiedAt: null,
+    }
+    const dnsRows = [
+      {
+        id: "019a0000-0000-7000-8000-0000000000b1",
+        domainId: domainRow.id,
+        purpose: "spf" as const,
+        name: "example.com",
+        recordType: "TXT",
+        expectedValue: "v=spf1 include:amazonses.com ~all",
+        lastSeenValue: null,
+        status: "pending" as const,
+        lastCheckedAt: null,
+        createdAt: domainRow.createdAt,
+        updatedAt: domainRow.updatedAt,
+      },
+    ]
+    const stepRows = [
+      {
+        id: "019a0000-0000-7000-8000-0000000000c1",
+        domainId: domainRow.id,
+        step: "ses_identity" as const,
+        status: "done" as const,
+        error: null,
+        startedAt: domainRow.createdAt,
+        completedAt: domainRow.createdAt,
+        updatedAt: domainRow.updatedAt,
+      },
+      {
+        id: "019a0000-0000-7000-8000-0000000000c2",
+        domainId: domainRow.id,
+        step: "dns_records" as const,
+        status: "done" as const,
+        error: null,
+        startedAt: domainRow.createdAt,
+        completedAt: domainRow.createdAt,
+        updatedAt: domainRow.updatedAt,
+      },
+      {
+        id: "019a0000-0000-7000-8000-0000000000c3",
+        domainId: domainRow.id,
+        step: "verification" as const,
+        status: "pending" as const,
+        error: null,
+        startedAt: null,
+        completedAt: null,
+        updatedAt: domainRow.updatedAt,
+      },
+    ]
+
+    let insertCall = 0
+    let insertedDomainValues: Record<string, unknown> | undefined
+    const tx = {
+      insert: vi.fn(() => ({
+        values: (values: Record<string, unknown> | unknown[]) => {
+          if (insertCall === 0 && !Array.isArray(values)) {
+            insertedDomainValues = values
+          }
+          return {
+            returning: async () => {
+              insertCall += 1
+              if (insertCall === 1) return [domainRow]
+              if (insertCall === 2) return dnsRows
+              return stepRows
+            },
+          }
+        },
+      })),
+    }
+
+    const result = await createDomain(
+      { name: "example.com", offerId },
+      { userId: domainRow.createdBy },
+      {
+        db: {
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                limit: async () => [{ id: offerId }],
+              }),
+            }),
+          }),
+          transaction: async (fn: (inner: typeof tx) => Promise<unknown>) =>
+            fn(tx),
+        } as never,
+        sesRegion: "us-east-1",
+        cloudflare: { apiToken: "" },
+        upsertCloudflareDns: vi.fn(),
+        provision: async () => ({
+          emailIdentity: "example.com",
+          identityArn: domainRow.sesIdentityArn,
+          mailFromDomain: null,
+          dkimTokens: ["t1"],
+          dnsRecords: [
+            {
+              purpose: "spf" as const,
+              name: "example.com",
+              recordType: "TXT",
+              expectedValue: "v=spf1 include:amazonses.com ~all",
+            },
+          ],
+        }),
+      }
+    )
+
+    expect(insertedDomainValues).toMatchObject({
+      name: "example.com",
+      offerId,
+      createdBy: domainRow.createdBy,
+    })
+    expect(result.offer_id).toBe(offerId)
+  })
 })
 
 describe("deleteDomain", () => {
@@ -331,6 +457,7 @@ describe("deleteDomain", () => {
     name: "example.com",
     sesIdentityArn: "arn:aws:ses:us-east-1:1:identity/example.com",
     status: "pending" as const,
+    offerId: null,
     createdBy: "019a0000-0000-7000-8000-000000000001",
     createdAt: new Date("2026-10-30T00:00:00.000Z"),
     updatedAt: new Date("2026-10-30T00:00:00.000Z"),

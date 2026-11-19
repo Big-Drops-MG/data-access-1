@@ -5,6 +5,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { useOfferSelection } from "@/components/app/offer-provider"
 import { FormField } from "@/components/app/form-field"
 import { useMutationDisabledProps } from "@/components/app/online-status"
 import { createDomain, type CreateDomainInput } from "@/features/domains/api"
@@ -55,6 +56,7 @@ export function CreateDomainForm({
 }: CreateDomainFormProps) {
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
+  const { selectedOfferId } = useOfferSelection()
   const defaults: CreateDomainFormValues = {
     name: "",
     mail_from_subdomain: "",
@@ -104,6 +106,7 @@ export function CreateDomainForm({
             ...(values.mail_from_subdomain
               ? { mail_from_subdomain: values.mail_from_subdomain }
               : {}),
+            ...(selectedOfferId ? { offer_id: selectedOfferId } : {}),
           },
           {
             onError: (error) => {

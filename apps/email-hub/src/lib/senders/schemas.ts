@@ -1,6 +1,10 @@
 import { z } from "zod"
 
-import { emailSchema, paginationSchema, uuidSchema } from "@workspace/shared"
+import {
+  emailSchema,
+  paginationSchema,
+  uuidSchema,
+} from "@workspace/shared/client"
 
 /**
  * Email local-part: lowercase, 1–64 chars, alnum with interior `. _ + -`.
@@ -42,6 +46,7 @@ export const createSenderBodySchema = z
     from_name: z.string().trim().min(1).max(200),
     local_part: localPartSchema,
     reply_to: emailSchema.nullable().optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

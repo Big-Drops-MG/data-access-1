@@ -24,6 +24,7 @@ export {
   SesIdentityError,
   buildDnsRecordsFromSes,
   deleteSesDomainIdentity,
+  getSesEmailIdentityVerification,
   mailFromDomainFor,
   provisionSesDomainIdentity,
 } from "./ses-identity.js"
@@ -33,5 +34,6 @@ export type {
   DnsRecordDraft,
   ProvisionSesIdentityInput,
   ProvisionedSesIdentity,
+  SesEmailIdentityVerification,
   SesIdentityClient,
 } from "./ses-identity.js"
