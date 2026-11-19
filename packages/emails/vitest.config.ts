@@ -7,9 +7,6 @@ export default mergeConfig(
   defineProject({
     test: {
       name: "emails",
-      // Render-worker startup counts toward the 5s deadline; keep this project serial.
-      maxWorkers: 1,
-      fileParallelism: false,
       setupFiles: ["./src/warm-render-worker.ts"],
     },
   })

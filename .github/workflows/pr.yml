@@ -24,78 +24,10 @@ env:
   SMTP_PORT: "1025"
 
 jobs:
-  quality:
-    name: Lint, format, typecheck, build
+  check:
+    name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.25.0
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Cache Turbo
-        uses: actions/cache@v6
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-            turbo-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: |
-          set -euo pipefail
-          attempt=1
-          max_attempts=3
-          while [ "$attempt" -le "$max_attempts" ]; do
-            if pnpm install --frozen-lockfile; then
-              exit 0
-            fi
-            if [ "$attempt" -eq "$max_attempts" ]; then
-              echo "pnpm install failed after ${max_attempts} attempts"
-              exit 1
-            fi
-            sleep_seconds=$((attempt * 20))
-            echo "pnpm install failed (attempt ${attempt}/${max_attempts}); retrying in ${sleep_seconds}s"
-            rm -rf node_modules
-            sleep "$sleep_seconds"
-            attempt=$((attempt + 1))
-          done
-
-      - name: Lint, Prettier, Typecheck
-        run: |
-          set -euo pipefail
-          pnpm lint &
-          pid_lint=$!
-          pnpm format:check &
-          pid_fmt=$!
-          pnpm typecheck &
-          pid_tc=$!
-          status=0
-          wait "$pid_lint" || status=1
-          wait "$pid_fmt" || status=1
-          wait "$pid_tc" || status=1
-          exit "$status"
-
-      - name: Build
-        run: pnpm build
-
-  test:
-    name: Test, coverage, integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -186,10 +118,17 @@ jobs:
             attempt=$((attempt + 1))
           done
 
-      # Coverage runs the full unit suite once and enforces thresholds (SD#16.5).
-      # Do not also run `pnpm test` — that duplicated ~3 minutes of the same work.
-      - name: Vitest coverage
-        run: pnpm test:coverage
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Vitest
+        run: pnpm test
 
       - name: Database role, seed, and factories
         run: pnpm exec vitest run --config vitest.int.config.ts packages/db/src/app-role.int.test.ts packages/db/src/dev-seed.int.test.ts packages/db/test/factories.int.test.ts packages/db/test/test-database.int.test.ts
@@ -197,17 +136,8 @@ jobs:
       - name: Per-worker test databases
         run: pnpm test:int:workers
 
-  # Keeps a stable required-check name for branch protection.
-  check:
-    name: Lint, typecheck, test, build
-    needs:
-      - quality
-      - test
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Require quality and test jobs
-        run: |
-          set -euo pipefail
-          test "${{ needs.quality.result }}" = "success"
-          test "${{ needs.test.result }}" = "success"
+      - name: Vitest coverage
+        run: pnpm test:coverage
+
+      - name: Build
+        run: pnpm build
