@@ -1,4 +1,5 @@
 # PR checks (SD#13.6 Check stage, SD#16.2 CI services).
+# Scoped to packages/files changed vs the PR base when possible.
 name: PR
 
 on:
@@ -76,6 +77,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Need the PR base commit for turbo/vitest change filters.
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -93,7 +97,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .turbo
-          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('turbo.json') }}
           restore-keys: |
             turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
             turbo-${{ runner.os }}-
@@ -118,26 +122,59 @@ jobs:
             attempt=$((attempt + 1))
           done
 
-      - name: ESLint
-        run: pnpm lint
+      - name: Resolve change scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/pr-change-scope.sh
+          .github/scripts/pr-change-scope.sh "${{ github.event.pull_request.base.sha }}"
 
-      - name: Prettier check
-        run: pnpm format:check
+      - name: ESLint, typecheck, build (affected)
+        if: steps.scope.outputs.run_turbo == 'true'
+        run: |
+          set -euo pipefail
+          FILTER="${{ steps.scope.outputs.turbo_filter }}"
+          echo "turbo filter: ${FILTER}"
+          pnpm exec turbo run lint typecheck build --filter="${FILTER}"
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Prettier check (changed files)
+        if: steps.scope.outputs.run_prettier == 'true'
+        run: |
+          set -euo pipefail
+          list_file="${{ steps.scope.outputs.prettier_list_file }}"
+          mapfile -t files < <(sed '/^$/d' "$list_file")
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No prettier-eligible files changed"
+            exit 0
+          fi
+          echo "Checking ${#files[@]} file(s)"
+          pnpm exec prettier --check -- "${files[@]}"
 
-      - name: Vitest
-        run: pnpm test
+      - name: Vitest (changed)
+        if: steps.scope.outputs.run_unit == 'true'
+        run: |
+          set -euo pipefail
+          pnpm exec vitest run --changed "${{ steps.scope.outputs.base_sha }}" --passWithNoTests
+
+      - name: Vitest coverage
+        if: steps.scope.outputs.run_coverage == 'true'
+        run: pnpm test:coverage
 
       - name: Database role, seed, and factories
+        if: steps.scope.outputs.run_db_int == 'true'
         run: pnpm exec vitest run --config vitest.int.config.ts packages/db/src/app-role.int.test.ts packages/db/src/dev-seed.int.test.ts packages/db/test/factories.int.test.ts packages/db/test/test-database.int.test.ts
 
       - name: Per-worker test databases
+        if: steps.scope.outputs.run_workers_int == 'true'
         run: pnpm test:int:workers
 
-      - name: Vitest coverage
-        run: pnpm test:coverage
-
-      - name: Build
-        run: pnpm build
+      - name: Nothing to check
+        if: |
+          steps.scope.outputs.run_turbo != 'true' &&
+          steps.scope.outputs.run_prettier != 'true' &&
+          steps.scope.outputs.run_unit != 'true' &&
+          steps.scope.outputs.run_coverage != 'true' &&
+          steps.scope.outputs.run_db_int != 'true' &&
+          steps.scope.outputs.run_workers_int != 'true'
+        run: echo "No lint/test/build scope for this change set"
