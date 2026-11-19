@@ -135,8 +135,13 @@ jobs:
         run: |
           set -euo pipefail
           FILTER="${{ steps.scope.outputs.turbo_filter }}"
-          echo "turbo filter: ${FILTER}"
-          pnpm exec turbo run lint typecheck build --filter="${FILTER}"
+          if [ -z "$FILTER" ]; then
+            echo "turbo filter: <all packages>"
+            pnpm exec turbo run lint typecheck build
+          else
+            echo "turbo filter: ${FILTER}"
+            pnpm exec turbo run lint typecheck build --filter="${FILTER}"
+          fi
 
       - name: Prettier check (changed files)
         if: steps.scope.outputs.run_prettier == 'true'
@@ -150,6 +155,19 @@ jobs:
           fi
           echo "Checking ${#files[@]} file(s)"
           pnpm exec prettier --check -- "${files[@]}"
+
+      # Package exports resolve to dist/. Always build before Vitest so scoped
+      # runs cannot skip workspace package outputs.
+      - name: Build workspace packages for Vitest
+        if: steps.scope.outputs.run_unit == 'true' || steps.scope.outputs.run_coverage == 'true'
+        run: |
+          set -euo pipefail
+          FILTER="${{ steps.scope.outputs.turbo_filter }}"
+          if [ -z "$FILTER" ]; then
+            pnpm exec turbo run build
+          else
+            pnpm exec turbo run build --filter="${FILTER}"
+          fi
 
       - name: Vitest (changed)
         if: steps.scope.outputs.run_unit == 'true'

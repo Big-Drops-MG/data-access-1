@@ -112,7 +112,15 @@ else
   fi
 fi
 
-TURBO_FILTER="...[${BASE_SHA}]"
+# Empty filter means "whole workspace". A change-only filter can match zero
+# packages (e.g. workflow-only PRs), which would skip builds that Vitest needs
+# because package exports point at dist/.
+if [[ "$full" == true ]]; then
+  TURBO_FILTER=""
+else
+  TURBO_FILTER="...[${BASE_SHA}]"
+fi
+
 PRETTIER_LIST_FILE="${RUNNER_TEMP:-/tmp}/pr-prettier-files.txt"
 : >"$PRETTIER_LIST_FILE"
 if ((${#prettier_files[@]} > 0)); then
@@ -120,7 +128,7 @@ if ((${#prettier_files[@]} > 0)); then
 fi
 
 echo "Scope: full=${full} turbo=${run_turbo} prettier=${run_prettier} unit=${run_unit} coverage=${run_coverage} db_int=${run_db_int} workers_int=${run_workers_int}"
-echo "turbo filter: ${TURBO_FILTER}"
+echo "turbo filter: ${TURBO_FILTER:-<all packages>}"
 echo "prettier list: ${PRETTIER_LIST_FILE} ($(wc -l <"$PRETTIER_LIST_FILE" | tr -d ' ') files)"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
