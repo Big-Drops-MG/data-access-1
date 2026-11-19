@@ -109,4 +109,47 @@ describe("assertBullBoardMutationAllowed", () => {
     )
     expect(result).toEqual({ ok: true })
   })
+
+  it("blocks send-email resume while SES safety restrictions are active", async () => {
+    await expect(
+      assertBullBoardMutationAllowed(
+        { kind: "resume", queueName: "send-email" },
+        new Map(),
+        { sesSendingBlocked: async () => true }
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 409,
+      message:
+        "send-email stays paused while SES safety restrictions are active",
+    })
+  })
+
+  it("blocks an unscoped resume while SES safety restrictions are active", async () => {
+    await expect(
+      assertBullBoardMutationAllowed({ kind: "resume" }, new Map(), {
+        sesSendingBlocked: async () => Promise.reject(new Error("redis")),
+      })
+    ).resolves.toMatchObject({ ok: false, status: 409 })
+  })
+
+  it("allows send-email resume after SES safety restrictions clear", async () => {
+    await expect(
+      assertBullBoardMutationAllowed(
+        { kind: "resume", queueName: "send-email" },
+        new Map(),
+        { sesSendingBlocked: async () => false }
+      )
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it("allows another queue to resume while send-email safety is active", async () => {
+    await expect(
+      assertBullBoardMutationAllowed(
+        { kind: "resume", queueName: "dispatch" },
+        new Map(),
+        { sesSendingBlocked: async () => true }
+      )
+    ).resolves.toEqual({ ok: true })
+  })
 })

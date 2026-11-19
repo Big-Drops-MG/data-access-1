@@ -33,9 +33,11 @@ import {
   loadServerEnv,
   markMessageFailed,
   markMessageSent,
+  isSesSendingBlocked,
   openSesAccountPausedAlert,
   processDnsCheckJob,
   releaseQueuedClaim,
+  SES_HEALTH_JOB_NAME,
   resolveUnsubscribeOrigin,
   runSendEmailExclusive,
   SEND_EMAIL_QUEUE_NAME,
@@ -77,6 +79,11 @@ import {
   type SchedulerQueueMap,
 } from "./schedulers.js"
 import { processSendEmailJob, sendEmailWorkerOptions } from "./send-email.js"
+import {
+  enforcePersistedSesSendingPause,
+  processSesHealthJob,
+  type SesHealthRedis,
+} from "./ses-health.js"
 
 const DISPATCH_WORKER_CONCURRENCY = 2
 const INTAKE_WORKER_CONCURRENCY = 1
@@ -85,6 +92,23 @@ const PROVIDER_METRICS_PULL_JOB = "provider-metrics-pull"
 
 const logger = createLogger({ service: WORKER_SERVICE })
 setFallbackLogger(logger)
+
+function sesHealthRedis(redis: Redis): SesHealthRedis {
+  return {
+    get: (key) => redis.get(key),
+    set: (key, value, expiryMode, ttlMs, mode) => {
+      if (
+        expiryMode !== undefined &&
+        ttlMs !== undefined &&
+        mode !== undefined
+      ) {
+        return redis.set(key, value, expiryMode, ttlMs, mode)
+      }
+      return redis.set(key, value)
+    },
+    eval: (script, numKeys, ...args) => redis.eval(script, numKeys, ...args),
+  }
+}
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -184,6 +208,18 @@ async function main(): Promise<void> {
     prefix: BULLMQ_PREFIX,
   })
   const enqueueSendEmail = createEnqueueSendEmail(sendEmailQueue)
+  const sesRedis = sesHealthRedis(connection)
+  if (env.MAIL_TRANSPORT === "ses") {
+    const restored = await enforcePersistedSesSendingPause(sesRedis, () =>
+      sendEmailQueue.pause()
+    )
+    if (restored) {
+      logger.warn(
+        { event: "ses_health.sending_paused", source: "startup" },
+        "SES safety pause restored"
+      )
+    }
+  }
 
   const schedulerQueues: SchedulerQueueMap = {}
   const managedQueues: Queue[] = [sendEmailQueue]
@@ -290,6 +326,15 @@ async function main(): Promise<void> {
         withJobLogs(MONITORING_QUEUE_NAME, job, async () => {
           if (job.name === PROVIDER_METRICS_PULL_JOB) {
             await processProviderMetricsPull({ db, env })
+            return
+          }
+          if (job.name === SES_HEALTH_JOB_NAME) {
+            await processSesHealthJob({
+              env,
+              db,
+              redis: sesRedis,
+              pauseSendEmail: () => sendEmailQueue.pause(),
+            })
             return
           }
           if (job.name === DNS_CHECK_JOB_NAME) {
@@ -465,6 +510,9 @@ async function main(): Promise<void> {
               },
               pauseQueue: () => sendEmailQueue.pause(),
               openAccountPausedAlert: () => openSesAccountPausedAlert(tx),
+              ...(env.MAIL_TRANSPORT === "ses"
+                ? { sendingBlocked: () => isSesSendingBlocked(sesRedis) }
+                : {}),
             })
           })
         }),
