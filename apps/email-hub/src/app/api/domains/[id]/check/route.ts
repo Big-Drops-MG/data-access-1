@@ -1,5 +1,5 @@
 import { domainRefSchema } from "@/lib/domains/schemas"
-import { checkDomainDns } from "@/lib/domains/service"
+import { enqueueDomainDnsCheck } from "@/lib/domains/service"
 import { requireDomainsStaffAccess } from "@/lib/domains/staff-access"
 import { handler } from "@/lib/handler"
 import { parseOrThrow } from "@/lib/zod-parse"
@@ -8,7 +8,6 @@ type RouteContext = {
   params: Promise<{ id: string }>
 }
 
-/** POST /api/domains/{id|fqdn}/check — re-resolve DNS and refresh status (Admin). */
 async function handlePost(
   request: Request,
   context: RouteContext
@@ -17,12 +16,12 @@ async function handlePost(
   const { id: rawRef } = await context.params
   const ref = parseOrThrow(domainRefSchema, decodeURIComponent(rawRef))
 
-  const detail = await checkDomainDns(ref, {
+  const queued = await enqueueDomainDnsCheck(ref, {
     userId: session.id,
     requestId: request.headers.get("x-request-id"),
   })
 
-  return Response.json(detail)
+  return Response.json(queued, { status: 202 })
 }
 
 export const POST = handler(handlePost)

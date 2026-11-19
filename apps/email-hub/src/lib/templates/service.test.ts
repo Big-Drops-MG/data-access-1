@@ -59,6 +59,7 @@ function templateRow(
     categoryId: overrides.categoryId ?? categoryId,
     currentVersionId: overrides.currentVersionId ?? null,
     status: overrides.status ?? ("draft" as const),
+    offerId: null,
     createdBy: userId,
     createdAt: at,
     updatedAt: at,

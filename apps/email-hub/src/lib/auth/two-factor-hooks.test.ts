@@ -16,6 +16,10 @@ const lockout = vi.hoisted(() => ({
   recordTwoFactorVerificationSuccess: vi.fn(),
 }))
 
+const rateLimit = vi.hoisted(() => ({
+  consumeTwoFactorRateLimitFromEnv: vi.fn(),
+}))
+
 const events = vi.hoisted(() => ({
   logAuthEvent: vi.fn(),
 }))
@@ -31,13 +35,17 @@ const baTrust = vi.hoisted(() => ({
 vi.mock("./trusted-device", () => trusted)
 vi.mock("./two-factor-enrollment", () => enrollment)
 vi.mock("./two-factor-lockout", () => lockout)
+vi.mock("./two-factor-rate-limit", () => rateLimit)
 vi.mock("./auth-events", () => events)
 vi.mock("./two-factor-trust-device", () => baTrust)
 
 import { deleteSessionCookie } from "better-auth/cookies"
 
 import { TRUSTED_DEVICE_COOKIE } from "./two-factor-cookies"
-import { runTwoFactorAfterHook } from "./two-factor-hooks"
+import {
+  runTwoFactorAfterHook,
+  runTwoFactorBeforeHook,
+} from "./two-factor-hooks"
 
 const userId = "01900000-0000-7000-8000-000000000001"
 
@@ -105,6 +113,26 @@ describe("trusted device in the 2FA hook", () => {
     enrollment.userHasTwoFactorEnrolled.mockResolvedValue(true)
     lockout.assertTwoFactorVerifyAllowed.mockResolvedValue(undefined)
     lockout.recordTwoFactorVerificationSuccess.mockResolvedValue(undefined)
+    rateLimit.consumeTwoFactorRateLimitFromEnv.mockResolvedValue("ok")
+  })
+
+  it("rate-limits two-factor verify before lockout", async () => {
+    rateLimit.consumeTwoFactorRateLimitFromEnv.mockResolvedValue("limited")
+    const ctx = makeCtx({ path: "/two-factor/verify-totp" })
+    await expect(runTwoFactorBeforeHook(ctx)).rejects.toMatchObject({
+      statusCode: 429,
+      body: { code: "RATE_LIMITED" },
+    })
+    expect(lockout.assertTwoFactorVerifyAllowed).not.toHaveBeenCalled()
+  })
+
+  it("fails closed when the two-factor rate limiter is unavailable", async () => {
+    rateLimit.consumeTwoFactorRateLimitFromEnv.mockResolvedValue("unavailable")
+    const ctx = makeCtx({ path: "/two-factor/verify-totp" })
+    await expect(runTwoFactorBeforeHook(ctx)).rejects.toMatchObject({
+      statusCode: 503,
+      body: { code: "RATE_LIMIT_UNAVAILABLE" },
+    })
   })
 
   it("keeps the session when the trust cookie matches", async () => {

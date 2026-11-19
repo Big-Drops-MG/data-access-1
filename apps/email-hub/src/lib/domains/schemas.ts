@@ -54,6 +54,7 @@ export const createDomainBodySchema = z
   .object({
     name: fqdnSchema,
     mail_from_subdomain: mailFromSubdomainSchema.optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

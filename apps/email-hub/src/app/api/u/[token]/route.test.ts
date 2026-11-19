@@ -114,4 +114,13 @@ describe("POST /api/u/[token]", () => {
     expect(response.headers.get("retry-after")).toBe("60")
     expect(applyUnsubscribe).not.toHaveBeenCalled()
   })
+
+  it("returns 503 when the rate limiter is unavailable", async () => {
+    consumeUnsubscribeRateLimitFromEnv.mockResolvedValue("unavailable")
+    const response = await POST(post(""), {
+      params: Promise.resolve({ token: TOKEN }),
+    })
+    expect(response.status).toBe(503)
+    expect(applyUnsubscribe).not.toHaveBeenCalled()
+  })
 })

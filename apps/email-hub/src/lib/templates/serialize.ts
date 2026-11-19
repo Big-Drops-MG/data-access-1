@@ -14,6 +14,7 @@ export type TemplateJson = {
   current_version_id: string | null
   current_version_no: number | null
   status: Template["status"]
+  offer_id: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -50,6 +51,7 @@ export function serializeTemplate(
     current_version_id: row.currentVersionId,
     current_version_no: extras.current_version_no,
     status: row.status,
+    offer_id: row.offerId ?? null,
     created_by: row.createdBy,
     created_at: isoUtc(row.createdAt),
     updated_at: isoUtc(row.updatedAt),

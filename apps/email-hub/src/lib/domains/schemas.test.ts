@@ -52,6 +52,25 @@ describe("domain schemas", () => {
     ).toBe(false)
   })
 
+  it("accepts optional offer_id on create and list", () => {
+    const offerId = "019a0000-0000-7000-8000-000000000099"
+    expect(
+      createDomainBodySchema.parse({
+        name: "mail.example.com",
+        offer_id: offerId,
+      }).offer_id
+    ).toBe(offerId)
+    expect(domainListQuerySchema.parse({ offer_id: offerId }).offer_id).toBe(
+      offerId
+    )
+    expect(
+      createDomainBodySchema.safeParse({
+        name: "mail.example.com",
+        offer_id: "not-a-uuid",
+      }).success
+    ).toBe(false)
+  })
+
   it("requires status for patch", () => {
     expect(
       updateDomainBodySchema.safeParse({ status: "inactive" }).success

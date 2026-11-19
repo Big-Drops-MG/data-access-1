@@ -12,13 +12,7 @@ export const MACHINE_OLD_SECRET_TTL_MS = 24 * 60 * 60 * 1000
 
 export const MACHINE_RATE_LIMIT_PER_MINUTE = 600
 
-export const MACHINE_SCOPES = [
-  "emails:send",
-  "emails:read",
-  "arohaa:webhook",
-] as const
-
-export type MachineScope = (typeof MACHINE_SCOPES)[number]
+export { MACHINE_SCOPES, type MachineScope } from "@/lib/auth/machine-scopes"
 
 export type MachineClientAuthRecord = {
   id: string

@@ -86,6 +86,42 @@ export {
   type DispatchSendJobData,
 } from "./dispatch-queue.js"
 export {
+  DNS_PROPAGATION_WINDOW_MS,
+  dnsValueMatches,
+  domainStatusAfterCheck,
+  evaluateDnsRecord,
+  type DnsEvaluation,
+  type DnsLookup,
+  type DnsLookupResult,
+} from "./check-dns.js"
+export { PUBLIC_DNS_SERVERS, createDnsLookup } from "./dns-resolver.js"
+export {
+  DNS_CHECK_INTERVAL_MS,
+  DNS_CHECK_JOB_NAME,
+  DNS_CHECK_JOB_OPTIONS,
+  DNS_CHECK_WORKER_CONCURRENCY,
+  MONITORING_QUEUE_NAME,
+  createEnqueueDnsCheck,
+  dnsCheckBucket,
+  dnsCheckJobId,
+  enqueueDnsCheckJob,
+  type DnsCheckJobData,
+  type DnsCheckTrigger,
+} from "./dns-check-queue.js"
+export {
+  DNS_CHECK_FAILED_ALERT_TYPE,
+  DOMAIN_PENDING_72H_ALERT_TYPE,
+  dnsCheckFailedAlertDedupeKey,
+  domainPending72hAlertDedupeKey,
+  processDnsCheckJob,
+  runDomainDnsCheck,
+  type ProcessDnsCheckJobDeps,
+  type ProcessDnsCheckJobResult,
+  type RunDomainDnsCheckDeps,
+  type RunDomainDnsCheckResult,
+  type SesIdentityVerifiedLookup,
+} from "./dns-check.js"
+export {
   DISPATCH_RECIPIENT_PAGE_SIZE,
   loadDispatchRecipientPage,
   type DispatchRecipientPage,
@@ -156,6 +192,22 @@ export {
   type OptizmoSyncJobData,
   type OptizmoSyncTrigger,
 } from "./optizmo-queue.js"
+export {
+  AROHAA_TIER_SYNC_JOB_NAME,
+  AROHAA_TIER_SYNC_JOB_OPTIONS,
+  RECIPIENT_TIERS,
+  arohaaTierSyncJobId,
+  createEnqueueArohaaTierSync,
+  enqueueArohaaTierSyncJob,
+  type ArohaaTierSyncJobData,
+  type RecipientTierValue,
+} from "./arohaa-queue.js"
+export {
+  AROHAA_WEBHOOK_INTEGRATION_NAME,
+  processArohaaTierSyncJob,
+  type ArohaaTierSyncResult,
+  type ProcessArohaaTierSyncDeps,
+} from "./arohaa-tier-sync.js"
 export {
   OPTIZMO_DEFAULT_BASE_URL,
   OPTIZMO_GETFILE_TIMEOUT_MS,

@@ -21,7 +21,7 @@ export const CSV_INGEST_JOB_OPTIONS = {
 } satisfies JobsOptions
 
 export function csvIngestJobId(uploadId: string): string {
-  return `csv:${uploadId}`
+  return `csv-${uploadId}`
 }
 
 type IntakeQueue = Pick<Queue<CsvIngestJobData>, "add" | "getJob">

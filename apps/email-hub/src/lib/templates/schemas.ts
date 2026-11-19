@@ -26,6 +26,7 @@ export const createTemplateBodySchema = z
     name: z.string().trim().min(1).max(200),
     category_id: uuidSchema,
     email_type: emailTypeSchema,
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

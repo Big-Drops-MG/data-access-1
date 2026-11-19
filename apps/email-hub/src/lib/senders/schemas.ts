@@ -42,6 +42,7 @@ export const createSenderBodySchema = z
     from_name: z.string().trim().min(1).max(200),
     local_part: localPartSchema,
     reply_to: emailSchema.nullable().optional(),
+    offer_id: uuidSchema.optional(),
   })
   .strict()
 

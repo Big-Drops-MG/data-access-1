@@ -82,6 +82,7 @@ export type CreateDomainResponse = DomainDetailResponse
 export type CreateDomainInput = {
   name: string
   mail_from_subdomain?: string
+  offer_id?: string
 }
 
 export function createDomain(
@@ -94,8 +95,15 @@ export function createDomain(
   })
 }
 
-export function checkDomainDns(ref: string): Promise<DomainDetailResponse> {
-  return apiJson<DomainDetailResponse>(`${domainApiPath(ref)}/check`, {
+export type CheckDomainDnsQueuedResponse = {
+  status: "queued"
+  domain_id: string
+}
+
+export function checkDomainDns(
+  ref: string
+): Promise<CheckDomainDnsQueuedResponse> {
+  return apiJson<CheckDomainDnsQueuedResponse>(`${domainApiPath(ref)}/check`, {
     method: "POST",
   })
 }

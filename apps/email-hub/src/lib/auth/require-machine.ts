@@ -11,6 +11,7 @@ import {
   touchMachineClientLastUsed,
 } from "@/lib/auth/machine-client-lookup"
 import { consumeMachineRateLimitFromEnv } from "@/lib/auth/machine-rate-limit"
+import { assertStaffRequestOrigin } from "@/lib/security/origin-check"
 
 const MACHINE_HEADER_NAMES = ["x-key-id", "x-signature", "x-timestamp"] as const
 
@@ -19,10 +20,6 @@ export function isMachineAuthAttempt(request: Request): boolean {
   return MACHINE_HEADER_NAMES.some((name) => request.headers.has(name))
 }
 
-/**
- * Staff APIs reject machine keys (SD#14.3).
- * Call at the start of every session-protected staff route.
- */
 export function assertStaffApiCaller(request: Request): void {
   if (isMachineAuthAttempt(request)) {
     throw AppError.unauthorized([
@@ -32,12 +29,9 @@ export function assertStaffApiCaller(request: Request): void {
       },
     ])
   }
+  assertStaffRequestOrigin(request)
 }
 
-/**
- * `/api/ext/**` rejects pure session callers (SD#14.3).
- * Prefer {@link requireMachineAuth} for HMAC-protected routes.
- */
 export async function requireMachineCaller(request: Request): Promise<void> {
   if (!isMachineAuthAttempt(request)) {
     const session = await getSession()
@@ -60,16 +54,10 @@ export async function requireMachineCaller(request: Request): Promise<void> {
 
 export type RequireMachineAuthOptions = {
   scope: string
-  /** Injected for unit tests (Done When). */
   deps?: Partial<AuthenticateMachineDeps>
-  /** Skip last_used_at update (tests). */
   skipTouch?: boolean
 }
 
-/**
- * Full HMAC machine auth for `/api/ext/**` (SD#10.2 / SD#14.4).
- * Do not use on `/api/ext/webhooks/ses` (SNS signature instead).
- */
 export async function requireMachineAuth(
   request: Request,
   options: RequireMachineAuthOptions
@@ -90,7 +78,7 @@ export async function requireMachineAuth(
     try {
       await touchMachineClientLastUsed(client.id)
     } catch {
-      // Auth already succeeded; last_used_at is best-effort.
+      void 0
     }
   }
 
