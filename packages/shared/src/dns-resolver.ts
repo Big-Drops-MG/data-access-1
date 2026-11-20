@@ -29,7 +29,9 @@ export function createDnsLookup(
   servers: readonly string[] = PUBLIC_DNS_SERVERS
 ): DnsLookup {
   const resolver = new Resolver({ timeout: 5000, tries: 2 })
-  resolver.setServers([...servers])
+  if (servers.length > 0) {
+    resolver.setServers([...servers])
+  }
 
   return async ({ name, recordType }) => {
     try {

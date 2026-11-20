@@ -89,6 +89,39 @@ export function dnsblQueryName(
   return `${target.trim().toLowerCase().replace(/\.$/, "")}.${list}`
 }
 
+export type DnsblAInterpretation =
+  | { listed: true; codes: string[] }
+  | { listed: false }
+  | { listed: null; error: string }
+
+export function interpretDnsblARecords(
+  values: readonly string[]
+): DnsblAInterpretation {
+  if (values.length === 0) {
+    return { listed: false }
+  }
+
+  const policyCodes = values.filter((value) =>
+    /^127\.255\.255\.\d+$/.test(value)
+  )
+  if (policyCodes.length > 0) {
+    return {
+      listed: null,
+      error: `DNSBL policy/error response: ${policyCodes.join(",")}`,
+    }
+  }
+
+  const listedCodes = values.filter((value) => /^127\./.test(value))
+  if (listedCodes.length > 0) {
+    return { listed: true, codes: listedCodes }
+  }
+
+  return {
+    listed: null,
+    error: `Unexpected DNSBL A answers: ${values.join(",")}`,
+  }
+}
+
 function lookupFromDnsLookup(lookup: DnsLookup): BlocklistLookup {
   return (queryName) => lookup({ name: queryName, recordType: "A" })
 }
@@ -197,11 +230,12 @@ export async function processBlocklistCheckJob(
         resolveDomainIps: deps.resolveDomainIps,
       }
     }
-    const dnsLookup = createDnsLookup()
+    const publicDns = createDnsLookup()
+    const systemDns = createDnsLookup([])
     return {
-      lookup: deps.lookup ?? lookupFromDnsLookup(dnsLookup),
+      lookup: deps.lookup ?? lookupFromDnsLookup(systemDns),
       resolveDomainIps:
-        deps.resolveDomainIps ?? defaultResolveDomainIps(dnsLookup),
+        deps.resolveDomainIps ?? defaultResolveDomainIps(publicDns),
     }
   })()
 
@@ -233,7 +267,15 @@ export async function processBlocklistCheckJob(
           BLOCKLIST_CHECK_LOOKUP_TIMEOUT_MS
         )
         if (result.kind === "found") {
-          listed = true
+          const interpreted = interpretDnsblARecords(result.values)
+          if (interpreted.listed === true) {
+            listed = true
+          } else if (interpreted.listed === false) {
+            listed = false
+          } else {
+            listed = null
+            error = interpreted.error
+          }
         } else if (result.kind === "not_found") {
           listed = false
         } else {
