@@ -66,9 +66,33 @@ aws --endpoint-url https://fsn1.your-objectstorage.com s3 ls s3://emailhub-backu
 
 Done when: new `.age` objects appear under the prefix, and a second run with more than retention count deletes older keys.
 
-## Restore (high level)
+## Restore (SD#13.8 / T-112)
 
-1. Decrypt offline: `age -d -i age-backup.key backup.dump.age > backup.dump`
-2. Postgres: `pg_restore` into a fresh instance
-3. ClickHouse: unpack the tar and `clickhouse-backup restore <name>` (or native restore from the archive contents)
-4. Prefer restore drills on a temporary server (quarterly per SD#13.8)
+Recovery target: RPO 24h, RTO 4h. Redis is not restored; after Postgres/ClickHouse are up, start the worker (schedules recreate at boot) and run `pnpm ops:requeue-queued`.
+
+### Full recovery (new server)
+
+1. Create the droplet and volume (Terraform / Hetzner Cloud).
+2. Install Coolify, deploy the last known good git sha.
+3. Decrypt backups with the offline age identity, restore Postgres then ClickHouse (or use the drill script below against throwaway containers first).
+4. Start the worker.
+5. `pnpm ops:requeue-queued` — enqueues `send-email` for every `message.status = queued` (`jobId = message_id`, safe to re-run).
+6. Last-Admin 2FA lockout: `pnpm ops:reset-2fa -- <email>` (deletes `two_factor` + trusted devices + sessions, audit logged).
+
+### Quarterly restore drill (throwaway containers)
+
+Requires `AGE_IDENTITY_FILE` (private key; keep offline except during the drill) plus the usual `/etc/emailhub/backups.env` S3 settings.
+
+```bash
+sudo AGE_IDENTITY_FILE=/root/age-backup.key \
+  BACKUPS_ENV_FILE=/etc/emailhub/backups.env \
+  bash deploy/backups/run-restore-drill.sh
+```
+
+The script downloads the newest Postgres and ClickHouse objects, decrypts them, restores into temporary Docker containers (never the live volumes), prints elapsed time vs the 4h RTO, then tears everything down. Log the JSON result in SD#17.4.
+
+Manual decrypt (offline):
+
+```bash
+age -d -i age-backup.key backup.dump.age > backup.dump
+```

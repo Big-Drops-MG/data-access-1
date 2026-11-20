@@ -16,6 +16,8 @@
     "test:int:workers": "vitest run --config vitest.workers.config.ts",
     "ops:privacy-export": "pnpm --filter @workspace/shared privacy:export",
     "ops:privacy-erase": "pnpm --filter @workspace/shared privacy:erase",
+    "ops:requeue-queued": "pnpm --filter @workspace/shared requeue:queued",
+    "ops:reset-2fa": "pnpm --filter @workspace/shared reset:2fa",
     "prepare": "husky"
   },
   "lint-staged": {
