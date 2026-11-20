@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const setServers = vi.hoisted(() => vi.fn())
+const resolve4 = vi.hoisted(() => vi.fn())
 const resolveCname = vi.hoisted(() => vi.fn())
 const resolveTxt = vi.hoisted(() => vi.fn())
 const resolveMx = vi.hoisted(() => vi.fn())
@@ -8,6 +9,7 @@ const resolveMx = vi.hoisted(() => vi.fn())
 vi.mock("node:dns/promises", () => ({
   Resolver: class {
     setServers = setServers
+    resolve4 = resolve4
     resolveCname = resolveCname
     resolveTxt = resolveTxt
     resolveMx = resolveMx
@@ -20,6 +22,7 @@ import { PUBLIC_DNS_SERVERS, createDnsLookup } from "./dns-resolver.js"
 describe("createDnsLookup", () => {
   beforeEach(() => {
     setServers.mockReset()
+    resolve4.mockReset()
     resolveCname.mockReset()
     resolveTxt.mockReset()
     resolveMx.mockReset()
@@ -30,7 +33,8 @@ describe("createDnsLookup", () => {
     expect(setServers).toHaveBeenCalledWith([...PUBLIC_DNS_SERVERS])
   })
 
-  it("resolves CNAME, TXT, and MX answers", async () => {
+  it("resolves A, CNAME, TXT, and MX answers", async () => {
+    resolve4.mockResolvedValue(["203.0.113.10"])
     resolveCname.mockResolvedValue(["token.dkim.amazonses.com"])
     resolveTxt.mockResolvedValue([["v=spf1 ", "include:amazonses.com ~all"]])
     resolveMx.mockResolvedValue([
@@ -38,6 +42,12 @@ describe("createDnsLookup", () => {
     ])
     const lookup = createDnsLookup(["8.8.8.8"])
 
+    await expect(
+      lookup({ name: "2.0.0.127.zen.spamhaus.org", recordType: "A" })
+    ).resolves.toEqual({
+      kind: "found",
+      values: ["203.0.113.10"],
+    })
     await expect(
       lookup({ name: "k1._domainkey.example.com", recordType: "CNAME" })
     ).resolves.toEqual({

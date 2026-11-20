@@ -18,6 +18,7 @@ import {
   CSV_INGEST_JOB_NAME,
   DISPATCH_QUEUE_NAME,
   DISPATCH_SEND_JOB_NAME,
+  BLOCKLIST_CHECK_JOB_NAME,
   DNS_CHECK_JOB_NAME,
   DNS_CHECK_WORKER_CONCURRENCY,
   EVENTS_QUEUE_NAME,
@@ -35,6 +36,9 @@ import {
   markMessageSent,
   isSesSendingBlocked,
   openSesAccountPausedAlert,
+  parseBlocklistCheckIps,
+  parseBlocklists,
+  processBlocklistCheckJob,
   processDnsCheckJob,
   releaseQueuedClaim,
   SES_HEALTH_JOB_NAME,
@@ -43,6 +47,7 @@ import {
   SEND_EMAIL_QUEUE_NAME,
   skipQueuedMessageIfBlocked,
   type ArohaaTierSyncJobData,
+  type BlocklistCheckJobData,
   type CsvIngestJobData,
   type DispatchSendJobData,
   type DnsCheckJobData,
@@ -353,6 +358,14 @@ async function main(): Promise<void> {
                     return identity.verified
                   }
                 : undefined,
+            })
+            return
+          }
+          if (job.name === BLOCKLIST_CHECK_JOB_NAME) {
+            await processBlocklistCheckJob(job.data as BlocklistCheckJobData, {
+              db,
+              blocklists: parseBlocklists(env.BLOCKLISTS),
+              checkIps: parseBlocklistCheckIps(env.BLOCKLIST_CHECK_IPS),
             })
             return
           }

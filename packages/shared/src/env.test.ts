@@ -38,6 +38,19 @@ describe("parseServerEnv", () => {
     expect(env.MAIL_TRANSPORT).toBe("smtp")
   })
 
+  it("accepts optional BLOCKLISTS and BLOCKLIST_CHECK_IPS", () => {
+    const env = parseServerEnv(
+      {
+        ...baseWorkerEnv,
+        BLOCKLISTS: "zen.spamhaus.org",
+        BLOCKLIST_CHECK_IPS: "127.0.0.2,203.0.113.10",
+      },
+      "worker"
+    )
+    expect(env.BLOCKLISTS).toBe("zen.spamhaus.org")
+    expect(env.BLOCKLIST_CHECK_IPS).toBe("127.0.0.2,203.0.113.10")
+  })
+
   it("accepts a valid web env", () => {
     const env = parseServerEnv({ ...baseWebEnv }, "web")
     expect(env).toMatchObject({

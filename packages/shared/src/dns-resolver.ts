@@ -34,6 +34,8 @@ export function createDnsLookup(
   return async ({ name, recordType }) => {
     try {
       switch (recordType) {
+        case "A":
+          return { kind: "found", values: await resolver.resolve4(name) }
         case "CNAME":
           return { kind: "found", values: await resolver.resolveCname(name) }
         case "TXT": {

@@ -140,6 +140,27 @@ export {
   type SesIdentityVerifiedLookup,
 } from "./dns-check.js"
 export {
+  BLOCKLIST_CHECK_INTERVAL_MS,
+  BLOCKLIST_CHECK_JOB_NAME,
+  BLOCKLIST_CHECK_JOB_OPTIONS,
+  BLOCKLIST_CHECK_LOOKUP_TIMEOUT_MS,
+  type BlocklistCheckJobData,
+} from "./blocklist-check-queue.js"
+export {
+  BLOCKLIST_LISTED_ALERT_TYPE,
+  blocklistListedAlertDedupeKey,
+  collectBlocklistTargets,
+  dnsblQueryName,
+  parseBlocklistCheckIps,
+  parseBlocklists,
+  processBlocklistCheckJob,
+  type BlocklistLookup,
+  type BlocklistTarget,
+  type BlocklistTargetType,
+  type ProcessBlocklistCheckJobDeps,
+  type ProcessBlocklistCheckJobResult,
+} from "./blocklist-check.js"
+export {
   DISPATCH_RECIPIENT_PAGE_SIZE,
   loadDispatchRecipientPage,
   type DispatchRecipientPage,
