@@ -100,6 +100,8 @@ const baseEnvSchema = z
     SNDS_KEY: optionalString,
     SNDS_DATA_URL: optionalString,
     SNDS_IP_STATUS_URL: optionalString,
+    BLOCKLISTS: optionalString,
+    BLOCKLIST_CHECK_IPS: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.MAIL_TRANSPORT === "smtp") {

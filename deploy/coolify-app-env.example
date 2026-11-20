@@ -50,6 +50,7 @@ SNDS_KEY=
 SNDS_DATA_URL=
 FBL_WEBHOOK_SECRET=
 BLOCKLISTS=zen.spamhaus.org
+# BLOCKLIST_CHECK_IPS=203.0.113.10
 
 # App-level crypto (non-auth). TOTP secrets use BETTER_AUTH_SECRET, not this.
 # 32-byte key, base64-encoded (generate: openssl rand -base64 32)

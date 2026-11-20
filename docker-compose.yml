@@ -81,6 +81,7 @@ services:
       SNDS_DATA_URL: ${SNDS_DATA_URL:-}
       FBL_WEBHOOK_SECRET: ${FBL_WEBHOOK_SECRET:-}
       BLOCKLISTS: ${BLOCKLISTS:-}
+      BLOCKLIST_CHECK_IPS: ${BLOCKLIST_CHECK_IPS:-}
       RECIPIENT_IMPORTS_DIR: ${RECIPIENT_IMPORTS_DIR:-/data/imports}
     volumes:
       - /data/imports:/data/imports
@@ -144,6 +145,7 @@ services:
       SNDS_KEY: ${SNDS_KEY:-}
       SNDS_DATA_URL: ${SNDS_DATA_URL:-}
       BLOCKLISTS: ${BLOCKLISTS:-}
+      BLOCKLIST_CHECK_IPS: ${BLOCKLIST_CHECK_IPS:-}
       RECIPIENT_IMPORTS_DIR: ${RECIPIENT_IMPORTS_DIR:-/data/imports}
     volumes:
       - /data/imports:/data/imports

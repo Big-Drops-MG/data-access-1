@@ -1,4 +1,6 @@
 import {
+  BLOCKLIST_CHECK_INTERVAL_MS,
+  BLOCKLIST_CHECK_JOB_NAME,
   ET_TIME_ZONE,
   SES_HEALTH_INTERVAL_MS,
   SES_HEALTH_JOB_NAME,
@@ -36,10 +38,29 @@ describe("schedulers catalog", () => {
     const ids = schedulersForEnv("dev").map((entry) => entry.id)
     expect(ids).not.toContain("provider-metrics-pull")
     expect(ids).not.toContain("optizmo-sync")
-    expect(ids).not.toContain("blocklist-check")
+    expect(ids).not.toContain(BLOCKLIST_CHECK_JOB_NAME)
     expect(ids).toContain("schedule-promoter")
     expect(ids).toContain("queue-watchdog")
     expect(ids).toContain(SES_HEALTH_JOB_NAME)
+  })
+
+  it("schedules blocklist-check every 6 hours in prod only", () => {
+    const entry = SCHEDULER_DEFINITIONS.find(
+      (item) => item.id === BLOCKLIST_CHECK_JOB_NAME
+    )
+    expect(entry).toMatchObject({
+      queue: "monitoring",
+      jobName: BLOCKLIST_CHECK_JOB_NAME,
+      enabledInDev: false,
+      repeat: { every: BLOCKLIST_CHECK_INTERVAL_MS },
+      opts: {
+        attempts: 2,
+        backoff: { type: "fixed", delay: 60_000 },
+      },
+    })
+    expect(schedulersForEnv("prod").map((item) => item.id)).toContain(
+      BLOCKLIST_CHECK_JOB_NAME
+    )
   })
 
   it("schedules ses-health every 5 minutes on the monitoring queue", () => {
