@@ -14,6 +14,8 @@
     "test:coverage": "vitest run --coverage",
     "test:int": "vitest run --config vitest.int.config.ts",
     "test:int:workers": "vitest run --config vitest.workers.config.ts",
+    "ops:privacy-export": "pnpm --filter @workspace/shared privacy:export",
+    "ops:privacy-erase": "pnpm --filter @workspace/shared privacy:erase",
     "prepare": "husky"
   },
   "lint-staged": {

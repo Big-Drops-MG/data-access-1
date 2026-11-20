@@ -8,6 +8,16 @@ export {
   normaliseEmail,
 } from "./email.js"
 export {
+  erasePrivacyData,
+  exportPrivacyData,
+  pickSuppressionToKeep,
+  privacyErasedEmail,
+  PRIVACY_ERASURE_REASON,
+  type PrivacyEraseResult,
+  type PrivacyExport,
+  type PrivacyExportMessage,
+} from "./privacy.js"
+export {
   writeAudit,
   type AuditActor,
   type AuditActorType,

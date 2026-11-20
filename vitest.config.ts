@@ -45,6 +45,8 @@ export default defineConfig({
         // Playwright login harness. The coverage job does not run test:e2e.
         "apps/email-hub/src/lib/e2e/**",
         "apps/email-hub/src/app/api/e2e/**",
+        // Ops CLI entrypoints; logic covered in privacy.test.ts.
+        "packages/shared/src/privacy-*-cli.ts",
       ],
       thresholds: {
         // packages/shared — 90%
