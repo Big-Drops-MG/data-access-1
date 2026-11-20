@@ -253,6 +253,11 @@ describe("minRoleForStaffApi", () => {
     expect(minRoleForStaffApi("POST", "/api/reports/sending")).toBeNull()
   })
 
+  it("maps dashboard staff route as viewer read-only", () => {
+    expect(minRoleForStaffApi("GET", "/api/dashboard")).toBe("viewer")
+    expect(minRoleForStaffApi("POST", "/api/dashboard")).toBeNull()
+  })
+
   it("maps feedback routes (viewer read, operator claim/decide)", () => {
     const id = "019a0000-0000-7000-8000-000000000001"
     expect(minRoleForStaffApi("GET", "/api/feedback")).toBe("viewer")
