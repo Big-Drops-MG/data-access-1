@@ -27,14 +27,15 @@ TAR_PATH="${LOCAL_DIR}.tar.gz"
 AGED="${TAR_PATH}.age"
 DAILY_KEY="${S3_PREFIX}/clickhouse/daily/${DAY}.tar.gz.age"
 CFG_DIR="${LOCAL_DIR}/cfg"
-DATA_SHADOW="${LOCAL_DIR}/shadow"
+CH_DATA_DIR="${CLICKHOUSE_DATA_DIR:-/data/clickhouse}"
+BACKUP_DIR="${CH_DATA_DIR}/backup/${BACKUP_NAME}"
 
 cleanup() {
   rm -rf "${LOCAL_DIR}" "${TAR_PATH}" "${AGED}"
 }
 trap cleanup EXIT
 
-mkdir -p "${CFG_DIR}" "${DATA_SHADOW}"
+mkdir -p "${CFG_DIR}"
 chmod 700 "${LOCAL_DIR}"
 
 log "clickhouse backup start container=${CONTAINER} name=${BACKUP_NAME}"
@@ -56,17 +57,15 @@ EOF
 
 docker run --rm \
   --network "container:${CONTAINER}" \
-  -v /data/clickhouse:/var/lib/clickhouse \
+  -v "${CH_DATA_DIR}:/var/lib/clickhouse" \
   -v "${CFG_DIR}:/etc/clickhouse-backup:ro" \
-  -v "${DATA_SHADOW}:/var/lib/clickhouse-backup" \
   -e CLICKHOUSE_BACKUP_CONFIG=/etc/clickhouse-backup/config.yml \
   "${CH_BACKUP_IMAGE}" \
   create "${BACKUP_NAME}"
 
-BACKUP_DIR="$(find "${DATA_SHADOW}" -maxdepth 3 -type d -name "${BACKUP_NAME}" | head -1 || true)"
-[[ -n "${BACKUP_DIR}" ]] || die "clickhouse-backup create did not produce ${BACKUP_NAME}"
+[[ -d "${BACKUP_DIR}" ]] || die "clickhouse-backup create did not produce ${BACKUP_DIR}"
 
-tar -C "$(dirname "${BACKUP_DIR}")" -czf "${TAR_PATH}" "$(basename "${BACKUP_DIR}")"
+tar -C "${CH_DATA_DIR}/backup" -czf "${TAR_PATH}" "${BACKUP_NAME}"
 [[ -s "${TAR_PATH}" ]] || die "clickhouse archive empty"
 
 age_encrypt_file "${TAR_PATH}" "${AGED}"
@@ -75,9 +74,8 @@ prune_prefix_keep_newest "${S3_PREFIX}/clickhouse/daily/" "${CH_DAILY_KEEP}"
 
 docker run --rm \
   --network "container:${CONTAINER}" \
-  -v /data/clickhouse:/var/lib/clickhouse \
+  -v "${CH_DATA_DIR}:/var/lib/clickhouse" \
   -v "${CFG_DIR}:/etc/clickhouse-backup:ro" \
-  -v "${DATA_SHADOW}:/var/lib/clickhouse-backup" \
   -e CLICKHOUSE_BACKUP_CONFIG=/etc/clickhouse-backup/config.yml \
   "${CH_BACKUP_IMAGE}" \
   delete local "${BACKUP_NAME}" >/dev/null 2>&1 || true
