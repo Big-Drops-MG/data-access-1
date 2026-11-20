@@ -27,13 +27,16 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "privacy:export": "node --env-file=../../apps/email-hub/.env --import tsx src/privacy-export-cli.ts",
+    "privacy:erase": "node --env-file=../../apps/email-hub/.env --import tsx src/privacy-erase-cli.ts"
   },
   "devDependencies": {
     "@types/node": "^24",
     "@workspace/config": "workspace:*",
     "eslint": "^10",
     "msw": "^2.7.3",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.4"
   },
