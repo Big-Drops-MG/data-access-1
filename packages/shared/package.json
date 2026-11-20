@@ -37,7 +37,7 @@
     "@types/node": "^24",
     "@workspace/config": "workspace:*",
     "eslint": "^10",
-    "msw": "^2.7.3",
+    "msw": "^3.0.6",
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.4"
