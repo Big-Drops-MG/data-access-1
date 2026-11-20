@@ -18,6 +18,11 @@ export {
   type PrivacyExportMessage,
 } from "./privacy.js"
 export {
+  requeueQueuedMessages,
+  type RequeueQueuedResult,
+} from "./requeue-queued.js"
+export { reset2faByEmail, type Reset2faResult } from "./reset-2fa.js"
+export {
   writeAudit,
   type AuditActor,
   type AuditActorType,
