@@ -18,7 +18,7 @@ Objects land under `s3://$S3_BUCKET/$S3_PREFIX/...` (default prefix `backups/$EM
 sudo bash deploy/backups/install-host-tools.sh
 ```
 
-2. In Hetzner Console → Object Storage: create a Bucket (e.g. `emailhub-backups` in `fsn1`) and S3 credentials for that project.
+2. In Hetzner Console → Object Storage: create a Bucket (e.g. `emailhub-backups` in `nbg1`) and S3 credentials for that project. Use separate env files for dev (`/etc/emailhub/backups.env`, prefix `backups/dev`) and prod (`/etc/emailhub/backups.prod.env`, prefix `backups/prod`).
 
 3. Generate an age keypair offline; put only the **public** recipient on the server:
 
@@ -50,9 +50,9 @@ sudo bash deploy/backups/install-cron.sh
 
 Create three tasks that run as root on the server (same commands cron uses):
 
-- `0 2 * * *` → `BACKUPS_ENV_FILE=/etc/emailhub/backups.env /opt/emailhub-dev/deploy/backups/run-postgres-backup.sh` (prod: `/opt/emailhub/...`)
-- `30 2 * * *` → `.../run-clickhouse-backup.sh`
-- `0 3 * * 0` → `.../run-server-snapshot.sh`
+- Dev: `0 2` / `30 2` with `BACKUPS_ENV_FILE=/etc/emailhub/backups.env`
+- Prod: `15 2` / `45 2` with `BACKUPS_ENV_FILE=/etc/emailhub/backups.prod.env`
+- Snapshot: `0 3 * * 0` → `.../run-server-snapshot.sh`
 
 Keep server timezone `America/New_York` (`timedatectl`).
 
@@ -60,8 +60,8 @@ Keep server timezone `America/New_York` (`timedatectl`).
 
 ```bash
 sudo BACKUPS_ENV_FILE=/etc/emailhub/backups.env deploy/backups/run-postgres-backup.sh
-sudo BACKUPS_ENV_FILE=/etc/emailhub/backups.env deploy/backups/run-clickhouse-backup.sh
-aws --endpoint-url https://fsn1.your-objectstorage.com s3 ls s3://emailhub-backups/backups/dev/ --recursive
+sudo BACKUPS_ENV_FILE=/etc/emailhub/backups.prod.env deploy/backups/run-postgres-backup.sh
+aws --endpoint-url https://nbg1.your-objectstorage.com s3 ls s3://emailhub-backups/backups/ --recursive
 ```
 
 Done when: new `.age` objects appear under the prefix, and a second run with more than retention count deletes older keys.
