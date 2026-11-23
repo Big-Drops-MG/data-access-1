@@ -21,6 +21,7 @@ describe("fetchDashboardSummary", () => {
       open_alerts: [],
       recent_sends: [],
       upcoming_sends: [],
+      email_routes: [],
     }
     apiJson.mockResolvedValue(summary)
 

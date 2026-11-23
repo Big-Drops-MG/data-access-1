@@ -51,7 +51,7 @@ export function FormField({
         ) : null}
       </label>
       <div
-        className="[&_input]:h-9 [&_input]:w-full [&_input]:rounded-md [&_input]:border [&_input]:border-border-strong [&_input]:bg-surface [&_input]:px-3 [&_input]:text-body [&_input]:text-fg [&_input]:outline-none [&_input]:focus-visible:shadow-[0_0_0_3px_var(--ring)] [&_input[aria-invalid=true]]:border-destructive"
+        className="min-w-0 [&_input]:h-9 [&_input]:w-full [&_input]:rounded-md [&_input]:border [&_input]:border-border-strong [&_input]:bg-surface [&_input]:px-3 [&_input]:text-body [&_input]:text-fg [&_input]:outline-none [&_input]:focus-visible:shadow-[0_0_0_3px_var(--ring)] [&_input[aria-invalid=true]]:border-destructive"
         data-describedby={describedBy}
       >
         {children}

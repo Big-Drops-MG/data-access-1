@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { paginationSchema, uuidSchema } from "@workspace/shared"
+import { paginationSchema, uuidSchema } from "@workspace/shared/client"
 
 /** Lowercased FQDN: labels of alnum/hyphen, at least one dot (SD#9.1). */
 export const fqdnSchema = z
@@ -30,7 +30,7 @@ export const mailFromSubdomainSchema = z
       .max(63)
       .regex(
         /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
-        "Use a single label of letters, numbers, or hyphens"
+        "Enter one label, such as mail or noreply. Do not paste an email address."
       )
   )
 

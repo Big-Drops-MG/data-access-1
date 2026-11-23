@@ -9,7 +9,7 @@ import { useOfferSelection } from "@/components/app/offer-provider"
 import { FormField } from "@/components/app/form-field"
 import { useMutationDisabledProps } from "@/components/app/online-status"
 import { createDomain, type CreateDomainInput } from "@/features/domains/api"
-import { fqdnSchema } from "@/lib/domains/schemas"
+import { fqdnSchema, mailFromSubdomainSchema } from "@/lib/domains/schemas"
 import { applyServerErrors, useAppForm } from "@/lib/form"
 import { listQueryKey } from "@/lib/query-keys"
 import {
@@ -33,8 +33,8 @@ const createDomainFormSchema = z
       .refine(
         (value) =>
           value.length === 0 ||
-          /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value),
-        "Use a single label of letters, numbers, or hyphens"
+          mailFromSubdomainSchema.safeParse(value).success,
+        "Enter one label, such as mail or noreply. Do not paste an email address."
       ),
   })
   .strict()
@@ -87,9 +87,13 @@ export function CreateDomainForm({
     .watch("mail_from_subdomain")
     .trim()
     .toLowerCase()
-  const mailFromHint = watchedSubdomain
-    ? `Adds MAIL FROM MX + SPF for ${watchedSubdomain}.${watchedName || "{domain}"}.`
-    : `Optional. Leave blank to skip MAIL FROM, or enter a label like mail.`
+  const mailFromLabelIsValid =
+    mailFromSubdomainSchema.safeParse(watchedSubdomain).success
+  const mailFromHint = !watchedSubdomain
+    ? "Optional. Leave blank to skip MAIL FROM, or enter a label like mail."
+    : mailFromLabelIsValid
+      ? `Adds MAIL FROM MX + SPF for ${watchedSubdomain}.${watchedName || "{domain}"}.`
+      : "Enter one label, such as mail or noreply. Do not paste an email address."
 
   return (
     <form

@@ -37,7 +37,7 @@ describe("loadTodayKpis", () => {
 })
 
 describe("getDashboardSummary", () => {
-  it("loads KPIs, queues, alerts, and sends in parallel", async () => {
+  it("loads KPIs, queues, alerts, sends, and email routes in parallel", async () => {
     const openAlert = {
       id: "019a0000-0000-7000-8000-0000000000a1",
       type: "queue.depth",
@@ -125,12 +125,23 @@ describe("getDashboardSummary", () => {
         delayed: 0,
       },
     ])
+    const emailRoute = {
+      id: "019a0000-0000-7000-8000-0000000000e1",
+      email_type: "thank_you" as const,
+      offer_id: null,
+      offer_name: null,
+      template_name: "Thanks",
+      sender_email: "news@example.com",
+      status: "active" as const,
+    }
+    const loadEmailRoutes = vi.fn().mockResolvedValue([emailRoute])
 
     const summary = await getDashboardSummary({
       now: new Date("2026-11-20T17:00:00.000Z"),
       db,
       runClickHouse,
       getQueueCounts,
+      loadEmailRoutes,
     })
 
     expect(summary.day).toBe("2026-11-20")
@@ -155,8 +166,10 @@ describe("getDashboardSummary", () => {
     expect(summary.upcoming_sends[0]?.name).toBe("Upcoming send")
     expect(summary.recent_sends).toHaveLength(1)
     expect(summary.recent_sends[0]?.name).toBe("Recent send")
+    expect(summary.email_routes).toEqual([emailRoute])
     expect(runClickHouse).toHaveBeenCalledOnce()
     expect(getQueueCounts).toHaveBeenCalledOnce()
+    expect(loadEmailRoutes).toHaveBeenCalledWith(db)
     expect(select).toHaveBeenCalledTimes(3)
   })
 })

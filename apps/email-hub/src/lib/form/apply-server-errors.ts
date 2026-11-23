@@ -1,6 +1,6 @@
 import type { FieldPath, FieldValues, UseFormSetError } from "react-hook-form"
 
-import type { AppErrorDetail } from "@workspace/shared"
+import type { AppErrorDetail } from "@workspace/shared/client"
 
 import { isApiError, type ApiError } from "@/lib/api-client"
 
