@@ -33,6 +33,11 @@ describe("createDnsLookup", () => {
     expect(setServers).toHaveBeenCalledWith([...PUBLIC_DNS_SERVERS])
   })
 
+  it("skips setServers when an empty list is passed (system resolver)", () => {
+    createDnsLookup([])
+    expect(setServers).not.toHaveBeenCalled()
+  })
+
   it("resolves A, CNAME, TXT, and MX answers", async () => {
     resolve4.mockResolvedValue(["203.0.113.10"])
     resolveCname.mockResolvedValue(["token.dkim.amazonses.com"])

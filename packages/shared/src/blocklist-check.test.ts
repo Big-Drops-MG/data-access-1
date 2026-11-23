@@ -12,6 +12,7 @@ import {
   BLOCKLIST_LISTED_ALERT_TYPE,
   blocklistListedAlertDedupeKey,
   dnsblQueryName,
+  interpretDnsblARecords,
   parseBlocklistCheckIps,
   parseBlocklists,
   processBlocklistCheckJob,
@@ -68,6 +69,18 @@ describe("blocklist helpers", () => {
     expect(blocklistListedAlertDedupeKey("127.0.0.2", "zen.spamhaus.org")).toBe(
       "blocklist:127.0.0.2:zen.spamhaus.org"
     )
+  })
+
+  it("treats Spamhaus policy codes as errors, not listings", () => {
+    expect(interpretDnsblARecords(["127.255.255.254"])).toEqual({
+      listed: null,
+      error: "DNSBL policy/error response: 127.255.255.254",
+    })
+    expect(interpretDnsblARecords(["127.0.0.2"])).toEqual({
+      listed: true,
+      codes: ["127.0.0.2"],
+    })
+    expect(interpretDnsblARecords([])).toEqual({ listed: false })
   })
 })
 
@@ -221,6 +234,41 @@ describe("processBlocklistCheckJob", () => {
     )
     expect(openAlert).not.toHaveBeenCalled()
     expect(closeAlert).not.toHaveBeenCalled()
+  })
+
+  it("does not open alerts for DNSBL policy responses", async () => {
+    const { insert, values } = insertChain()
+    const select = vi.fn(() => selectChain([]))
+
+    const result = await processBlocklistCheckJob(
+      {},
+      {
+        db: { select, insert } as never,
+        blocklists: ["zen.spamhaus.org"],
+        checkIps: ["127.0.0.2"],
+        resolveDomainIps: async () => [],
+        lookup: async () => ({
+          kind: "found",
+          values: ["127.255.255.254"],
+        }),
+        now: NOW,
+      }
+    )
+
+    expect(result).toMatchObject({
+      checks: 1,
+      listed: 0,
+      errors: 1,
+      alerts_opened: 0,
+      alerts_closed: 0,
+    })
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listed: null,
+        error: "DNSBL policy/error response: 127.255.255.254",
+      })
+    )
+    expect(openAlert).not.toHaveBeenCalled()
   })
 
   it("includes resolved domain A records as IP targets", async () => {
