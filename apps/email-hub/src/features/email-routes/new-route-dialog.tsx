@@ -121,6 +121,8 @@ function OptionSelect({
   )
 }
 
+const NO_OFFER_VALUE = "__none__"
+
 type NewRouteFormProps = {
   defaultOfferId?: string | null
   onClose: () => void
@@ -130,11 +132,14 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
   const queryClient = useQueryClient()
   const mutationDisabled = useMutationDisabledProps()
   const [emailType, setEmailType] = useState<EmailRouteEmailType | "">("")
-  const [offerId, setOfferId] = useState(defaultOfferId?.trim() || "")
+  const [offerId, setOfferId] = useState(
+    defaultOfferId?.trim() || NO_OFFER_VALUE
+  )
   const [templateId, setTemplateId] = useState("")
   const [senderId, setSenderId] = useState("")
 
-  const selectedOfferId = offerId || null
+  const selectedOfferId =
+    !offerId || offerId === NO_OFFER_VALUE ? null : offerId
   const options = useRouteFormOptions(emailType, selectedOfferId)
 
   const emailTypeOptions = useMemo(
@@ -147,11 +152,13 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
   )
 
   const offerOptions = useMemo(
-    () =>
-      options.offers.map((offer) => ({
+    () => [
+      { value: NO_OFFER_VALUE, label: "No offer (default)" },
+      ...options.offers.map((offer) => ({
         value: offer.id,
         label: `${offer.external_ref} · ${offer.name}`,
       })),
+    ],
     [options.offers]
   )
 
@@ -221,7 +228,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
     }
     createMutation.mutate({
       email_type: emailType,
-      offer_id: offerId,
+      offer_id: selectedOfferId,
       template_id: templateId,
       sender_id: senderId,
     })
@@ -235,7 +242,9 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
             New route
           </AlertDialogTitle>
           <AlertDialogDescription className="text-sm leading-relaxed text-fg-muted">
-            Only one active route can exist for each email type and offer.
+            Only one active route can exist for each email type and offer. Use
+            No offer for the default thank-you / feedback route used by test
+            send.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -275,6 +284,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           <FormField
             id="new-route-offer"
             label="Offer"
+            description="Leave as No offer for the default route (required for template test send)."
             required
             className="gap-1.5"
             testIdPrefix="new-route"
@@ -285,11 +295,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               value={offerId}
               options={offerOptions}
               placeholder={
-                options.lookupsPending
-                  ? "Loading offers…"
-                  : offerOptions.length === 0
-                    ? "No offers available"
-                    : "Select offer"
+                options.lookupsPending ? "Loading offers…" : "Select offer"
               }
               emptyMessage="No active offers. Import an offer first."
               disabled={options.lookupsPending}
@@ -301,7 +307,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           <FormField
             id="new-route-template"
             label="Template"
-            description="Published templates linked to this offer."
+            description="Published templates for this email type."
             required
             className="gap-1.5"
             testIdPrefix="new-route"
@@ -312,18 +318,16 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               value={templateId}
               options={templateOptions}
               placeholder={
-                !offerId
-                  ? "Select offer first"
-                  : !emailType
-                    ? "Select email type first"
-                    : options.isPending
-                      ? "Loading templates…"
-                      : templateOptions.length === 0
-                        ? "No templates for this offer"
-                        : "Select template"
+                !emailType
+                  ? "Select email type first"
+                  : options.isPending
+                    ? "Loading templates…"
+                    : templateOptions.length === 0
+                      ? "No published templates"
+                      : "Select template"
               }
-              emptyMessage="No published templates for this email type and offer."
-              disabled={!offerId || !emailType || options.isPending}
+              emptyMessage="No published templates for this email type."
+              disabled={!emailType || options.isPending}
               testId="new-route-template"
               onChange={setTemplateId}
             />
@@ -332,7 +336,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
           <FormField
             id="new-route-sender"
             label="Sender"
-            description="Active senders linked to this offer."
+            description="Active senders on a verified domain."
             required
             className="gap-1.5"
             testIdPrefix="new-route"
@@ -343,16 +347,14 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
               value={senderId}
               options={senderOptions}
               placeholder={
-                !offerId
-                  ? "Select offer first"
-                  : options.lookupsPending
-                    ? "Loading senders…"
-                    : senderOptions.length === 0
-                      ? "No senders for this offer"
-                      : "Select sender"
+                options.lookupsPending
+                  ? "Loading senders…"
+                  : senderOptions.length === 0
+                    ? "No active senders"
+                    : "Select sender"
               }
-              emptyMessage="No active senders linked to this offer."
-              disabled={!offerId || options.lookupsPending}
+              emptyMessage="No active senders on a verified domain."
+              disabled={options.lookupsPending}
               testId="new-route-sender"
               onChange={setSenderId}
             />

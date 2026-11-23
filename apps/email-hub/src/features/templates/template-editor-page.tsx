@@ -388,6 +388,17 @@ export function TemplateEditorPage({
       )
     },
     onError: (error) => {
+      if (
+        isApiError(error) &&
+        error.details.some(
+          (detail) => detail.path === "route" && detail.message === "no_route"
+        )
+      ) {
+        toast.error(
+          "No active default email route for this type. Open Email routes, create one with No offer, and use a published template."
+        )
+        return
+      }
       toast.error(isApiError(error) ? error.message : "Could not send test")
     },
   })
