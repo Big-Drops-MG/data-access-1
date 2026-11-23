@@ -347,15 +347,21 @@ function DashboardBody({ data }: { data: DashboardSummary }) {
   )
 }
 
-export function DashboardPage() {
+export function DashboardPage({
+  emailRoutes = null,
+}: {
+  emailRoutes?: ReactNode
+}) {
   const summary = useDashboardSummary()
 
   return (
     <div className="space-y-6" data-testid="dashboard-page">
       <PageHeader
         title="Dashboard"
-        description="Today's sending KPIs, queue health, open alerts, and recent activity."
+        description="Today's sending KPIs, email routes, queue health, open alerts, and recent activity."
       />
+
+      {emailRoutes}
 
       {summary.isError ? (
         <InlineErrorCard

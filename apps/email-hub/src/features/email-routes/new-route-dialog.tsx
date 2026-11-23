@@ -70,6 +70,7 @@ function OptionSelect({
   onChange,
 }: OptionSelectProps) {
   const isEmpty = options.length === 0
+  const selectedLabel = options.find((option) => option.value === value)?.label
 
   return (
     <Select
@@ -88,7 +89,11 @@ function OptionSelect({
         data-testid={testId}
         className={emailRoutesSelectTriggerClass}
       >
-        <SelectValue placeholder={placeholder} />
+        <SelectValue
+          placeholder={placeholder}
+          title={selectedLabel}
+          className="block min-w-0 flex-1 truncate text-left"
+        />
       </SelectTrigger>
       <SelectContent
         align="start"
@@ -236,12 +241,12 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
 
   return (
     <>
-      <div className="space-y-6 px-6 pt-6 pb-6">
-        <AlertDialogHeader className="place-items-start gap-1.5 text-left">
+      <div className="min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto px-6 pt-6 pb-6">
+        <AlertDialogHeader className="w-full min-w-0 place-items-start gap-1.5 text-left">
           <AlertDialogTitle className="text-lg leading-snug font-semibold tracking-tight text-fg">
             New route
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-sm leading-relaxed text-fg-muted">
+          <AlertDialogDescription className="min-w-0 text-sm leading-relaxed text-pretty text-fg-muted">
             Only one active route can exist for each email type and offer. Use
             No offer for the default thank-you / feedback route used by test
             send.
@@ -362,7 +367,7 @@ function NewRouteForm({ defaultOfferId = null, onClose }: NewRouteFormProps) {
         </div>
       </div>
 
-      <AlertDialogFooter className="m-0 gap-2 rounded-none border-t border-border bg-surface-2 px-6 py-4 group-data-[size=default]/alert-dialog-content:flex sm:justify-end">
+      <AlertDialogFooter className="m-0 shrink-0 gap-2 rounded-none border-t border-border bg-surface-2 px-6 py-4 group-data-[size=default]/alert-dialog-content:flex sm:justify-end">
         <AlertDialogCancel
           className={emailRoutesOutlineControl()}
           data-testid="new-route-cancel"
@@ -391,7 +396,7 @@ export function NewRouteDialog({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
-        className="max-w-[32rem] gap-0 overflow-hidden p-0 data-[size=default]:max-w-[32rem] sm:max-w-[32rem] data-[size=default]:sm:max-w-[32rem]"
+        className="flex max-h-[min(40rem,calc(100dvh-2rem))] w-full max-w-[32rem] min-w-0 flex-col gap-0 overflow-hidden p-0 data-[size=default]:max-w-[32rem] sm:max-w-[32rem] data-[size=default]:sm:max-w-[32rem]"
         size="default"
         data-testid="new-route-dialog"
       >

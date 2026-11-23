@@ -1,7 +1,16 @@
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm"
 import { Queue } from "bullmq"
 
-import { alert, send, type Send } from "@workspace/db"
+import {
+  alert,
+  emailRoute,
+  offer,
+  send,
+  sender,
+  template,
+  type EmailRoute,
+  type Send,
+} from "@workspace/db"
 import {
   clickhouseQuery,
   type ClickHouseQueryParams,
@@ -21,6 +30,17 @@ type Db = Database | DatabaseTransaction
 
 export const DASHBOARD_OPEN_ALERTS_LIMIT = 10
 export const DASHBOARD_SENDS_LIMIT = 5
+export const DASHBOARD_EMAIL_ROUTES_LIMIT = 8
+
+export type DashboardEmailRoute = {
+  id: string
+  email_type: EmailRoute["emailType"]
+  offer_id: string | null
+  offer_name: string | null
+  template_name: string
+  sender_email: string
+  status: EmailRoute["status"]
+}
 
 export type DashboardKpis = {
   sent: number
@@ -44,6 +64,7 @@ export type DashboardSummary = {
   open_alerts: AlertJson[]
   recent_sends: SendJson[]
   upcoming_sends: SendJson[]
+  email_routes: DashboardEmailRoute[]
 }
 
 export type DashboardDeps = {
@@ -54,6 +75,7 @@ export type DashboardDeps = {
     query_params?: ClickHouseQueryParams
   ) => Promise<Record<string, unknown>[]>
   getQueueCounts?: () => Promise<DashboardQueueCounts[]>
+  loadEmailRoutes?: (db: Db) => Promise<DashboardEmailRoute[]>
 }
 
 function asNumber(value: unknown): number {
@@ -174,6 +196,42 @@ async function loadUpcomingSends(
   return rows.map((row) => serializeSend(row))
 }
 
+export async function loadDashboardEmailRoutes(
+  db: Db,
+  limit = DASHBOARD_EMAIL_ROUTES_LIMIT
+): Promise<DashboardEmailRoute[]> {
+  const rows = await db
+    .select({
+      id: emailRoute.id,
+      emailType: emailRoute.emailType,
+      offerId: emailRoute.offerId,
+      offerName: offer.name,
+      templateName: template.name,
+      senderEmail: sender.fromEmail,
+      status: emailRoute.status,
+    })
+    .from(emailRoute)
+    .innerJoin(template, eq(template.id, emailRoute.templateId))
+    .innerJoin(sender, eq(sender.id, emailRoute.senderId))
+    .leftJoin(offer, eq(offer.id, emailRoute.offerId))
+    .orderBy(
+      sql`case when ${emailRoute.status} = 'active' then 0 else 1 end`,
+      desc(emailRoute.updatedAt),
+      desc(emailRoute.id)
+    )
+    .limit(limit)
+
+  return rows.map((row) => ({
+    id: row.id,
+    email_type: row.emailType,
+    offer_id: row.offerId,
+    offer_name: row.offerName,
+    template_name: row.templateName,
+    sender_email: row.senderEmail,
+    status: row.status,
+  }))
+}
+
 async function loadRecentSends(
   db: Db,
   limit = DASHBOARD_SENDS_LIMIT
@@ -198,14 +256,16 @@ export async function getDashboardSummary(
   const db = deps.db ?? getDb()
   const runClickHouse = deps.runClickHouse ?? clickhouseQuery
   const getQueueCounts = deps.getQueueCounts ?? loadQueueCounts
+  const loadEmailRoutes = deps.loadEmailRoutes ?? loadDashboardEmailRoutes
 
-  const [kpis, queues, openAlerts, upcomingSends, recentSends] =
+  const [kpis, queues, openAlerts, upcomingSends, recentSends, emailRoutes] =
     await Promise.all([
       loadTodayKpis(day, runClickHouse),
       getQueueCounts(),
       loadOpenAlerts(db),
       loadUpcomingSends(db, now),
       loadRecentSends(db),
+      loadEmailRoutes(db),
     ])
 
   return {
@@ -215,5 +275,6 @@ export async function getDashboardSummary(
     open_alerts: openAlerts,
     recent_sends: recentSends,
     upcoming_sends: upcomingSends,
+    email_routes: emailRoutes,
   }
 }

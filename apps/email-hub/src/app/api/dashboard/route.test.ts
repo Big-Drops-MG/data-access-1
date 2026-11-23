@@ -35,6 +35,7 @@ describe("GET /api/dashboard", () => {
       open_alerts: [],
       recent_sends: [],
       upcoming_sends: [],
+      email_routes: [],
     })
 
     const response = await GET(new Request("http://localhost/api/dashboard"))
@@ -47,6 +48,7 @@ describe("GET /api/dashboard", () => {
       open_alerts: [],
       recent_sends: [],
       upcoming_sends: [],
+      email_routes: [],
     })
     expect(getDashboardSummary).toHaveBeenCalledOnce()
   })
