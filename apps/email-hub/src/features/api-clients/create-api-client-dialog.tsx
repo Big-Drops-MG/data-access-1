@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
+import { cn } from "@workspace/ui/lib/utils"
 
 const SCOPE_HELP: Record<MachineScope, string> = {
   "emails:send": "POST /api/ext/emails/send",
@@ -104,77 +105,90 @@ function CreateApiClientForm({ onClose, onCreated }: CreateFormProps) {
   }
 
   return (
-    <div className="flex flex-col" data-testid="api-clients-create-form">
-      <AlertDialogHeader className="gap-2 border-b border-border px-5 py-4 text-left">
-        <AlertDialogTitle>New API client</AlertDialogTitle>
-        <AlertDialogDescription>
-          Create a machine key for integrations. The secret is shown once after
-          create.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid="api-clients-create-form"
+    >
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pt-6 pb-6">
+        <AlertDialogHeader className="w-full place-items-start gap-1.5 text-left">
+          <AlertDialogTitle className="text-lg leading-snug font-semibold tracking-tight text-fg">
+            New API client
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-sm leading-relaxed text-pretty text-fg-muted">
+            Create a machine key for integrations. The secret is shown once
+            after create.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
-      <div className="space-y-4 px-5 py-4">
-        <FormField id="api-client-name" label="Name">
-          <input
-            id="api-client-name"
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className={apiClientsFieldControlClass}
-            placeholder="Arohaa webhook"
-            autoComplete="off"
-            data-testid="api-clients-create-name"
-          />
-        </FormField>
+        <div className="space-y-5">
+          <FormField id="api-client-name" label="Name" className="gap-1.5">
+            <input
+              id="api-client-name"
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className={apiClientsFieldControlClass}
+              placeholder="Arohaa webhook"
+              autoComplete="off"
+              data-testid="api-clients-create-name"
+            />
+          </FormField>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-fg">Scopes</legend>
-          <div className="space-y-2">
-            {MACHINE_SCOPES.map((scope) => {
-              const checked = scopes.includes(scope)
-              return (
-                <label
-                  key={scope}
-                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3 py-2.5 hover:bg-surface-2"
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 size-4 accent-fg"
-                    checked={checked}
-                    onChange={() => toggleScope(scope)}
-                    data-testid={`api-clients-scope-${scope}`}
-                  />
-                  <span className="min-w-0">
-                    <span className="block font-mono text-[13px] text-fg">
-                      {scope}
+          <fieldset className="m-0 min-w-0 border-0 p-0">
+            <legend className="mb-2.5 block px-0 text-sm font-medium text-fg">
+              Scopes
+            </legend>
+            <div className="space-y-2.5">
+              {MACHINE_SCOPES.map((scope) => {
+                const checked = scopes.includes(scope)
+                return (
+                  <label
+                    key={scope}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3.5 py-3 hover:bg-surface-2"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 size-4 shrink-0 accent-fg"
+                      checked={checked}
+                      onChange={() => toggleScope(scope)}
+                      data-testid={`api-clients-scope-${scope}`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-mono text-[13px] leading-5 text-fg">
+                        {scope}
+                      </span>
+                      <span className="mt-0.5 block text-[12px] leading-5 text-fg-muted">
+                        {SCOPE_HELP[scope]}
+                      </span>
                     </span>
-                    <span className="block text-[12px] text-fg-muted">
-                      {SCOPE_HELP[scope]}
-                    </span>
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-        </fieldset>
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
 
-        <FormField
-          id="api-client-allowlist"
-          label="IP allowlist (optional)"
-          description="One IP or CIDR per line. Leave empty to allow any IP."
-        >
-          <textarea
+          <FormField
             id="api-client-allowlist"
-            value={allowlistText}
-            onChange={(event) => setAllowlistText(event.target.value)}
-            className={`${apiClientsFieldControlClass} min-h-24 resize-y py-2.5`}
-            placeholder="203.0.113.10&#10;198.51.100.0/24"
-            data-testid="api-clients-create-allowlist"
-          />
-        </FormField>
+            label="IP allowlist (optional)"
+            description="One IP or CIDR per line. Leave empty to allow any IP."
+            className="gap-1.5"
+          >
+            <textarea
+              id="api-client-allowlist"
+              value={allowlistText}
+              onChange={(event) => setAllowlistText(event.target.value)}
+              className={cn(
+                apiClientsFieldControlClass,
+                "min-h-28 resize-y rounded-md px-3 py-2.5 leading-5"
+              )}
+              placeholder="203.0.113.10&#10;198.51.100.0/24"
+              data-testid="api-clients-create-allowlist"
+            />
+          </FormField>
+        </div>
       </div>
 
-      <AlertDialogFooter className="border-t border-border px-5 py-4">
+      <AlertDialogFooter className="m-0 shrink-0 gap-2 rounded-none border-t border-border bg-surface-2 px-6 py-4 group-data-[size=default]/alert-dialog-content:flex sm:justify-end">
         <button
           type="button"
           className={apiClientsOutlineControl()}
@@ -206,7 +220,7 @@ export function CreateApiClientDialog({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
-        className="max-w-[34rem] gap-0 overflow-hidden p-0 sm:max-w-[34rem]"
+        className="flex max-h-[min(44rem,calc(100dvh-2rem))] w-full max-w-[34rem] min-w-0 flex-col gap-0 overflow-hidden p-0 data-[size=default]:max-w-[34rem] sm:max-w-[34rem] data-[size=default]:sm:max-w-[34rem]"
         size="default"
       >
         {open ? (
