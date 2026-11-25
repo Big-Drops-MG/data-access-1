@@ -1,19 +1,18 @@
 "use client"
 
+import { KeyRound } from "lucide-react"
+import { useState } from "react"
+
 import { CopyButton } from "@/components/app/copy-button"
-import {
-  apiClientsOutlineControl,
-  apiClientsPrimaryControl,
-} from "@/features/api-clients/api-clients-ui"
+import { apiClientsOutlineControl } from "@/features/api-clients/api-clients-ui"
 import type { ApiClientSecretReveal } from "@/features/api-clients/api"
 import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
+import { cn } from "@workspace/ui/lib/utils"
 
 type SecretRevealDialogProps = {
   open: boolean
@@ -30,110 +29,144 @@ export function SecretRevealDialog({
   description,
   onOpenChange,
 }: SecretRevealDialogProps) {
+  const credentialKey = client ? `${client.id}:${client.secret}` : ""
+  const [acknowledgedKey, setAcknowledgedKey] = useState<string | null>(null)
+  const acknowledged = credentialKey !== "" && acknowledgedKey === credentialKey
+
+  function dismiss() {
+    if (!acknowledged) {
+      return
+    }
+    setAcknowledgedKey(null)
+    onOpenChange(false)
+  }
+
   return (
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
+        if (!next) {
+          dismiss()
+          return
+        }
         onOpenChange(next)
       }}
     >
       <AlertDialogContent
-        className="flex max-h-[min(44rem,calc(100dvh-2rem))] w-full max-w-[34rem] min-w-0 flex-col gap-0 overflow-hidden p-0 data-[size=default]:max-w-[34rem] sm:max-w-[34rem] data-[size=default]:sm:max-w-[34rem]"
+        className="w-full max-w-[28rem] gap-0 overflow-hidden p-0 shadow-[0_16px_40px_rgb(15_31_58/0.16)] data-[size=default]:max-w-[28rem] sm:max-w-[28rem] data-[size=default]:sm:max-w-[28rem]"
         size="default"
       >
         {open && client ? (
           <div
-            className="flex min-h-0 flex-1 flex-col"
+            className="px-6 pt-6 pb-5"
             data-testid="api-clients-secret-reveal"
           >
-            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pt-6 pb-6">
-              <AlertDialogHeader className="w-full place-items-start gap-1.5 text-left">
-                <AlertDialogTitle className="text-lg leading-snug font-semibold tracking-tight text-fg">
-                  {title}
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-sm leading-relaxed text-pretty text-fg-muted">
-                  {description}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
+            <header className="space-y-1.5">
+              <AlertDialogTitle className="flex items-center gap-2 text-[15px] leading-5 font-semibold tracking-tight text-fg">
+                <KeyRound
+                  className="size-4 shrink-0 text-[#f97316]"
+                  strokeWidth={2.25}
+                  aria-hidden
+                />
+                {title}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-[13px] leading-5 text-pretty text-fg-muted">
+                {description}
+              </AlertDialogDescription>
+            </header>
 
-              <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <p className="text-[12px] font-medium tracking-wide text-fg-muted uppercase">
-                    Key id
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code
-                      className="min-w-0 flex-1 truncate rounded-md border border-border bg-surface-2 px-3 py-2 font-mono text-[13px] text-fg"
-                      data-testid="api-clients-secret-key-id"
-                    >
-                      {client.id}
-                    </code>
-                    <CopyButton
-                      value={client.id}
-                      label="key id"
-                      testId="api-clients-copy-key-id"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-[12px] font-medium tracking-wide text-fg-muted uppercase">
-                    Secret
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code
-                      className="min-w-0 flex-1 rounded-md border border-border bg-surface-2 px-3 py-2 font-mono text-[13px] break-all text-fg"
-                      data-testid="api-clients-secret-value"
-                    >
-                      {client.secret}
-                    </code>
-                    <CopyButton
-                      value={client.secret}
-                      label="secret"
-                      testId="api-clients-copy-secret"
-                    />
-                  </div>
-                </div>
-
-                {client.previous_secret_expires_at ? (
-                  <p
-                    className="text-sm text-fg-muted"
-                    data-testid="api-clients-previous-secret-note"
+            <section className="mt-5 space-y-4" aria-label="New credentials">
+              <div>
+                <p
+                  id="api-client-secret-key-label"
+                  className="text-[13px] leading-5 font-medium text-fg"
+                >
+                  Key ID
+                </p>
+                <div className="mt-0.5 flex items-center justify-between gap-3">
+                  <code
+                    className="min-w-0 font-mono text-[13px] leading-5 break-all text-fg"
+                    data-testid="api-clients-secret-key-id"
+                    aria-labelledby="api-client-secret-key-label"
                   >
-                    The previous secret stays valid until{" "}
-                    {new Date(
-                      client.previous_secret_expires_at
-                    ).toLocaleString()}
-                    .
-                  </p>
-                ) : null}
+                    {client.id}
+                  </code>
+                  <CopyButton
+                    value={client.id}
+                    label="key id"
+                    testId="api-clients-copy-key-id"
+                  />
+                </div>
+              </div>
 
-                <p className="text-sm leading-relaxed text-warn">
-                  Copy the secret now. Closing this dialog removes it from the
-                  screen and it cannot be shown again.
+              <div>
+                <p
+                  id="api-client-secret-value-label"
+                  className="text-[13px] leading-5 font-medium text-fg"
+                >
+                  Secret
+                </p>
+                <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2.5">
+                  <code
+                    className="min-w-0 flex-1 font-mono text-[13px] leading-5 break-all text-fg"
+                    data-testid="api-clients-secret-value"
+                    aria-labelledby="api-client-secret-value-label"
+                  >
+                    {client.secret}
+                  </code>
+                  <CopyButton
+                    value={client.secret}
+                    label="secret"
+                    testId="api-clients-copy-secret"
+                  />
+                </div>
+                <p className="mt-2 text-[12px] leading-5 text-fg-muted">
+                  Store it in the landing page&apos;s secret manager, not in
+                  code.
                 </p>
               </div>
-            </div>
 
-            <AlertDialogFooter className="m-0 shrink-0 gap-2 rounded-none border-t border-border bg-surface-2 px-6 py-4 group-data-[size=default]/alert-dialog-content:flex sm:justify-end">
+              {client.previous_secret_expires_at ? (
+                <p
+                  className="text-[12px] leading-5 text-fg-muted"
+                  data-testid="api-clients-previous-secret-note"
+                >
+                  The previous secret stays valid until{" "}
+                  {new Date(client.previous_secret_expires_at).toLocaleString()}
+                  .
+                </p>
+              ) : null}
+            </section>
+
+            <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm leading-5 text-fg">
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 accent-fg"
+                checked={acknowledged}
+                onChange={(event) =>
+                  setAcknowledgedKey(
+                    event.target.checked ? credentialKey : null
+                  )
+                }
+                data-testid="api-clients-secret-acknowledged"
+              />
+              I copied the secret
+            </label>
+
+            <div className="mt-5 flex justify-end">
               <button
                 type="button"
-                className={apiClientsOutlineControl()}
+                className={cn(
+                  apiClientsOutlineControl(),
+                  "disabled:text-fg-muted disabled:opacity-100 disabled:hover:bg-surface"
+                )}
+                disabled={!acknowledged}
                 data-testid="api-clients-secret-dismiss"
-                onClick={() => onOpenChange(false)}
+                onClick={dismiss}
               >
-                I saved the secret
+                Done
               </button>
-              <CopyButton
-                value={`${client.id}\n${client.secret}`}
-                label="key id and secret"
-                variant="text"
-                testId="api-clients-copy-both"
-                className={apiClientsPrimaryControl()}
-              >
-                Copy both
-              </CopyButton>
-            </AlertDialogFooter>
+            </div>
           </div>
         ) : null}
       </AlertDialogContent>
