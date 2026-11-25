@@ -4,11 +4,12 @@ import { AppError } from "@workspace/shared"
 
 const getSession = vi.hoisted(() => vi.fn())
 const updateUserRole = vi.hoisted(() => vi.fn())
+const deleteUser = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/auth", () => ({ getSession }))
-vi.mock("@/lib/users/service", () => ({ updateUserRole }))
+vi.mock("@/lib/users/service", () => ({ updateUserRole, deleteUser }))
 
-import { PATCH } from "./route"
+import { DELETE, PATCH } from "./route"
 
 const userId = "019a0000-0000-7000-8000-000000000003"
 const url = `http://localhost/api/admin/users/${userId}`
@@ -134,5 +135,30 @@ describe("PATCH /api/admin/users/[userId]", () => {
       { params: Promise.resolve({ userId }) }
     )
     expect(conflict.status).toBe(409)
+  })
+})
+
+describe("DELETE /api/admin/users/[userId]", () => {
+  beforeEach(() => {
+    getSession.mockReset()
+    deleteUser.mockReset()
+  })
+
+  it("deletes a user for an admin", async () => {
+    getSession.mockResolvedValue(adminSession())
+    deleteUser.mockResolvedValue({ id: userId, deleted: true })
+
+    const response = await DELETE(new Request(url, { method: "DELETE" }), {
+      params: Promise.resolve({ userId }),
+    })
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      id: userId,
+      deleted: true,
+    })
+    expect(deleteUser).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ userId: adminSession().id })
+    )
   })
 })

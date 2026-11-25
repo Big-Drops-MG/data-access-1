@@ -11,6 +11,10 @@
     "./render": {
       "types": "./src/render-email.ts",
       "default": "./dist/render-email.js"
+    },
+    "./invitation": {
+      "types": "./src/user-invitation-email.tsx",
+      "default": "./dist/user-invitation-email.js"
     }
   },
   "files": [
