@@ -1,9 +1,8 @@
+import { createMailTransport, type MailTransport } from "@workspace/emails"
 import {
-  createMailTransport,
   renderUserInvitationEmail,
   type InvitationRole,
-  type MailTransport,
-} from "@workspace/emails"
+} from "@workspace/emails/invitation"
 import { getContextLogger, maskEmail } from "@workspace/logger"
 
 export type SendUserInvitationEmailInput = {
