@@ -37,3 +37,12 @@ export type {
   SesEmailIdentityVerification,
   SesIdentityClient,
 } from "./ses-identity.js"
+export {
+  UserInvitationEmail,
+  renderUserInvitationEmail,
+} from "./user-invitation-email.js"
+export type {
+  InvitationRole,
+  RenderedUserInvitationEmail,
+  UserInvitationEmailProps,
+} from "./user-invitation-email.js"

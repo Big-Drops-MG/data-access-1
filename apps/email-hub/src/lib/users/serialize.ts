@@ -9,6 +9,18 @@ export type UserJson = {
   two_factor_enabled: boolean
 }
 
+export type ManagedUserJson = {
+  id: string
+  email: string
+  name: string | null
+  role: User["role"]
+  status: User["status"] | "invited"
+  two_factor_enabled: boolean
+  two_factor_locked: boolean
+  last_sign_in_at: string | null
+  expires_at: string | null
+}
+
 export type DisabledUserJson = UserJson & {
   already_disabled: boolean
 }

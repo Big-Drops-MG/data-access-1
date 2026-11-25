@@ -33,7 +33,7 @@ describe("minRoleForStaffApi", () => {
       minRoleForStaffApi("PATCH", `/api/admin/api-clients/${id}/ip-allowlist`)
     ).toBe("admin")
     expect(minRoleForStaffApi("DELETE", "/api/admin/api-clients")).toBeNull()
-    expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
+    expect(minRoleForStaffApi("GET", "/api/admin/users")).toBe("admin")
     expect(minRoleForStaffApi("GET", `/api/admin/users/${id}`)).toBeNull()
   })
 
@@ -282,7 +282,7 @@ describe("minRoleForStaffApi", () => {
   })
 
   it("denies unmapped routes by default", () => {
-    expect(minRoleForStaffApi("GET", "/api/admin/users")).toBeNull()
+    expect(minRoleForStaffApi("DELETE", "/api/admin/users")).toBeNull()
     expect(minRoleForStaffApi("POST", "/api/unknown")).toBeNull()
   })
 
