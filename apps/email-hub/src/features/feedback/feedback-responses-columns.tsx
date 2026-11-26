@@ -43,16 +43,6 @@ export function feedbackResponseColumns(
       ),
     },
     {
-      id: "classification",
-      accessorFn: (row) => row.classification_label ?? "",
-      header: "Classification",
-      cell: ({ row }) => (
-        <span className="text-fg-muted">
-          {row.original.classification_label ?? "Unclassified"}
-        </span>
-      ),
-    },
-    {
       id: "submitted",
       accessorKey: "created_at",
       header: "Submitted (ET)",
