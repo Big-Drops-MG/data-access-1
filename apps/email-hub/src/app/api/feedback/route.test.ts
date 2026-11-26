@@ -40,7 +40,9 @@ describe("GET /api/feedback", () => {
     })
 
     const response = await GET(
-      new Request("http://localhost/api/feedback?status=pending&limit=10")
+      new Request(
+        "http://localhost/api/feedback?status=pending&source=feedback_form&limit=10"
+      )
     )
     expect(response.status).toBe(200)
     const body = await response.json()
@@ -49,6 +51,8 @@ describe("GET /api/feedback", () => {
       limit: 10,
       cursor: undefined,
       status: "pending",
+      source: "feedback_form",
+      offerId: undefined,
     })
   })
 

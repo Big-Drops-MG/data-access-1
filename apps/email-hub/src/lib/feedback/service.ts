@@ -34,6 +34,7 @@ export type ListFeedbackInput = {
   limit: number
   cursor?: string
   status?: FeedbackItem["status"]
+  source?: FeedbackItem["source"]
   offerId?: string
 }
 
@@ -164,6 +165,9 @@ export async function listFeedback(
   const conditions: SQL[] = []
   if (input.status) {
     conditions.push(eq(feedbackItem.status, input.status))
+  }
+  if (input.source) {
+    conditions.push(eq(feedbackItem.source, input.source))
   }
   if (input.offerId) {
     conditions.push(feedbackScopedToOffer(db, input.offerId))

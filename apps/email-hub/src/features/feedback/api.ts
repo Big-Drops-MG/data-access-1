@@ -6,6 +6,7 @@ import type {
 
 export type FeedbackListItem = FeedbackJson
 export type FeedbackStatus = FeedbackJson["status"]
+export type FeedbackSource = FeedbackJson["source"]
 export type FeedbackDecisionValue = NonNullable<FeedbackJson["decision"]>
 export type FeedbackClassification = FeedbackClassificationJson
 
@@ -18,6 +19,7 @@ export type FeedbackListParams = {
   limit?: number
   cursor?: string
   status?: FeedbackStatus
+  source?: FeedbackSource
   offer_id?: string
 }
 
@@ -35,6 +37,9 @@ function toSearchParams(params: FeedbackListParams = {}): string {
   }
   if (params.status) {
     search.set("status", params.status)
+  }
+  if (params.source) {
+    search.set("source", params.source)
   }
   if (params.offer_id) {
     search.set("offer_id", params.offer_id)
