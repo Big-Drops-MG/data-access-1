@@ -18,6 +18,7 @@ async function handleGet(request: Request): Promise<Response> {
     limit: query.limit,
     cursor: query.cursor,
     status: query.status,
+    source: query.source,
     offerId: query.offer_id,
   })
 
