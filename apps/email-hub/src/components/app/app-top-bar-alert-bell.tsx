@@ -96,26 +96,24 @@ export function AppTopBarAlertBell({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "relative flex size-9 items-center justify-center rounded-full border border-border text-fg-muted transition-colors outline-none",
-            "hover:bg-muted/60 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring"
-          )}
-          aria-label={alertLabel}
-          data-testid="app-top-bar-alerts"
-        >
-          <BellIcon className="size-4" aria-hidden />
-          {openAlertCount > 0 ? (
-            <span
-              className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white"
-              data-testid="app-top-bar-alert-count"
-            >
-              {openAlertCount > 99 ? "99+" : openAlertCount}
-            </span>
-          ) : null}
-        </button>
+      <PopoverTrigger
+        type="button"
+        className={cn(
+          "relative flex size-9 items-center justify-center rounded-full border border-border text-fg-muted transition-colors outline-none",
+          "hover:bg-muted/60 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring"
+        )}
+        aria-label={alertLabel}
+        data-testid="app-top-bar-alerts"
+      >
+        <BellIcon className="size-4" aria-hidden />
+        {openAlertCount > 0 ? (
+          <span
+            className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white"
+            data-testid="app-top-bar-alert-count"
+          >
+            {openAlertCount > 99 ? "99+" : openAlertCount}
+          </span>
+        ) : null}
       </PopoverTrigger>
 
       <PopoverContent
