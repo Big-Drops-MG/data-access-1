@@ -146,7 +146,10 @@ export function AlertsPage({
         animateRows
         rowActions={rowActions}
         emptyState={
-          <p className="text-sm text-fg-muted">
+          <p
+            className="px-6 py-12 text-center text-sm text-fg-muted"
+            data-testid="alerts-empty"
+          >
             {selectedStatus === "open"
               ? "No open alerts."
               : selectedStatus === "resolved"
