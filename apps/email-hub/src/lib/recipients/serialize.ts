@@ -18,6 +18,12 @@ export type RecipientLastMessageJson = {
   created_at: string
 }
 
+export type RecipientOfferJson = {
+  id: string
+  external_ref: string
+  name: string
+}
+
 export type RecipientListItemJson = {
   id: string
   email: string
@@ -25,11 +31,14 @@ export type RecipientListItemJson = {
   last_name: string | null
   status: Recipient["status"]
   tier: Recipient["tier"]
+  tier_updated_at: string
+  unsubscribed: boolean
   external_user_id: string | null
   created_at: string
   updated_at: string
   last_emailed_at: string | null
   last_message: RecipientLastMessageJson | null
+  offer: RecipientOfferJson | null
 }
 
 export type RecipientPreferenceJson = {
@@ -48,6 +57,7 @@ export type RecipientMessageJson = {
   status: Message["status"]
   skip_reason: Message["skipReason"]
   failure_reason: string | null
+  template_name: string | null
   offer_id: string | null
   send_id: string | null
   queued_at: string | null
@@ -73,9 +83,25 @@ export function serializeRecipientLastMessage(
   }
 }
 
+export function serializeRecipientOffer(row: {
+  id: string
+  externalRef: string
+  name: string
+}): RecipientOfferJson {
+  return {
+    id: row.id,
+    external_ref: row.externalRef,
+    name: row.name,
+  }
+}
+
 export function serializeRecipientListItem(
   row: Recipient,
-  lastMessage: Message | null = null
+  lastMessage: Message | null = null,
+  extras?: {
+    unsubscribed?: boolean
+    offer?: RecipientOfferJson | null
+  }
 ): RecipientListItemJson {
   return {
     id: row.id,
@@ -84,6 +110,8 @@ export function serializeRecipientListItem(
     last_name: row.lastName,
     status: row.status,
     tier: row.tier,
+    tier_updated_at: isoUtc(row.tierUpdatedAt),
+    unsubscribed: extras?.unsubscribed ?? false,
     external_user_id: row.externalUserId,
     created_at: isoUtc(row.createdAt),
     updated_at: isoUtc(row.updatedAt),
@@ -91,16 +119,21 @@ export function serializeRecipientListItem(
     last_message: lastMessage
       ? serializeRecipientLastMessage(lastMessage)
       : null,
+    offer: extras?.offer ?? null,
   }
 }
 
-export function serializeRecipientMessage(row: Message): RecipientMessageJson {
+export function serializeRecipientMessage(
+  row: Message,
+  templateName: string | null = null
+): RecipientMessageJson {
   return {
     id: row.id,
     email_type: row.emailType,
     status: row.status,
     skip_reason: row.skipReason,
     failure_reason: row.failureReason,
+    template_name: templateName,
     offer_id: row.offerId,
     send_id: row.sendId,
     queued_at: row.queuedAt ? isoUtc(row.queuedAt) : null,

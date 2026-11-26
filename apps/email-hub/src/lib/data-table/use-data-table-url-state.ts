@@ -23,6 +23,8 @@ export type UseDataTableUrlStateResult = DataTableUrlState & {
   setSort: (sort: DataTableSort | undefined) => void
   setFilter: (key: string, value: string | undefined) => void
   setFilters: (filters: Record<string, string | undefined>) => void
+  /** Zero-based page from the in-memory cursor stack. */
+  pageIndex: number
 }
 
 type CursorStackState = {
@@ -205,6 +207,7 @@ export function useDataTableUrlState(
     goNext,
     goPrevious,
     canGoPrevious: cursorStack.length > 0 || Boolean(state.cursor),
+    pageIndex: cursorStack.length,
     setSort,
     setFilter,
     setFilters,

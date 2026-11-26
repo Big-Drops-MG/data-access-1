@@ -1,6 +1,15 @@
-import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 
-/** Import UI is deferred; keep the route but send users to the list. */
-export default function Page() {
-  redirect("/recipients")
+import { RecipientsImportPage } from "@/features/recipients/recipients-import-page"
+import { getSession } from "@/lib/auth"
+import { hasAtLeastRole } from "@/lib/permissions"
+
+export const metadata: Metadata = {
+  title: "Import recipients",
+}
+
+export default async function Page() {
+  const session = await getSession()
+  const canImport = hasAtLeastRole(session, "operator")
+  return <RecipientsImportPage canImport={canImport} />
 }

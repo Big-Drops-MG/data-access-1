@@ -14,8 +14,11 @@ import {
 import {
   emailCategory,
   message,
+  offer,
   recipient,
   recipientPreference,
+  template,
+  templateVersion,
   type Message,
   type Recipient,
 } from "@workspace/db"
@@ -27,9 +30,11 @@ import { recipientScopedToOffer } from "@/lib/offer-scope"
 import {
   serializeRecipientListItem,
   serializeRecipientMessage,
+  serializeRecipientOffer,
   serializeRecipientPreference,
   type RecipientDetailJson,
   type RecipientListItemJson,
+  type RecipientOfferJson,
 } from "./serialize"
 
 export type RecipientStatusCounts = {
@@ -130,18 +135,30 @@ export async function listRecipients(
   const page = rows.slice(0, input.limit)
   const last = page.at(-1)
   const next = rows.length > input.limit ? (last?.recipient.id ?? null) : null
-  const lastMessages = await loadLastMessagesByRecipientIds(
-    db,
-    page.map((row) => row.recipient.id)
-  )
+  const recipientIds = page.map((row) => row.recipient.id)
+  const lastMessages = await loadLastMessagesByRecipientIds(db, recipientIds)
+  const offerIds = [
+    ...new Set(
+      [...lastMessages.values()]
+        .map((row) => row.offerId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+  const [unsubscribedIds, offersById] = await Promise.all([
+    loadUnsubscribedRecipientIds(db, recipientIds),
+    loadOffersByIds(db, offerIds),
+  ])
 
   return {
-    data: page.map((row) =>
-      serializeRecipientListItem(
-        row.recipient,
-        lastMessages.get(row.recipient.id) ?? null
-      )
-    ),
+    data: page.map((row) => {
+      const lastMessage = lastMessages.get(row.recipient.id) ?? null
+      return serializeRecipientListItem(row.recipient, lastMessage, {
+        unsubscribed: unsubscribedIds.has(row.recipient.id),
+        offer: lastMessage?.offerId
+          ? (offersById.get(lastMessage.offerId) ?? null)
+          : null,
+      })
+    }),
     next_cursor: next,
     status_counts: statusCounts,
   }
@@ -209,6 +226,55 @@ async function countRecipientsByStatus(
   return counts
 }
 
+async function loadUnsubscribedRecipientIds(
+  db: Database,
+  recipientIds: string[]
+): Promise<Set<string>> {
+  const ids = new Set<string>()
+  if (recipientIds.length === 0) {
+    return ids
+  }
+
+  const rows = await db
+    .select({ recipientId: recipientPreference.recipientId })
+    .from(recipientPreference)
+    .where(
+      and(
+        inArray(recipientPreference.recipientId, recipientIds),
+        eq(recipientPreference.optedOut, true)
+      )
+    )
+
+  for (const row of rows) {
+    ids.add(row.recipientId)
+  }
+  return ids
+}
+
+async function loadOffersByIds(
+  db: Database,
+  offerIds: string[]
+): Promise<Map<string, RecipientOfferJson>> {
+  const map = new Map<string, RecipientOfferJson>()
+  if (offerIds.length === 0) {
+    return map
+  }
+
+  const rows = await db
+    .select({
+      id: offer.id,
+      externalRef: offer.externalRef,
+      name: offer.name,
+    })
+    .from(offer)
+    .where(inArray(offer.id, offerIds))
+
+  for (const row of rows) {
+    map.set(row.id, serializeRecipientOffer(row))
+  }
+  return map
+}
+
 async function loadLastMessagesByRecipientIds(
   db: Database,
   recipientIds: string[]
@@ -258,8 +324,16 @@ export async function getRecipientDetail(
       .from(recipientPreference)
       .where(eq(recipientPreference.recipientId, id)),
     db
-      .select()
+      .select({
+        message,
+        templateName: template.name,
+      })
       .from(message)
+      .leftJoin(
+        templateVersion,
+        eq(message.templateVersionId, templateVersion.id)
+      )
+      .leftJoin(template, eq(templateVersion.templateId, template.id))
       .where(eq(message.recipientId, id))
       .orderBy(desc(message.createdAt), desc(message.id))
       .limit(50),
@@ -268,15 +342,26 @@ export async function getRecipientDetail(
   const preferenceByCategory = new Map(
     preferences.map((preference) => [preference.categoryId, preference])
   )
+  const lastMessage = messages[0]?.message ?? null
+  const offerRow = lastMessage?.offerId
+    ? ((await loadOffersByIds(db, [lastMessage.offerId])).get(
+        lastMessage.offerId
+      ) ?? null)
+    : null
 
   return {
-    ...serializeRecipientListItem(row, messages[0] ?? null),
+    ...serializeRecipientListItem(row, lastMessage, {
+      unsubscribed: preferences.some((preference) => preference.optedOut),
+      offer: offerRow,
+    }),
     preferences: categories.map((category) =>
       serializeRecipientPreference({
         category,
         preference: preferenceByCategory.get(category.id) ?? null,
       })
     ),
-    messages: messages.map(serializeRecipientMessage),
+    messages: messages.map((row) =>
+      serializeRecipientMessage(row.message, row.templateName)
+    ),
   }
 }

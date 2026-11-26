@@ -5,17 +5,16 @@ import { useMemo, type ReactNode } from "react"
 
 import { EtDateTime } from "@/components/app/et-datetime"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
-import { PageHeader } from "@/components/app/page-header"
-import { StatusBadge } from "@/components/app/status-badge"
 import {
   emailTypeLabel,
   messageDetail,
-  recipientStatusLabel,
   shortRecipientId,
 } from "@/features/recipients/labels"
 import { RecipientMessageStatusBadge } from "@/features/recipients/recipient-message-status-badge"
+import { RecipientStatusBadge } from "@/features/recipients/recipient-status-badge"
 import { RecipientTierBadge } from "@/features/recipients/recipient-tier-badge"
 import { useRecipientDetail } from "@/features/recipients/use-recipient-detail"
+import type { RecipientMessageJson } from "@/lib/recipients/serialize"
 import { isApiError } from "@/lib/api-client"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -37,18 +36,51 @@ function SummaryCard({
           {title}
         </h2>
       </header>
-      <div className="px-4 py-4">{children}</div>
+      <div className="px-4 py-3">{children}</div>
     </section>
   )
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
+    <div className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]">
       <span className="text-fg-muted">{label}</span>
-      <span className="font-medium text-fg">{value}</span>
+      <span className="text-right font-medium text-fg">{value}</span>
     </div>
   )
+}
+
+function preferenceTitle(key: string, name: string): string {
+  if (key === "thank_you") {
+    return "Transactional"
+  }
+  if (key === "feedback_request") {
+    return "Feedback requests"
+  }
+  return name
+}
+
+function averageDeliveryLabel(messages: RecipientMessageJson[]): string {
+  const samples = messages.flatMap((message) => {
+    if (
+      (message.status !== "delivered" && message.status !== "sent") ||
+      !message.sent_at ||
+      !message.queued_at
+    ) {
+      return []
+    }
+    const seconds =
+      (new Date(message.sent_at).getTime() -
+        new Date(message.queued_at).getTime()) /
+      1000
+    return seconds >= 0 ? [seconds] : []
+  })
+  if (samples.length === 0) {
+    return "—"
+  }
+  const average =
+    samples.reduce((sum, value) => sum + value, 0) / samples.length
+  return `${average.toFixed(1)} s`
 }
 
 export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
@@ -63,17 +95,21 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
     const bounced = messages.filter(
       (message) => message.status === "bounced"
     ).length
+    const complained = messages.filter(
+      (message) => message.status === "complained"
+    ).length
     return {
       delivered,
       total: messages.length,
       bounced,
+      complained,
+      average: averageDeliveryLabel(messages),
     }
   }, [row?.messages])
 
   if (detail.isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Recipient" />
         <InlineErrorCard
           message={
             isApiError(detail.error)
@@ -103,7 +139,7 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
 
   return (
     <div className="space-y-6" data-testid="recipient-detail">
-      <div className="space-y-2">
+      <header className="space-y-2">
         <p className="text-caption text-fg-muted">
           <Link href="/recipients" className="hover:text-fg hover:underline">
             Recipients
@@ -113,69 +149,61 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-fg">
-            {[row.first_name, row.last_name].filter(Boolean).join(" ") ||
-              row.email}
+            {row.email}
           </h1>
-          {row.status === "active" ? (
-            <StatusBadge status="active" />
-          ) : (
-            <StatusBadge variant="err">
-              {recipientStatusLabel(row.status)}
-            </StatusBadge>
-          )}
+          <RecipientStatusBadge
+            status={row.status}
+            unsubscribed={row.unsubscribed}
+          />
           <RecipientTierBadge tier={row.tier} />
         </div>
         <p className="text-sm text-fg-muted">
           {shortId}
-          {" · "}
-          {row.email}
-          {row.external_user_id ? ` · ${row.external_user_id}` : ""}
-          {" · "}
-          first seen{" "}
+          {" · First seen "}
           <EtDateTime
             value={row.created_at}
             className="inline text-sm text-fg-muted"
           />
+          {row.offer ? ` · ${row.offer.external_ref}` : ""}
+          {" · tier from Arohaa at "}
+          <EtDateTime
+            value={row.tier_updated_at}
+            className="inline text-sm text-fg-muted"
+          />
         </p>
-      </div>
+      </header>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <SummaryCard title="Delivery">
           <MetricRow
             label="Delivered"
-            value={`${delivery.delivered} of ${delivery.total || 0}`}
+            value={`${delivery.delivered} of ${delivery.total}`}
           />
+          <MetricRow label="Avg. delivery time" value={delivery.average} />
           <MetricRow
             label="Bounces"
             value={delivery.bounced > 0 ? String(delivery.bounced) : "None"}
           />
+          <MetricRow label="Deferrals" value="None" />
+          <MetricRow
+            label="Complaints"
+            value={
+              delivery.complained > 0 ? String(delivery.complained) : "None"
+            }
+          />
         </SummaryCard>
-        <SummaryCard title="Engagement">
-          {delivery.total === 0 ? (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-fg">No messages yet</p>
-              <p className="text-[13px] text-fg-muted">
-                Activity appears after the first send.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-fg">
-                Recent sends on record
-              </p>
-              <p className="text-[13px] text-fg-muted">
-                Opens and clicks are shown when tracking events arrive.
-              </p>
-            </div>
-          )}
+        <SummaryCard title="Subscribed">
+          <MetricRow label="Opens" value="None" />
+          <MetricRow label="Clicks" value="None" />
+          <MetricRow label="Time to click" value="—" />
+          <MetricRow label="Best time" value="—" />
+          <MetricRow label="Replies" value="None ingested" />
         </SummaryCard>
         <SummaryCard title="Environment">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-fg">No environment data</p>
-            <p className="text-[13px] text-fg-muted">
-              We learn the client and device from the first open.
-            </p>
-          </div>
+          <MetricRow label="Client" value="Not detected" />
+          <MetricRow label="Device" value="Not detected" />
+          <MetricRow label="Dark mode" value="Not detected" />
+          <MetricRow label="Location" value="None" />
         </SummaryCard>
       </div>
 
@@ -198,7 +226,7 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
                 <thead className="bg-surface-2 text-caption font-medium tracking-wide text-fg-muted uppercase">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Sent (ET)</th>
-                    <th className="px-4 py-2.5 font-medium">Type</th>
+                    <th className="px-4 py-2.5 font-medium">Template</th>
                     <th className="px-4 py-2.5 font-medium">Status</th>
                     <th className="px-4 py-2.5 font-medium">Detail</th>
                   </tr>
@@ -217,7 +245,8 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
                         />
                       </td>
                       <td className="px-4 py-2.5 text-fg">
-                        {emailTypeLabel(message.email_type)}
+                        {message.template_name ??
+                          emailTypeLabel(message.email_type)}
                       </td>
                       <td className="px-4 py-2.5">
                         <RecipientMessageStatusBadge status={message.status} />
@@ -253,10 +282,13 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-fg">
-                      {preference.category_name}
+                      {preferenceTitle(
+                        preference.category_key,
+                        preference.category_name
+                      )}
                     </p>
                     <p className="truncate text-[12px] text-fg-muted">
-                      {preference.category_key.replaceAll("_", " ")}
+                      {preferenceDescription(preference)}
                     </p>
                   </div>
                   <p
@@ -279,4 +311,20 @@ export function RecipientDetailPage({ recipientId }: RecipientDetailPageProps) {
       </div>
     </div>
   )
+}
+
+function preferenceDescription(preference: {
+  category_key: string
+  category_name: string
+}): string {
+  if (preference.category_key === "thank_you") {
+    return "Thank-you receipts"
+  }
+  if (preference.category_key === "feedback_request") {
+    return "Ask premium users for feedback"
+  }
+  if (preference.category_key === "engagement") {
+    return "Monthly updates"
+  }
+  return preference.category_name
 }
