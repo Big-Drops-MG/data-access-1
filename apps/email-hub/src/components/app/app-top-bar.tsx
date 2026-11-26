@@ -1,11 +1,11 @@
 import Link from "next/link"
-import { BellIcon } from "lucide-react"
 
 import { cn } from "@workspace/ui/lib/utils"
 
 import { BrandMark } from "@/components/auth/brand-mark"
 import { isDevEnvironmentBadgeVisible } from "@/lib/env-badge"
 
+import { AppTopBarAlertBell } from "./app-top-bar-alert-bell"
 import { AppTopBarClock } from "./app-top-bar-clock"
 import { AppTopBarOfferSwitcher } from "./app-top-bar-offer-switcher"
 import { AppTopBarUserMenu } from "./app-top-bar-user-menu"
@@ -14,8 +14,8 @@ type AppTopBarProps = {
   name: string
   jobTitle: string
   image: string | null
-  /** Open alert count; placeholder until alerts API (T-034). */
   openAlertCount?: number
+  canViewAlerts?: boolean
   className?: string
 }
 
@@ -25,13 +25,10 @@ export function AppTopBar({
   jobTitle,
   image,
   openAlertCount = 0,
+  canViewAlerts = false,
   className,
 }: AppTopBarProps) {
   const showDevBadge = isDevEnvironmentBadgeVisible()
-  const alertLabel =
-    openAlertCount > 0
-      ? `Alerts, ${openAlertCount} open`
-      : "Alerts, no open alerts"
 
   return (
     <header
@@ -65,25 +62,10 @@ export function AppTopBar({
 
       <div className="ml-auto flex items-center gap-4">
         <AppTopBarClock />
-        <Link
-          href="/alerts"
-          className={cn(
-            "relative flex size-9 items-center justify-center rounded-full border border-border text-fg-muted outline-none",
-            "hover:bg-muted/60 hover:text-fg"
-          )}
-          aria-label={alertLabel}
-          data-testid="app-top-bar-alerts"
-        >
-          <BellIcon className="size-4" aria-hidden />
-          {openAlertCount > 0 ? (
-            <span
-              className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white"
-              data-testid="app-top-bar-alert-count"
-            >
-              {openAlertCount > 99 ? "99+" : openAlertCount}
-            </span>
-          ) : null}
-        </Link>
+        <AppTopBarAlertBell
+          enabled={canViewAlerts}
+          fallbackCount={openAlertCount}
+        />
         <AppTopBarUserMenu name={name} jobTitle={jobTitle} image={image} />
       </div>
     </header>

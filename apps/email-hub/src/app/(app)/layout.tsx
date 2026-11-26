@@ -8,6 +8,7 @@ import { OfferProvider } from "@/components/app/offer-provider"
 import { OnlineStatusProvider } from "@/components/app/online-status"
 import { getSession } from "@/lib/auth"
 import { buildLoginPath } from "@/lib/login/login-path"
+import { hasAtLeastRole } from "@/lib/permissions"
 
 export default async function AppShellLayout({
   children,
@@ -39,6 +40,7 @@ export default async function AppShellLayout({
             name={session.name}
             jobTitle={session.jobTitle}
             image={session.image}
+            canViewAlerts={hasAtLeastRole(session, "operator")}
           />
           <AppTabs role={session.role} />
           <div className="w-full flex-1 p-6">{children}</div>
