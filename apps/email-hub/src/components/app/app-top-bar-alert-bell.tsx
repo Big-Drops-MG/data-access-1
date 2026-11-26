@@ -216,8 +216,9 @@ export function AppTopBarAlertBell({
                       <p className="text-[13px] font-medium text-fg capitalize">
                         {alertTypeLabel(alert.type)}
                       </p>
-                      <p className="line-clamp-2 text-xs text-fg-muted">
-                        {alert.message}
+                      <p className="text-xs text-fg-muted tabular-nums">
+                        Triggered {alert.occurrence_count}{" "}
+                        {alert.occurrence_count === 1 ? "time" : "times"}
                       </p>
                       <div className="flex items-center justify-between pt-1">
                         {acked ? (
