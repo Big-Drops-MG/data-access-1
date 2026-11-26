@@ -41,7 +41,7 @@ export const ROLE_OPTIONS: readonly {
   {
     value: "admin",
     label: "Admin",
-    description: "Also manages domains, routes, users, API clients and queues.",
+    description: "Also manages domains, routes, users and queues.",
   },
 ]
 

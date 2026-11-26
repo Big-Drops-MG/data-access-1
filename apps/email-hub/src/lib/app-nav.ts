@@ -53,12 +53,6 @@ export const APP_ADMIN_NAV_ITEMS = [
     minRole: "operator",
   },
   {
-    title: "API clients",
-    href: "/admin/api-clients",
-    documentTitle: "API clients",
-    minRole: "admin",
-  },
-  {
     title: "Users",
     href: "/admin/users",
     documentTitle: "Users",
