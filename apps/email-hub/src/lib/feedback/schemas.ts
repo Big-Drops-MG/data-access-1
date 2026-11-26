@@ -2,6 +2,12 @@ import { z } from "zod"
 
 import { paginationSchema, uuidSchema } from "@workspace/shared"
 
+export const feedbackSourceSchema = z.enum([
+  "provider_fbl",
+  "feedback_form",
+  "mailbox_report",
+])
+
 export const feedbackStatusSchema = z.enum(["pending", "in_review", "resolved"])
 
 export const feedbackDecisionSchema = z.enum([
@@ -14,6 +20,7 @@ export const feedbackListQuerySchema = paginationSchema
   .extend({
     cursor: uuidSchema.optional(),
     status: feedbackStatusSchema.optional(),
+    source: feedbackSourceSchema.optional(),
     offer_id: uuidSchema.optional(),
   })
   .strict()

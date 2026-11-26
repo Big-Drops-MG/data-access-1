@@ -34,6 +34,7 @@ export const APP_PRIMARY_TABS = [
   { title: "Domains", href: "/domains", documentTitle: "Domains" },
   { title: "Senders", href: "/senders", documentTitle: "Senders" },
   { title: "Complaints", href: "/complaints", documentTitle: "Complaints" },
+  { title: "Feedback", href: "/feedback", documentTitle: "Feedback" },
   { title: "Alerts", href: "/alerts", documentTitle: "Alerts" },
   { title: "Reports", href: "/reports", documentTitle: "Reports" },
 ] as const satisfies readonly AppNavTab[]
@@ -51,12 +52,6 @@ export const APP_ADMIN_NAV_ITEMS = [
     href: "/admin/audit-log",
     documentTitle: "Audit log",
     minRole: "operator",
-  },
-  {
-    title: "API clients",
-    href: "/admin/api-clients",
-    documentTitle: "API clients",
-    minRole: "admin",
   },
   {
     title: "Users",

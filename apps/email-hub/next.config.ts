@@ -6,20 +6,6 @@ const nextConfig: NextConfig = {
   experimental: {
     agentUpgrade: "security",
   },
-  async redirects() {
-    return [
-      {
-        source: "/feedback",
-        destination: "/complaints",
-        permanent: false,
-      },
-      {
-        source: "/feedback/:id",
-        destination: "/complaints/:id",
-        permanent: false,
-      },
-    ]
-  },
   serverExternalPackages: [
     "@workspace/db",
     "@workspace/emails",
