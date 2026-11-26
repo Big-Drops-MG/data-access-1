@@ -14,6 +14,7 @@ async function handlePost(request: Request): Promise<Response> {
     { email: body.email, role: body.role },
     {
       userId: session.id,
+      name: session.name,
       requestId: getRequestId() ?? null,
     }
   )

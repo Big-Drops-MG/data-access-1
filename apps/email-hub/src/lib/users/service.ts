@@ -1,16 +1,24 @@
-import { session, user, verification, type User } from "@workspace/db"
+import {
+  session,
+  twoFactor,
+  user,
+  verification,
+  type User,
+} from "@workspace/db"
 import {
   getDb,
   type Database,
   type DatabaseTransaction,
 } from "@workspace/db/client"
+import { getContextLogger } from "@workspace/logger"
 import { AppError, normaliseEmail, writeAudit } from "@workspace/shared"
-import { and, asc, eq, sql } from "drizzle-orm"
+import { and, asc, eq, gt, like, sql } from "drizzle-orm"
 import { v7 as uuidv7 } from "uuid"
 
 import { isAllowedSsoEmailDomain } from "@/lib/auth/admin-emails"
 import { deleteTrustedDevicesForUser } from "@/lib/auth/trusted-device"
 import { resetTwoFactorForAdmin } from "@/lib/auth/two-factor-lockout"
+import { getLockoutStatus } from "@/lib/auth/two-factor-policy"
 
 import { consumeInvitation } from "./invitation-store"
 import {
@@ -22,10 +30,15 @@ import {
 } from "./invitation"
 import { isActiveAdmin, isSameUser, removalLeavesNoActiveAdmin } from "./rules"
 import {
+  sendUserInvitationEmail,
+  type SendUserInvitationEmailInput,
+} from "./send-invitation-email"
+import {
   serializeInvitation,
   serializeUser,
   type DisabledUserJson,
   type InvitationJson,
+  type ManagedUserJson,
   type UserJson,
 } from "./serialize"
 
@@ -33,6 +46,7 @@ export const ACTIVE_ADMIN_LOCK_KEY = "emailhub:active-admins"
 
 export type UserActor = {
   userId: string
+  name?: string | null
   requestId?: string | null
 }
 
@@ -90,7 +104,10 @@ export async function inviteUser(
   input: { email: string; role: string },
   actor: UserActor,
   db: Database = getDb(),
-  now: Date = new Date()
+  now: Date = new Date(),
+  options?: {
+    sendInvitationEmail?: (input: SendUserInvitationEmailInput) => Promise<void>
+  }
 ): Promise<InvitationJson> {
   assertStaffRole(input.role)
   const email = normaliseEmail(input.email)
@@ -189,6 +206,26 @@ export async function inviteUser(
   if (outcome.conflict) {
     throw AppError.conflict([{ path: "email", message: "User already exists" }])
   }
+
+  const sendEmail =
+    options?.sendInvitationEmail ??
+    (process.env.NODE_ENV === "test" ? undefined : sendUserInvitationEmail)
+  if (sendEmail) {
+    try {
+      await sendEmail({
+        recipientEmail: outcome.invitation.email,
+        role: outcome.invitation.role,
+        expiresAt: new Date(outcome.invitation.expires_at),
+        invitedByName: actor.name,
+      })
+    } catch (error) {
+      getContextLogger().error(
+        { err: error, event: "user.invitation_email_failed" },
+        "Failed to send user invitation email"
+      )
+    }
+  }
+
   return outcome.invitation
 }
 
@@ -338,4 +375,249 @@ export async function resetManagedUserTwoFactor(
     actorId: actor.userId,
     requestId: actor.requestId,
   })
+}
+
+const INVITE_IDENTIFIER_PREFIX = "user-invite:"
+
+function statusRank(status: ManagedUserJson["status"]): number {
+  if (status === "active") return 0
+  if (status === "invited") return 1
+  return 2
+}
+
+export async function listUsers(
+  db: Database = getDb(),
+  now: Date = new Date()
+): Promise<ManagedUserJson[]> {
+  const [userRows, twoFactorRows, sessionRows, inviteRows] = await Promise.all([
+    db.select().from(user).orderBy(asc(user.createdAt), asc(user.id)),
+    db
+      .select({
+        userId: twoFactor.userId,
+        failedVerificationCount: twoFactor.failedVerificationCount,
+        failureWindowStartedAt: twoFactor.failureWindowStartedAt,
+        lockedUntil: twoFactor.lockedUntil,
+        consecutiveLockoutCount: twoFactor.consecutiveLockoutCount,
+        lastCountedLockoutUntil: twoFactor.lastCountedLockoutUntil,
+      })
+      .from(twoFactor),
+    db
+      .select({
+        userId: session.userId,
+        lastSignInAt: sql<Date | null>`max(${session.createdAt})`,
+      })
+      .from(session)
+      .groupBy(session.userId),
+    db
+      .select()
+      .from(verification)
+      .where(
+        and(
+          like(verification.identifier, `${INVITE_IDENTIFIER_PREFIX}%`),
+          gt(verification.expiresAt, now)
+        )
+      )
+      .orderBy(asc(verification.createdAt), asc(verification.id)),
+  ])
+
+  const lockedByUserId = new Map<string, boolean>()
+  for (const row of twoFactorRows) {
+    const status = getLockoutStatus(
+      {
+        failedVerificationCount: row.failedVerificationCount,
+        failureWindowStartedAt: row.failureWindowStartedAt,
+        lockedUntil: row.lockedUntil,
+        consecutiveLockoutCount: row.consecutiveLockoutCount,
+        lastCountedLockoutUntil: row.lastCountedLockoutUntil,
+      },
+      now
+    )
+    lockedByUserId.set(row.userId, status === "admin_required")
+  }
+
+  const lastSignInByUserId = new Map<string, string>()
+  for (const row of sessionRows) {
+    if (row.lastSignInAt instanceof Date) {
+      lastSignInByUserId.set(row.userId, row.lastSignInAt.toISOString())
+    } else if (typeof row.lastSignInAt === "string") {
+      lastSignInByUserId.set(row.userId, row.lastSignInAt)
+    }
+  }
+
+  const existingEmails = new Set<string>()
+  const managed: ManagedUserJson[] = userRows.map((row) => {
+    existingEmails.add(normaliseEmail(row.email))
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role: row.role,
+      status: row.status,
+      two_factor_enabled: row.twoFactorEnabled,
+      two_factor_locked: lockedByUserId.get(row.id) ?? false,
+      last_sign_in_at: lastSignInByUserId.get(row.id) ?? null,
+      expires_at: null,
+    }
+  })
+
+  const seenInviteEmails = new Set<string>()
+  for (const invite of inviteRows) {
+    if (!invite.identifier.startsWith(INVITE_IDENTIFIER_PREFIX)) {
+      continue
+    }
+    const email = normaliseEmail(
+      invite.identifier.slice(INVITE_IDENTIFIER_PREFIX.length)
+    )
+    if (!email || existingEmails.has(email) || seenInviteEmails.has(email)) {
+      continue
+    }
+    const parsed = parseInvitationValue(invite.value)
+    if (!parsed) {
+      continue
+    }
+    seenInviteEmails.add(email)
+    managed.push({
+      id: invite.id,
+      email,
+      name: null,
+      role: parsed.role,
+      status: "invited",
+      two_factor_enabled: false,
+      two_factor_locked: false,
+      last_sign_in_at: null,
+      expires_at: invite.expiresAt.toISOString(),
+    })
+  }
+
+  managed.sort((a, b) => statusRank(a.status) - statusRank(b.status))
+  return managed
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false
+  }
+  const rec = error as { code?: unknown; cause?: unknown }
+  if (rec.code === "23503") {
+    return true
+  }
+  if (rec.cause && typeof rec.cause === "object") {
+    return (rec.cause as { code?: unknown }).code === "23503"
+  }
+  return false
+}
+
+export async function revokeInvitation(
+  invitationId: string,
+  actor: UserActor,
+  db: Database = getDb()
+): Promise<{ id: string; deleted: true }> {
+  const deleted = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(verification)
+      .where(
+        and(
+          eq(verification.id, invitationId),
+          like(verification.identifier, `${INVITE_IDENTIFIER_PREFIX}%`)
+        )
+      )
+      .limit(1)
+      .for("update")
+
+    if (!row) {
+      throw AppError.notFound()
+    }
+
+    const email = normaliseEmail(
+      row.identifier.slice(INVITE_IDENTIFIER_PREFIX.length)
+    )
+    const parsed = parseInvitationValue(row.value)
+
+    await tx.delete(verification).where(eq(verification.id, row.id))
+    await writeAudit(tx, {
+      ...auditActor(actor),
+      action: "user.invitation_revoked",
+      objectType: "user_invitation",
+      objectId: row.id,
+      before: {
+        email,
+        role: parsed?.role ?? null,
+        expires_at: row.expiresAt.toISOString(),
+      },
+      after: null,
+    })
+
+    return { id: row.id, deleted: true as const }
+  })
+
+  return deleted
+}
+
+export async function deleteUser(
+  userId: string,
+  actor: UserActor,
+  db: Database = getDb()
+): Promise<{ id: string; deleted: true }> {
+  if (isSameUser(actor.userId, userId)) {
+    throw AppError.forbidden([
+      { path: "userId", message: "You cannot delete your own account" },
+    ])
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      await lockActiveAdmins(tx)
+      const target = await loadUserForUpdate(tx, userId)
+      if (!target) {
+        throw AppError.notFound()
+      }
+
+      if (isActiveAdmin(target)) {
+        const activeAdmins = await countActiveAdmins(tx)
+        if (
+          removalLeavesNoActiveAdmin({
+            targetIsActiveAdmin: true,
+            activeAdminCount: activeAdmins,
+          })
+        ) {
+          throw AppError.conflict([
+            { path: "userId", message: "Cannot delete the last active admin" },
+          ])
+        }
+      }
+
+      await tx.delete(session).where(eq(session.userId, userId))
+      await deleteTrustedDevicesForUser(userId, tx)
+      await tx.delete(twoFactor).where(eq(twoFactor.userId, userId))
+      await consumeInvitation(tx, target.email)
+      await tx.delete(user).where(eq(user.id, userId))
+
+      await writeAudit(tx, {
+        ...auditActor(actor),
+        action: "user.deleted",
+        objectType: "user",
+        objectId: userId,
+        before: {
+          email: target.email,
+          role: target.role,
+          status: target.status,
+        },
+        after: null,
+      })
+
+      return { id: userId, deleted: true as const }
+    })
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw AppError.conflict([
+        {
+          path: "userId",
+          message:
+            "This user has authored records and cannot be permanently deleted. Disable their account instead.",
+        },
+      ])
+    }
+    throw error
+  }
 }
