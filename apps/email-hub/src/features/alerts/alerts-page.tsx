@@ -11,7 +11,6 @@ import { PageHeader } from "@/components/app/page-header"
 import {
   acknowledgeAlert,
   type AlertListItem,
-  type AlertSeverity,
   type AlertStatus,
 } from "@/features/alerts/api"
 import { alertsColumns } from "@/features/alerts/alerts-columns"
@@ -25,24 +24,8 @@ import { useAlertsList } from "@/features/alerts/use-alerts-list"
 import { isApiError } from "@/lib/api-client"
 import { useDataTableUrlState } from "@/lib/data-table/use-data-table-url-state"
 import { listQueryKey } from "@/lib/query-keys"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@workspace/ui/components/select"
 
-const FILTER_KEYS = ["status", "severity"] as const
-
-type SeverityFilterValue = "all" | AlertSeverity
-
-function parseSeverityFilter(raw: string | undefined): SeverityFilterValue {
-  if (raw === "critical" || raw === "warn" || raw === "info") {
-    return raw
-  }
-  return "all"
-}
+const FILTER_KEYS = ["status"] as const
 
 type AlertsPageProps = {
   canAck?: boolean
@@ -57,7 +40,6 @@ export function AlertsPage({
   const { selectedOfferId } = useOfferSelection()
   const tableState = useDataTableUrlState({ filterKeys: FILTER_KEYS })
   const selectedStatus = parseAlertStatusTab(tableState.filters.status)
-  const selectedSeverity = parseSeverityFilter(tableState.filters.severity)
 
   const listParams = useMemo(
     () => ({
@@ -65,16 +47,9 @@ export function AlertsPage({
       cursor: tableState.cursor,
       status:
         selectedStatus === "all" ? undefined : (selectedStatus as AlertStatus),
-      severity: selectedSeverity === "all" ? undefined : selectedSeverity,
       offer_id: selectedOfferId ?? undefined,
     }),
-    [
-      selectedOfferId,
-      selectedSeverity,
-      selectedStatus,
-      tableState.cursor,
-      tableState.limit,
-    ]
+    [selectedOfferId, selectedStatus, tableState.cursor, tableState.limit]
   )
 
   const list = useAlertsList(listParams)
@@ -180,41 +155,16 @@ export function AlertsPage({
           </p>
         }
         toolbar={
-          <div className="flex flex-wrap items-center gap-3">
-            <AlertsStatusTabs
-              value={selectedStatus}
-              counts={counts}
-              onChange={(value) => {
-                tableState.setFilter(
-                  "status",
-                  value === "open" ? undefined : value
-                )
-              }}
-            />
-            <Select
-              value={selectedSeverity}
-              onValueChange={(value) => {
-                tableState.setFilter(
-                  "severity",
-                  value === "all" ? undefined : value
-                )
-              }}
-            >
-              <SelectTrigger
-                className="h-9 w-[150px] text-[13px]"
-                aria-label="Filter by severity"
-                data-testid="alerts-severity-filter"
-              >
-                <SelectValue placeholder="All severities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All severities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="warn">Warning</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <AlertsStatusTabs
+            value={selectedStatus}
+            counts={counts}
+            onChange={(value) => {
+              tableState.setFilter(
+                "status",
+                value === "open" ? undefined : value
+              )
+            }}
+          />
         }
       />
     </div>
