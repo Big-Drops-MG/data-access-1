@@ -22,6 +22,7 @@ describe("APP_PRIMARY_TABS", () => {
       "Domains",
       "Senders",
       "Complaints",
+      "Feedback",
       "Alerts",
       "Reports",
     ])
