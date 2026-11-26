@@ -9,6 +9,7 @@ import { useOfferSelection } from "@/components/app/offer-provider"
 import { PageHeader } from "@/components/app/page-header"
 import type { FeedbackStatus } from "@/features/feedback/api"
 import { feedbackResponseColumns } from "@/features/feedback/feedback-responses-columns"
+import { MOCK_FEEDBACK_RESPONSES } from "@/features/feedback/feedback-responses-mock"
 import {
   isStalePending,
   parseFeedbackStatusTab,
@@ -54,28 +55,35 @@ export function FeedbackResponsesPage({
     offer_id: selectedOfferId ?? undefined,
   })
 
+  const useMock =
+    !allForCounts.isPending &&
+    !allForCounts.isError &&
+    (allForCounts.data?.data.length ?? 0) === 0
+
+  const sourceRows = useMemo(
+    () => (useMock ? MOCK_FEEDBACK_RESPONSES : (allForCounts.data?.data ?? [])),
+    [allForCounts.data?.data, useMock]
+  )
+
   const counts = useMemo(() => {
-    const rows = allForCounts.data?.data ?? []
     const next: Partial<Record<FeedbackStatusTabValue, number>> = {
-      all: rows.length,
+      all: sourceRows.length,
       pending: 0,
       in_review: 0,
       resolved: 0,
     }
-    for (const row of rows) {
+    for (const row of sourceRows) {
       const key = row.status as FeedbackStatusTabValue
       if (key in next) {
         next[key] = (next[key] ?? 0) + 1
       }
     }
     return next
-  }, [allForCounts.data?.data])
+  }, [sourceRows])
 
   const stalePendingCount = useMemo(
-    () =>
-      (allForCounts.data?.data ?? []).filter((row) => isStalePending(row))
-        .length,
-    [allForCounts.data?.data]
+    () => sourceRows.filter((row) => isStalePending(row)).length,
+    [sourceRows]
   )
 
   const columns = useMemo(
@@ -83,8 +91,19 @@ export function FeedbackResponsesPage({
     [currentUserId]
   )
 
-  const rows = list.data?.data ?? []
-  const nextCursor = list.data?.next_cursor ?? null
+  const rows = useMemo(() => {
+    if (!useMock) {
+      return list.data?.data ?? []
+    }
+    if (selectedStatus === "all") {
+      return [...MOCK_FEEDBACK_RESPONSES]
+    }
+    return MOCK_FEEDBACK_RESPONSES.filter(
+      (row) => row.status === selectedStatus
+    )
+  }, [list.data?.data, selectedStatus, useMock])
+
+  const nextCursor = useMock ? null : (list.data?.next_cursor ?? null)
 
   return (
     <section className="space-y-6" aria-label="Feedback responses">
@@ -92,6 +111,17 @@ export function FeedbackResponsesPage({
         title="Feedback"
         description="User responses submitted from feedback forms. Review, classify, and decide on each response."
       />
+
+      {useMock ? (
+        <aside
+          className="rounded-lg border border-border bg-surface-2 px-4 py-2.5 text-[13px] text-fg-muted"
+          data-testid="feedback-responses-mock-banner"
+          role="status"
+        >
+          Showing sample feedback responses for preview until real form
+          submissions are recorded.
+        </aside>
+      ) : null}
 
       {stalePendingCount > 0 ? (
         <aside
@@ -144,9 +174,13 @@ export function FeedbackResponsesPage({
             forms will appear here.
           </p>
         }
-        onRowClick={(row) => {
-          router.push(`/feedback/${encodeURIComponent(row.id)}`)
-        }}
+        onRowClick={
+          useMock
+            ? undefined
+            : (row) => {
+                router.push(`/feedback/${encodeURIComponent(row.id)}`)
+              }
+        }
         toolbar={
           <FeedbackStatusTabs
             value={selectedStatus}
