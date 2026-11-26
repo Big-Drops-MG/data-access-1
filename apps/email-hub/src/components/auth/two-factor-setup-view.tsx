@@ -24,6 +24,42 @@ type TwoFactorSetupViewProps = {
 
 type SetupPhase = "enroll" | "backup"
 
+type Enrolment = {
+  totpURI: string
+  backupCodes: string[]
+}
+
+let enrolmentRequest: Promise<Enrolment> | null = null
+
+function requestEnrolment(): Promise<Enrolment> {
+  if (!enrolmentRequest) {
+    enrolmentRequest = authClient.twoFactor
+      .enable({ method: "totp" })
+      .then((result) => {
+        const data = result.data as {
+          totpURI?: string
+          backupCodes?: string[]
+        } | null
+        if (result.error || !data?.totpURI) {
+          enrolmentRequest = null
+          throw new Error(
+            result.error
+              ? resolveTwoFactorVerifyError({
+                  code: result.error.code,
+                  message: result.error.message,
+                }).description
+              : "Could not start two-step verification. Try again."
+          )
+        }
+        return {
+          totpURI: data.totpURI,
+          backupCodes: data.backupCodes ?? [],
+        }
+      })
+  }
+  return enrolmentRequest
+}
+
 /** Forced TOTP enrolment: QR + manual key, confirm code, then backup codes. */
 export function TwoFactorSetupView({
   email,
@@ -50,34 +86,13 @@ export function TwoFactorSetupView({
     async function startEnrolment() {
       setPending(true)
       try {
-        const result = await authClient.twoFactor.enable({
-          method: "totp",
-        })
+        const enrolment = await requestEnrolment()
         if (cancelled) {
           return
         }
-        if (result.error) {
-          setError(
-            resolveTwoFactorVerifyError({
-              code: result.error.code,
-              message: result.error.message,
-            }).description
-          )
-          setPending(false)
-          return
-        }
-        const data = result.data as {
-          totpURI?: string
-          backupCodes?: string[]
-        } | null
-        if (!data?.totpURI) {
-          setError("Could not start two-step verification. Try again.")
-          setPending(false)
-          return
-        }
-        setTotpURI(data.totpURI)
-        setBackupCodes(data.backupCodes ?? [])
-        const url = await QRCode.toDataURL(data.totpURI, {
+        setTotpURI(enrolment.totpURI)
+        setBackupCodes(enrolment.backupCodes)
+        const url = await QRCode.toDataURL(enrolment.totpURI, {
           margin: 1,
           width: 200,
           color: { dark: "#00173A", light: "#FFFFFF" },
@@ -87,11 +102,11 @@ export function TwoFactorSetupView({
         }
       } catch (caught) {
         if (!cancelled) {
-          const message =
+          setError(
             caught instanceof Error
               ? caught.message
               : "Could not start two-step verification."
-          setError(message)
+          )
         }
       } finally {
         if (!cancelled) {

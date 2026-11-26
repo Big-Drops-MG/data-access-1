@@ -25,6 +25,10 @@ import { isApiError } from "@/lib/api-client"
 import { useDataTableUrlState } from "@/lib/data-table/use-data-table-url-state"
 import { listQueryKey } from "@/lib/query-keys"
 
+const CREATED_SECRET_TITLE = "Copy the secret now"
+const CREATED_SECRET_DESCRIPTION =
+  "This is the only time it is shown. Email Hub stores a hash, so nobody can see it again."
+
 export function ApiClientsPage() {
   const queryClient = useQueryClient()
   const tableState = useDataTableUrlState({ filterKeys: [] })
@@ -32,9 +36,9 @@ export function ApiClientsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [secretClient, setSecretClient] =
     useState<ApiClientSecretReveal | null>(null)
-  const [secretTitle, setSecretTitle] = useState("Save this secret")
+  const [secretTitle, setSecretTitle] = useState(CREATED_SECRET_TITLE)
   const [secretDescription, setSecretDescription] = useState(
-    "This secret is shown once. Store it in your secret manager before closing."
+    CREATED_SECRET_DESCRIPTION
   )
 
   const rows = useMemo(
@@ -187,10 +191,8 @@ export function ApiClientsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={(created) => {
-          setSecretTitle("Save this secret")
-          setSecretDescription(
-            "This secret is shown once. Store it in your secret manager before closing."
-          )
+          setSecretTitle(CREATED_SECRET_TITLE)
+          setSecretDescription(CREATED_SECRET_DESCRIPTION)
           setSecretClient(created)
         }}
       />
