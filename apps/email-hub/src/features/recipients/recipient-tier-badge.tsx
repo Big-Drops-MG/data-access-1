@@ -15,7 +15,7 @@ export function RecipientTierBadge({
 }: RecipientTierBadgeProps) {
   return (
     <StatusBadge
-      variant={tier === "premium" ? "info" : "neutral"}
+      variant={tier === "premium" ? "brand" : "neutral"}
       className={className}
     >
       {recipientTierLabel(tier)}

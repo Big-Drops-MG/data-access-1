@@ -3,13 +3,10 @@
 import type { ColumnDef } from "@tanstack/react-table"
 
 import { EtDateTime } from "@/components/app/et-datetime"
-import { StatusBadge } from "@/components/app/status-badge"
 import type { RecipientListItem } from "@/features/recipients/api"
-import {
-  recipientStatusLabel,
-  shortRecipientId,
-} from "@/features/recipients/labels"
+import { shortRecipientId } from "@/features/recipients/labels"
 import { RecipientMessageStatusBadge } from "@/features/recipients/recipient-message-status-badge"
+import { RecipientStatusBadge } from "@/features/recipients/recipient-status-badge"
 import { RecipientTierBadge } from "@/features/recipients/recipient-tier-badge"
 
 function EmptyCell() {
@@ -18,77 +15,59 @@ function EmptyCell() {
 
 export const recipientsColumns: ColumnDef<RecipientListItem, unknown>[] = [
   {
-    id: "id",
-    accessorKey: "id",
-    header: "Recipient ID",
-    cell: ({ row }) => (
-      <span
-        className="block truncate font-mono text-[13px] text-fg"
-        title={row.original.id}
-      >
-        {shortRecipientId(row.original.id)}
-      </span>
-    ),
-    enableHiding: false,
-  },
-  {
-    id: "email",
+    id: "recipient",
     accessorKey: "email",
-    header: "Email",
+    header: "Recipient",
     cell: ({ row }) => (
-      <span
-        className="block min-w-0 truncate font-medium text-fg"
-        title={row.original.email}
-      >
-        {row.original.email}
-      </span>
+      <div className="min-w-0">
+        <p
+          className="truncate text-[13px] font-medium text-fg"
+          title={row.original.email}
+        >
+          {row.original.email}
+        </p>
+        <p
+          className="truncate font-mono text-[12px] text-fg-muted"
+          title={row.original.id}
+        >
+          {shortRecipientId(row.original.id)}
+        </p>
+      </div>
     ),
     enableHiding: false,
-  },
-  {
-    id: "first_name",
-    accessorKey: "first_name",
-    header: "First name",
-    cell: ({ row }) =>
-      row.original.first_name ? (
-        <span className="block truncate text-[13px] text-fg">
-          {row.original.first_name}
-        </span>
-      ) : (
-        <EmptyCell />
-      ),
-  },
-  {
-    id: "last_name",
-    accessorKey: "last_name",
-    header: "Last name",
-    cell: ({ row }) =>
-      row.original.last_name ? (
-        <span className="block truncate text-[13px] text-fg">
-          {row.original.last_name}
-        </span>
-      ) : (
-        <EmptyCell />
-      ),
   },
   {
     id: "status",
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) =>
-      row.original.status === "active" ? (
-        <StatusBadge status="active" />
-      ) : (
-        <StatusBadge variant="err">
-          {recipientStatusLabel(row.original.status)}
-        </StatusBadge>
-      ),
+    cell: ({ row }) => (
+      <RecipientStatusBadge
+        status={row.original.status}
+        unsubscribed={row.original.unsubscribed}
+      />
+    ),
   },
   {
     id: "tier",
     accessorKey: "tier",
     header: "Tier",
     cell: ({ row }) => <RecipientTierBadge tier={row.original.tier} />,
+  },
+  {
+    id: "offer",
+    accessorFn: (row) => row.offer?.external_ref ?? null,
+    header: "Offer",
+    cell: ({ row }) =>
+      row.original.offer ? (
+        <span
+          className="block truncate font-mono text-[13px] text-fg"
+          title={row.original.offer.name}
+        >
+          {row.original.offer.external_ref}
+        </span>
+      ) : (
+        <EmptyCell />
+      ),
   },
   {
     id: "last_message",

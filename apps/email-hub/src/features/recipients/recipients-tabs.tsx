@@ -3,6 +3,7 @@
 import Link from "next/link"
 
 import { recipientsTabClass } from "@/features/recipients/recipients-ui"
+import { cn } from "@workspace/ui/lib/utils"
 
 export type RecipientsTabId = "list" | "import" | "categories"
 
@@ -18,12 +19,16 @@ const TABS: ReadonlyArray<{
 
 type RecipientsTabsProps = {
   active: RecipientsTabId
+  className?: string
 }
 
-export function RecipientsTabs({ active }: RecipientsTabsProps) {
+export function RecipientsTabs({ active, className }: RecipientsTabsProps) {
   return (
     <nav
-      className="flex flex-wrap items-center gap-5 border-b border-border"
+      className={cn(
+        "flex flex-wrap items-center gap-5 border-b border-border",
+        className
+      )}
       aria-label="Recipients sections"
       data-testid="recipients-tabs"
     >

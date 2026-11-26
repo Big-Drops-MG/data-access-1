@@ -104,6 +104,8 @@ export type DataTableProps<TData> = {
   animateRows?: boolean
   isLoading?: boolean
   emptyState?: ReactNode
+  /** Shown at the start of the footer, for example "1-8 of 48,213". */
+  pageSummary?: ReactNode
   testIdPrefix?: string
   className?: string
 }
@@ -139,6 +141,7 @@ export function DataTable<TData>({
   animateRows = false,
   isLoading = false,
   emptyState,
+  pageSummary,
   testIdPrefix = "data-table",
   className,
 }: DataTableProps<TData>) {
@@ -519,70 +522,85 @@ export function DataTable<TData>({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pt-1">
-        <div className="flex items-center gap-2.5">
-          <label
-            htmlFor={`${testIdPrefix}-page-size`}
-            className="text-[13px] leading-none font-medium tracking-tight text-fg-muted"
+        {pageSummary ? (
+          <p
+            className="text-[13px] leading-none font-medium tracking-tight text-fg-muted tabular-nums"
+            data-testid={`${testIdPrefix}-range`}
           >
-            Rows per page
-          </label>
-          <Select
-            value={String(pageSize)}
-            onValueChange={(value) => {
-              if (value != null) {
-                onPageSizeChange(Number(value) as DataTablePageSize)
-              }
-            }}
-          >
-            <SelectTrigger
-              id={`${testIdPrefix}-page-size`}
-              data-testid={`${testIdPrefix}-page-size`}
-              className="h-auto min-w-16 gap-1.5 rounded-md border-border bg-surface py-1.5 pr-2 pl-3.5 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 data-[size=default]:h-auto data-[size=sm]:h-auto [&_svg:not([class*='size-'])]:size-3.5"
+            {pageSummary}
+          </p>
+        ) : null}
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-x-4 gap-y-3",
+            pageSummary ? "ml-auto" : "w-full justify-between"
+          )}
+        >
+          <div className="flex items-center gap-2.5">
+            <label
+              htmlFor={`${testIdPrefix}-page-size`}
+              className="text-[13px] leading-none font-medium tracking-tight text-fg-muted"
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent
-              align="start"
-              className="min-w-28 rounded-xl p-1 shadow-md"
+              Rows per page
+            </label>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => {
+                if (value != null) {
+                  onPageSizeChange(Number(value) as DataTablePageSize)
+                }
+              }}
             >
-              {DATA_TABLE_PAGE_SIZES.map((size) => (
-                <SelectItem
-                  key={size}
-                  value={String(size)}
-                  className="rounded-lg py-2 pr-8 pl-3 text-[13px] font-medium tracking-tight"
-                >
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+              <SelectTrigger
+                id={`${testIdPrefix}-page-size`}
+                data-testid={`${testIdPrefix}-page-size`}
+                className="h-auto min-w-16 gap-1.5 rounded-md border-border bg-surface py-1.5 pr-2 pl-3.5 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 data-[size=default]:h-auto data-[size=sm]:h-auto [&_svg:not([class*='size-'])]:size-3.5"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                align="start"
+                className="min-w-28 rounded-xl p-1 shadow-md"
+              >
+                {DATA_TABLE_PAGE_SIZES.map((size) => (
+                  <SelectItem
+                    key={size}
+                    value={String(size)}
+                    className="rounded-lg py-2 pr-8 pl-3 text-[13px] font-medium tracking-tight"
+                  >
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!canPreviousPage || isLoading}
-            onClick={onPreviousPage}
-            data-testid={`${testIdPrefix}-prev`}
-            className="h-auto rounded-md border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
-          >
-            Previous
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!nextCursor || isLoading}
-            onClick={() => {
-              if (nextCursor) {
-                onNextPage(nextCursor)
-              }
-            }}
-            data-testid={`${testIdPrefix}-next`}
-            className="h-auto rounded-md border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
-          >
-            Next
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!canPreviousPage || isLoading}
+              onClick={onPreviousPage}
+              data-testid={`${testIdPrefix}-prev`}
+              className="h-auto rounded-md border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!nextCursor || isLoading}
+              onClick={() => {
+                if (nextCursor) {
+                  onNextPage(nextCursor)
+                }
+              }}
+              data-testid={`${testIdPrefix}-next`}
+              className="h-auto rounded-md border-border bg-surface px-3.5 py-2 text-[13px] leading-none font-medium tracking-tight text-fg shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-surface-2 disabled:opacity-40"
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 
-/** Categories UI is deferred; keep the route but send users to the list. */
+import { RecipientsCategoriesPage } from "@/features/recipients/recipients-categories-page"
+
+export const metadata: Metadata = {
+  title: "Recipient categories",
+}
+
 export default function Page() {
-  redirect("/recipients")
+  return <RecipientsCategoriesPage />
 }

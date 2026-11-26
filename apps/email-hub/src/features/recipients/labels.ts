@@ -5,10 +5,30 @@ export function shortRecipientId(id: string): string {
   return `rcp_${id.replaceAll("-", "").slice(-6)}`
 }
 
-export function recipientStatusLabel(
+export type RecipientDisplayStatus = "active" | "bounced" | "unsubscribed"
+
+export function recipientDisplayStatus(row: {
   status: RecipientListItem["status"]
-): string {
-  return status === "bounced" ? "Bounced" : "Active"
+  unsubscribed?: boolean
+}): RecipientDisplayStatus {
+  if (row.status === "bounced") {
+    return "bounced"
+  }
+  if (row.unsubscribed) {
+    return "unsubscribed"
+  }
+  return "active"
+}
+
+export function recipientStatusLabel(status: RecipientDisplayStatus): string {
+  switch (status) {
+    case "bounced":
+      return "Bounced"
+    case "unsubscribed":
+      return "Unsubscribed"
+    default:
+      return "Active"
+  }
 }
 
 export function recipientTierLabel(tier: RecipientListItem["tier"]): string {
