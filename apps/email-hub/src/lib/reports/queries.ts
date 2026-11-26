@@ -9,6 +9,7 @@ const ENGAGEMENT_DAILY_TABLE = "engagement_daily"
 const LINK_CLICKS_DAILY_TABLE = "link_clicks_daily"
 const ENVIRONMENT_DAILY_TABLE = "environment_daily"
 const PROVIDER_METRICS_TABLE = "provider_metrics"
+const EMAIL_EVENTS_TABLE = "email_events"
 
 export type ReportQueryPlan = {
   query: string
@@ -20,6 +21,7 @@ export function buildReportQuery(input: {
   from: string
   to: string
   includeMachine: boolean
+  domain?: string
 }): ReportQueryPlan {
   const rangeParams: ClickHouseQueryParams = {
     from: input.from,
@@ -34,6 +36,7 @@ SELECT
   day,
   sending_domain,
   provider,
+  email_type,
   sum(sent) AS sent,
   sum(delivered) AS delivered,
   sum(bounce_hard) AS bounce_hard,
@@ -43,8 +46,8 @@ SELECT
   sum(reject) AS reject
 FROM ${DAILY_SENDING_STATS_TABLE}
 WHERE day BETWEEN {from:Date} AND {to:Date}
-GROUP BY day, sending_domain, provider
-ORDER BY day, sending_domain, provider
+GROUP BY day, sending_domain, provider, email_type
+ORDER BY day, sending_domain, provider, email_type
 `.trim(),
         query_params: rangeParams,
       }
@@ -124,6 +127,44 @@ ORDER BY day, client, device_type, os, country, region
         query_params: input.includeMachine
           ? rangeParams
           : { ...rangeParams, is_machine: 0 },
+      }
+    }
+
+    case "open-frequency": {
+      const machineFilter = input.includeMachine
+        ? ""
+        : " AND is_machine = {is_machine:UInt8}"
+      const domain = input.domain?.trim() ?? ""
+      return {
+        query: `
+SELECT
+  multiIf(
+    opens = 1, '1',
+    opens = 2, '2',
+    opens = 3, '3',
+    opens = 4, '4',
+    opens = 5, '5',
+    '8+'
+  ) AS bucket,
+  count() AS recipients
+FROM (
+  SELECT
+    recipient_id,
+    count() AS opens
+  FROM ${EMAIL_EVENTS_TABLE}
+  WHERE event_type = 'open'
+    AND toDate(event_time, 'America/New_York') BETWEEN {from:Date} AND {to:Date}
+    AND ({domain:String} = '' OR sending_domain = {domain:String})${machineFilter}
+  GROUP BY recipient_id
+)
+GROUP BY bucket
+ORDER BY multiIf(bucket = '1', 1, bucket = '2', 2, bucket = '3', 3, bucket = '4', 4, bucket = '5', 5, 6)
+`.trim(),
+        query_params: {
+          ...rangeParams,
+          domain,
+          ...(input.includeMachine ? {} : { is_machine: 0 }),
+        },
       }
     }
 

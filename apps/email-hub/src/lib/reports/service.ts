@@ -39,6 +39,7 @@ export async function getReport(
     from: query.from,
     to: query.to,
     includeMachine,
+    domain: query.domain,
   })
   const data = await runQuery(plan.query, plan.query_params)
 
