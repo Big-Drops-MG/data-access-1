@@ -165,7 +165,7 @@ export function FeedbackResponsesPage({
         equalColumnWidths
         animateRows
         testIdPrefix="feedback-responses"
-        empty={
+        emptyState={
           <p
             className="text-sm text-fg-muted"
             data-testid="feedback-responses-empty"
