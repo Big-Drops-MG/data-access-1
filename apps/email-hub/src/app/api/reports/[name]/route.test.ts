@@ -70,12 +70,12 @@ describe("GET /api/reports/[name]", () => {
     )
   })
 
-  it("returns 422 when the range exceeds 92 days", async () => {
+  it("returns 422 when the range exceeds the max range", async () => {
     getSession.mockResolvedValue(session("viewer"))
 
     const response = await GET(
       new Request(
-        "http://localhost/api/reports/sending?from=2026-03-01&to=2026-06-01"
+        "http://localhost/api/reports/sending?from=2023-01-01&to=2026-06-01"
       ),
       { params: Promise.resolve({ name: "sending" }) }
     )

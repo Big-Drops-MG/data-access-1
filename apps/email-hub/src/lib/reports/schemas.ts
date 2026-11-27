@@ -15,7 +15,7 @@ export type ReportName = (typeof REPORT_NAMES)[number]
 
 export const reportNameSchema = z.enum(REPORT_NAMES)
 
-export const MAX_REPORT_RANGE_DAYS = 92
+export const MAX_REPORT_RANGE_DAYS = 1095
 
 const etDateSchema = z
   .string()

@@ -30,9 +30,9 @@ describe("reportQuerySchema", () => {
     })
   })
 
-  it("rejects ranges longer than 92 days", () => {
+  it("rejects ranges longer than MAX_REPORT_RANGE_DAYS", () => {
     const result = reportQuerySchema.safeParse({
-      from: "2026-03-01",
+      from: "2023-01-01",
       to: "2026-06-01",
     })
     expect(result.success).toBe(false)
