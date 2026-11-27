@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/app/data-table"
+import { ModuleSectionNav } from "@/components/app/module-section-nav"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { PageHeader } from "@/components/app/page-header"
 import { optOutColumns } from "@/features/unsubscribe-admin/opt-out-columns"
@@ -55,6 +56,19 @@ export function UnsubscribeAdminPage() {
 
   return (
     <div className="space-y-6">
+      <ModuleSectionNav
+        label="Suppression sections"
+        current="unsubscribe"
+        testId="suppression-sections"
+        items={[
+          { id: "list", label: "List", href: "/suppression" },
+          {
+            id: "unsubscribe",
+            label: "Unsubscribe",
+            href: "/suppression/unsubscribe",
+          },
+        ]}
+      />
       <PageHeader
         title="Unsubscribe"
         description="Hub thank-you and feedback opt-outs, plus public page branding and custom domain."

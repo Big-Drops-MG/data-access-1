@@ -111,6 +111,24 @@ describe("getDashboardSummary", () => {
           }),
         }),
       })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          orderBy: vi.fn().mockResolvedValue([
+            {
+              key: "optizmo",
+              status: "degraded",
+              lastSuccessAt: null,
+              lastAttemptAt: new Date("2026-11-20T11:00:00.000Z"),
+              lastError: "sync failed",
+            },
+          ]),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ total: 4 }]),
+        }),
+      })
 
     const db = { select } as never
     const runClickHouse = vi
@@ -160,8 +178,18 @@ describe("getDashboardSummary", () => {
         delayed: 0,
       },
     ])
+    expect(summary.open_alert_count).toBe(4)
     expect(summary.open_alerts).toHaveLength(1)
     expect(summary.open_alerts[0]?.id).toBe(openAlert.id)
+    expect(summary.integrations).toEqual([
+      {
+        key: "optizmo",
+        status: "degraded",
+        last_success_at: null,
+        last_attempt_at: "2026-11-20T11:00:00.000Z",
+        last_error: "sync failed",
+      },
+    ])
     expect(summary.upcoming_sends).toHaveLength(1)
     expect(summary.upcoming_sends[0]?.name).toBe("Upcoming send")
     expect(summary.recent_sends).toHaveLength(1)
@@ -170,6 +198,6 @@ describe("getDashboardSummary", () => {
     expect(runClickHouse).toHaveBeenCalledOnce()
     expect(getQueueCounts).toHaveBeenCalledOnce()
     expect(loadEmailRoutes).toHaveBeenCalledWith(db)
-    expect(select).toHaveBeenCalledTimes(3)
+    expect(select).toHaveBeenCalledTimes(5)
   })
 })

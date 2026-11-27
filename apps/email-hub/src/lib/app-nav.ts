@@ -14,30 +14,26 @@ export type AppAdminNavItem = {
   minRole: AppRole
 }
 
-/** Primary tabs in SD#12.3 order (Admin is separate). */
+/** Primary tabs in the Figma bar order. Admin lives in the user menu. */
 export const APP_PRIMARY_TABS = [
   { title: "Dashboard", href: "/dashboard", documentTitle: "Dashboard" },
+  { title: "Reports", href: "/reports", documentTitle: "Reports" },
   { title: "Sends", href: "/sends", documentTitle: "Sends" },
   { title: "Templates", href: "/templates", documentTitle: "Templates" },
-  {
-    title: "Email routes",
-    href: "/email-routes",
-    documentTitle: "Email routes",
-  },
+  { title: "Routes", href: "/email-routes", documentTitle: "Routes" },
+  { title: "Senders", href: "/senders", documentTitle: "Senders" },
+  { title: "Domains", href: "/domains", documentTitle: "Domains" },
   { title: "Recipients", href: "/recipients", documentTitle: "Recipients" },
   { title: "Suppression", href: "/suppression", documentTitle: "Suppression" },
-  {
-    title: "Unsubscribe",
-    href: "/unsubscribe",
-    documentTitle: "Unsubscribe",
-  },
-  { title: "Domains", href: "/domains", documentTitle: "Domains" },
-  { title: "Senders", href: "/senders", documentTitle: "Senders" },
-  { title: "Complaints", href: "/complaints", documentTitle: "Complaints" },
   { title: "Feedback", href: "/feedback", documentTitle: "Feedback" },
   { title: "Alerts", href: "/alerts", documentTitle: "Alerts" },
-  { title: "Reports", href: "/reports", documentTitle: "Reports" },
 ] as const satisfies readonly AppNavTab[]
+
+/** Nested screens that should highlight their parent tab. */
+const TAB_PATH_ALIASES: Record<string, readonly string[]> = {
+  "/suppression": ["/unsubscribe"],
+  "/feedback": ["/complaints"],
+}
 
 /** Admin dropdown items (SD#12.3). Viewer never sees the menu. */
 export const APP_ADMIN_NAV_ITEMS = [
@@ -73,7 +69,13 @@ export const APP_MODULE_PAGES = APP_PRIMARY_TABS
 export type AppModulePage = (typeof APP_PRIMARY_TABS)[number]
 
 export function isPathActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`)
+  if (pathname === href || pathname.startsWith(`${href}/`)) {
+    return true
+  }
+  const aliases = TAB_PATH_ALIASES[href] ?? []
+  return aliases.some(
+    (alias) => pathname === alias || pathname.startsWith(`${alias}/`)
+  )
 }
 
 export function isAdminSectionActive(pathname: string): boolean {

@@ -4,6 +4,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { BrandMark } from "@/components/auth/brand-mark"
 import { isDevEnvironmentBadgeVisible } from "@/lib/env-badge"
+import type { AppRole } from "@/lib/permissions"
 
 import { AppTopBarAlertBell } from "./app-top-bar-alert-bell"
 import { AppTopBarClock } from "./app-top-bar-clock"
@@ -14,6 +15,7 @@ type AppTopBarProps = {
   name: string
   jobTitle: string
   image: string | null
+  role: AppRole
   openAlertCount?: number
   canViewAlerts?: boolean
   className?: string
@@ -24,6 +26,7 @@ export function AppTopBar({
   name,
   jobTitle,
   image,
+  role,
   openAlertCount = 0,
   canViewAlerts = false,
   className,
@@ -66,7 +69,12 @@ export function AppTopBar({
           enabled={canViewAlerts}
           fallbackCount={openAlertCount}
         />
-        <AppTopBarUserMenu name={name} jobTitle={jobTitle} image={image} />
+        <AppTopBarUserMenu
+          name={name}
+          jobTitle={jobTitle}
+          image={image}
+          role={role}
+        />
       </div>
     </header>
   )

@@ -10,26 +10,25 @@ import {
 } from "@/lib/app-nav"
 
 describe("APP_PRIMARY_TABS", () => {
-  it("ships primary tabs without Offers (Offers lives under Admin)", () => {
+  it("matches the Figma bar and keeps Offers in the Admin menu", () => {
     expect(APP_PRIMARY_TABS.map((tab) => tab.title)).toEqual([
       "Dashboard",
+      "Reports",
       "Sends",
       "Templates",
-      "Email routes",
+      "Routes",
+      "Senders",
+      "Domains",
       "Recipients",
       "Suppression",
-      "Unsubscribe",
-      "Domains",
-      "Senders",
-      "Complaints",
       "Feedback",
       "Alerts",
-      "Reports",
     ])
     expect(APP_PRIMARY_TABS.map((tab) => tab.title)).not.toContain("Offers")
-    expect(
-      APP_PRIMARY_TABS.find((tab) => tab.title === "Unsubscribe")?.href
-    ).toBe("/unsubscribe")
+    expect(APP_PRIMARY_TABS.map((tab) => tab.title)).not.toContain("Admin")
+    expect(APP_PRIMARY_TABS.find((tab) => tab.title === "Routes")?.href).toBe(
+      "/email-routes"
+    )
     expect(
       APP_ADMIN_NAV_ITEMS.find((item) => item.title === "Offers")?.href
     ).toBe("/offers")
@@ -42,6 +41,10 @@ describe("isPathActive", () => {
     expect(isPathActive("/sends/abc", "/sends")).toBe(true)
     expect(isPathActive("/senders", "/sends")).toBe(false)
     expect(isPathActive("/dashboard", "/sends")).toBe(false)
+    expect(isPathActive("/suppression/unsubscribe", "/suppression")).toBe(true)
+    expect(isPathActive("/feedback/complaints", "/feedback")).toBe(true)
+    expect(isPathActive("/complaints/abc", "/feedback")).toBe(true)
+    expect(isPathActive("/unsubscribe", "/suppression")).toBe(true)
   })
 })
 

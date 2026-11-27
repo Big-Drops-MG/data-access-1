@@ -1,27 +1,27 @@
-import type { Metadata } from "next"
-import { Suspense } from "react"
+import { redirect } from "next/navigation"
 
-import { FeedbackPage } from "@/features/feedback/feedback-page"
-import { getSession } from "@/lib/auth"
+type Search = Record<string, string | string[] | undefined>
 
-export const metadata: Metadata = {
-  title: "Complaints",
+function searchSuffix(searchParams: Search): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (typeof value === "string") {
+      query.set(key, value)
+    } else if (Array.isArray(value)) {
+      for (const entry of value) {
+        query.append(key, entry)
+      }
+    }
+  }
+  const text = query.toString()
+  return text ? `?${text}` : ""
 }
 
-export default async function Page() {
-  const session = await getSession()
-
-  return (
-    <Suspense
-      fallback={
-        <div
-          className="h-40 animate-pulse rounded-md bg-surface-2"
-          data-testid="feedback-list-loading"
-          aria-hidden
-        />
-      }
-    >
-      <FeedbackPage currentUserId={session?.id ?? null} />
-    </Suspense>
-  )
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<Search>
+}) {
+  const params = await searchParams
+  redirect(`/feedback/complaints${searchSuffix(params)}`)
 }

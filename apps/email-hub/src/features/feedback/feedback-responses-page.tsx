@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useMemo } from "react"
 
 import { DataTable } from "@/components/app/data-table"
+import { ModuleSectionNav } from "@/components/app/module-section-nav"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
 import { useOfferSelection } from "@/components/app/offer-provider"
 import { PageHeader } from "@/components/app/page-header"
@@ -107,6 +108,19 @@ export function FeedbackResponsesPage({
 
   return (
     <section className="space-y-6" aria-label="Feedback responses">
+      <ModuleSectionNav
+        label="Feedback sections"
+        current="responses"
+        testId="feedback-sections"
+        items={[
+          { id: "responses", label: "Responses", href: "/feedback" },
+          {
+            id: "complaints",
+            label: "Complaints",
+            href: "/feedback/complaints",
+          },
+        ]}
+      />
       <PageHeader
         title="Feedback"
         description="User responses submitted from feedback forms. Review, classify, and decide on each response."

@@ -18,10 +18,12 @@ describe("fetchDashboardSummary", () => {
       day: "2026-11-20",
       kpis: { sent: 1, delivered: 1, bounced: 0, complaints: 0 },
       queues: [],
+      open_alert_count: 0,
       open_alerts: [],
       recent_sends: [],
       upcoming_sends: [],
       email_routes: [],
+      integrations: [],
     }
     apiJson.mockResolvedValue(summary)
 

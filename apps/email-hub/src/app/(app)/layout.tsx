@@ -40,9 +40,10 @@ export default async function AppShellLayout({
             name={session.name}
             jobTitle={session.jobTitle}
             image={session.image}
+            role={session.role}
             canViewAlerts={hasAtLeastRole(session, "operator")}
           />
-          <AppTabs role={session.role} />
+          <AppTabs />
           <div className="w-full flex-1 p-6">{children}</div>
         </div>
       </OfferProvider>

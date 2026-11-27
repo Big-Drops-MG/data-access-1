@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import {
+  ChevronDownIcon,
   LogOutIcon,
   MoonIcon,
   Settings2Icon,
@@ -22,12 +23,15 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 import { useTheme } from "@/components/theme-provider"
+import { visibleAdminNavItems } from "@/lib/app-nav"
 import { authClient } from "@/lib/auth-client"
+import type { AppRole } from "@/lib/permissions"
 
 type AppTopBarUserMenuProps = {
   name: string
   jobTitle: string
   image: string | null
+  role: AppRole
 }
 
 const MENU_LINKS = [
@@ -62,10 +66,13 @@ export function AppTopBarUserMenu({
   name,
   jobTitle,
   image,
+  role,
 }: AppTopBarUserMenuProps) {
+  const adminItems = visibleAdminNavItems(role)
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [open, setOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [signingOut, setSigningOut] = useState(false)
   const busy = pending || signingOut
@@ -90,8 +97,11 @@ export function AppTopBarUserMenu({
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)
-    if (!nextOpen && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
+    if (!nextOpen) {
+      setAdminOpen(false)
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
     }
   }
 
@@ -132,6 +142,51 @@ export function AppTopBarUserMenu({
         )}
         data-testid="app-top-bar-user-menu-panel"
       >
+        {adminItems.length > 0 ? (
+          <div data-testid="app-top-bar-admin">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-between"
+              aria-expanded={adminOpen}
+              aria-controls="app-top-bar-admin-menu"
+              onClick={() => setAdminOpen((current) => !current)}
+            >
+              Admin
+              <ChevronDownIcon
+                className={cn(
+                  "size-4 transition-transform",
+                  adminOpen && "rotate-180"
+                )}
+                aria-hidden
+              />
+            </Button>
+            {adminOpen ? (
+              <ul
+                id="app-top-bar-admin-menu"
+                className="m-0 list-none p-0"
+                data-testid="app-top-bar-admin-menu"
+              >
+                {adminItems.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        buttonVariants({ variant: "ghost" }),
+                        "w-full justify-start pl-6"
+                      )}
+                      data-testid={`app-top-bar-admin-${item.href.split("/").pop()}`}
+                    >
+                      {item.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="my-1 border-t border-border" role="separator" />
+          </div>
+        ) : null}
         {MENU_LINKS.map(({ label, href, icon: Icon, testId }) => (
           <Link
             key={href}
