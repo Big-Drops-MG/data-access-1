@@ -2,18 +2,12 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { DashboardPage } from "@/features/dashboard/dashboard-page"
-import { DashboardEmailRoutes } from "@/features/email-routes/dashboard-email-routes"
-import { getSession } from "@/lib/auth"
-import { hasAtLeastRole } from "@/lib/permissions"
 
 export const metadata: Metadata = {
   title: "Dashboard",
 }
 
-export default async function Page() {
-  const session = await getSession()
-  const canWrite = hasAtLeastRole(session, "operator")
-
+export default function Page() {
   return (
     <Suspense
       fallback={
@@ -24,9 +18,7 @@ export default async function Page() {
         />
       }
     >
-      <DashboardPage
-        emailRoutes={<DashboardEmailRoutes canWrite={canWrite} />}
-      />
+      <DashboardPage />
     </Suspense>
   )
 }

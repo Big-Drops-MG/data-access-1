@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useMemo } from "react"
 
+import { ModuleSectionNav } from "@/components/app/module-section-nav"
 import { useOfferSelection } from "@/components/app/offer-provider"
 import { DataTable } from "@/components/app/data-table"
 import { InlineErrorCard } from "@/components/app/inline-error-card"
@@ -92,6 +93,19 @@ export function FeedbackPage({ currentUserId = null }: FeedbackPageProps) {
 
   return (
     <div className="space-y-6">
+      <ModuleSectionNav
+        label="Feedback sections"
+        current="complaints"
+        testId="feedback-sections"
+        items={[
+          { id: "responses", label: "Responses", href: "/feedback" },
+          {
+            id: "complaints",
+            label: "Complaints",
+            href: "/feedback/complaints",
+          },
+        ]}
+      />
       <PageHeader
         title="Complaints"
         description="Domain reputation and per-user junk reports. Nothing is suppressed until a person decides."

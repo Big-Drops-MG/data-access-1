@@ -4,11 +4,13 @@ import { Queue } from "bullmq"
 import {
   alert,
   emailRoute,
+  integrationSyncState,
   offer,
   send,
   sender,
   template,
   type EmailRoute,
+  type IntegrationSyncState,
   type Send,
 } from "@workspace/db"
 import {
@@ -57,14 +59,24 @@ export type DashboardQueueCounts = {
   delayed: number
 }
 
+export type DashboardIntegration = {
+  key: string
+  status: IntegrationSyncState["status"]
+  last_success_at: string | null
+  last_attempt_at: string | null
+  last_error: string | null
+}
+
 export type DashboardSummary = {
   day: string
   kpis: DashboardKpis
   queues: DashboardQueueCounts[]
+  open_alert_count: number
   open_alerts: AlertJson[]
   recent_sends: SendJson[]
   upcoming_sends: SendJson[]
   email_routes: DashboardEmailRoute[]
+  integrations: DashboardIntegration[]
 }
 
 export type DashboardDeps = {
@@ -76,6 +88,7 @@ export type DashboardDeps = {
   ) => Promise<Record<string, unknown>[]>
   getQueueCounts?: () => Promise<DashboardQueueCounts[]>
   loadEmailRoutes?: (db: Db) => Promise<DashboardEmailRoute[]>
+  loadIntegrations?: (db: Db) => Promise<DashboardIntegration[]>
 }
 
 function asNumber(value: unknown): number {
@@ -162,6 +175,37 @@ export async function loadQueueCounts(): Promise<DashboardQueueCounts[]> {
   } finally {
     await Promise.all(queues.map((queue) => queue.close()))
   }
+}
+
+function isoOrNull(value: Date | null): string | null {
+  return value ? value.toISOString() : null
+}
+
+async function loadOpenAlertCount(db: Db): Promise<number> {
+  const rows = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(alert)
+    .where(eq(alert.status, "open"))
+  return asNumber(rows[0]?.total)
+}
+
+export async function loadDashboardIntegrations(
+  db: Db
+): Promise<DashboardIntegration[]> {
+  const rows = await db
+    .select()
+    .from(integrationSyncState)
+    .orderBy(
+      desc(integrationSyncState.lastAttemptAt),
+      asc(integrationSyncState.key)
+    )
+  return rows.map((row) => ({
+    key: row.key,
+    status: row.status,
+    last_success_at: isoOrNull(row.lastSuccessAt),
+    last_attempt_at: isoOrNull(row.lastAttemptAt),
+    last_error: row.lastError,
+  }))
 }
 
 async function loadOpenAlerts(
@@ -257,24 +301,37 @@ export async function getDashboardSummary(
   const runClickHouse = deps.runClickHouse ?? clickhouseQuery
   const getQueueCounts = deps.getQueueCounts ?? loadQueueCounts
   const loadEmailRoutes = deps.loadEmailRoutes ?? loadDashboardEmailRoutes
+  const loadIntegrations = deps.loadIntegrations ?? loadDashboardIntegrations
 
-  const [kpis, queues, openAlerts, upcomingSends, recentSends, emailRoutes] =
-    await Promise.all([
-      loadTodayKpis(day, runClickHouse),
-      getQueueCounts(),
-      loadOpenAlerts(db),
-      loadUpcomingSends(db, now),
-      loadRecentSends(db),
-      loadEmailRoutes(db),
-    ])
+  const [
+    kpis,
+    queues,
+    openAlerts,
+    upcomingSends,
+    recentSends,
+    emailRoutes,
+    integrations,
+    openAlertCount,
+  ] = await Promise.all([
+    loadTodayKpis(day, runClickHouse),
+    getQueueCounts(),
+    loadOpenAlerts(db),
+    loadUpcomingSends(db, now),
+    loadRecentSends(db),
+    loadEmailRoutes(db),
+    loadIntegrations(db),
+    loadOpenAlertCount(db),
+  ])
 
   return {
     day,
     kpis,
     queues,
+    open_alert_count: openAlertCount,
     open_alerts: openAlerts,
     recent_sends: recentSends,
     upcoming_sends: upcomingSends,
     email_routes: emailRoutes,
+    integrations,
   }
 }
