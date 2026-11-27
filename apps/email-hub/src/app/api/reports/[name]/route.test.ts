@@ -60,11 +60,14 @@ describe("GET /api/reports/[name]", () => {
       data: [{ day: "2026-03-08", sent: 1 }],
     })
     expect(parseReportName).toHaveBeenCalledWith("sending")
-    expect(getReport).toHaveBeenCalledWith("sending", {
-      from: "2026-03-08",
-      to: "2026-03-08",
-      include_machine: false,
-    })
+    expect(getReport).toHaveBeenCalledWith(
+      "sending",
+      expect.objectContaining({
+        from: "2026-03-08",
+        to: "2026-03-08",
+        include_machine: false,
+      })
+    )
   })
 
   it("returns 422 when the range exceeds 92 days", async () => {

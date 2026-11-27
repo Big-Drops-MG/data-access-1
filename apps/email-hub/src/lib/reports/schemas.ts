@@ -7,6 +7,7 @@ export const REPORT_NAMES = [
   "engagement",
   "link-clicks",
   "environment",
+  "open-frequency",
   "provider-metrics",
 ] as const
 
@@ -46,6 +47,7 @@ export const reportQuerySchema = z
       .enum(["true", "false"])
       .optional()
       .transform((value) => value === "true"),
+    domain: z.string().trim().min(1).max(253).optional(),
   })
   .strict()
   .superRefine((value, ctx) => {

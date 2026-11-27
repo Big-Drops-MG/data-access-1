@@ -10,6 +10,7 @@ describe("buildReportQuery", () => {
       to: "2026-11-01",
       includeMachine: false,
     })
+    expect(plan.query).toContain("email_type")
     expect(plan.query).toContain("{from:Date}")
     expect(plan.query).toContain("{to:Date}")
     expect(plan.query).not.toContain("2026-03-08")
@@ -50,6 +51,22 @@ describe("buildReportQuery", () => {
     expect(plan.query).toContain("LIMIT {limit:UInt32}")
     expect(plan.query_params).toMatchObject({
       limit: LINK_CLICKS_TOP_LIMIT,
+      is_machine: 0,
+    })
+  })
+
+  it("buckets open frequency and binds the optional domain", () => {
+    const plan = buildReportQuery({
+      name: "open-frequency",
+      from: "2026-03-08",
+      to: "2026-03-14",
+      includeMachine: false,
+      domain: "mail.example.com",
+    })
+    expect(plan.query).toContain("email_events")
+    expect(plan.query).toContain("{domain:String}")
+    expect(plan.query_params).toMatchObject({
+      domain: "mail.example.com",
       is_machine: 0,
     })
   })
