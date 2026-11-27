@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import { Send } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -339,68 +340,106 @@ function OpenAlerts({ alerts }: { alerts: AlertJson[] }) {
   )
 }
 
+const sendColumns =
+  "grid w-full grid-cols-[minmax(0,1fr)_7.5rem_11rem_7.5rem] items-center gap-x-8"
+
 function SendsTable({ sends }: { sends: SendJson[] }) {
   return (
     <section
       className="rounded-xl border border-border bg-surface"
       data-testid="dashboard-sends"
     >
-      <header className="flex items-center justify-between gap-3 px-4 py-3">
+      <header className="flex items-center justify-between gap-3 px-4 pt-4">
         <h2 className="text-sm font-semibold text-fg">Sends</h2>
-        <p className="text-caption text-fg-muted tabular-nums">
-          {formatCount(sends.length)} {sends.length === 1 ? "send" : "sends"}
-        </p>
+        <Link href="/sends" className="text-sm text-fg-muted hover:text-fg">
+          All sends
+        </Link>
       </header>
-      {sends.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-fg-muted">No sends.</p>
-      ) : (
+      <div className="px-4 pt-3 pb-4">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] border-collapse text-left text-sm">
+          <table className="block w-full min-w-[36rem] text-left text-sm">
             <caption className="sr-only">Recent and upcoming sends</caption>
-            <thead className="sr-only">
-              <tr>
-                <th>Send</th>
-                <th>Status</th>
-                <th>Recipients</th>
-                <th>When</th>
+            <thead className="block w-full">
+              <tr
+                className={cn(
+                  sendColumns,
+                  "pb-3 text-[11px] font-medium tracking-wide text-fg-muted uppercase"
+                )}
+              >
+                <th scope="col" className="text-left font-medium">
+                  Send
+                </th>
+                <th scope="col" className="text-left font-medium">
+                  Status
+                </th>
+                <th
+                  scope="col"
+                  className="text-left font-medium whitespace-nowrap"
+                >
+                  Scheduled (ET)
+                </th>
+                <th scope="col" className="text-right font-medium">
+                  Recipients
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {sends.map((send) => (
-                <tr
-                  key={send.id}
-                  className="border-t border-border"
-                  data-testid="dashboard-send-row"
-                >
-                  <th
-                    scope="row"
-                    className="w-full px-4 py-3 font-medium text-fg"
+            {sends.length > 0 ? (
+              <tbody className="block w-full">
+                {sends.map((send) => (
+                  <tr
+                    key={send.id}
+                    className={cn(sendColumns, "border-t border-border")}
+                    data-testid="dashboard-send-row"
                   >
-                    <Link
-                      href={`/sends/${send.id}`}
-                      className="hover:underline"
-                    >
-                      {send.name}
-                    </Link>
-                  </th>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <StatusBadge status={send.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap text-fg tabular-nums">
-                    {formatCount(send.counts.total)}
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    <EtDateTime
-                      value={send.completed_at ?? send.scheduled_for}
-                      className="text-[13px] text-fg-muted"
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                    <th scope="row" className="py-3 font-medium text-fg">
+                      <Link
+                        href={`/sends/${send.id}`}
+                        className="hover:underline"
+                      >
+                        {send.name}
+                      </Link>
+                    </th>
+                    <td className="py-3 whitespace-nowrap">
+                      <StatusBadge status={send.status} />
+                    </td>
+                    <td className="py-3 whitespace-nowrap">
+                      <EtDateTime
+                        value={send.completed_at ?? send.scheduled_for}
+                        className="text-[13px] text-fg-muted"
+                      />
+                    </td>
+                    <td className="py-3 text-right whitespace-nowrap text-fg tabular-nums">
+                      {formatCount(send.counts.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            ) : null}
           </table>
         </div>
-      )}
+        {sends.length === 0 ? (
+          <div
+            className="flex flex-col items-center rounded-lg bg-surface-2 px-6 py-10 text-center"
+            data-testid="dashboard-sends-empty"
+          >
+            <div className="flex size-10 items-center justify-center rounded-full bg-accent/15 text-accent">
+              <Send aria-hidden className="size-4" strokeWidth={1.75} />
+            </div>
+            <p className="mt-3 text-sm font-semibold text-fg">No sends yet</p>
+            <p className="mt-1 max-w-sm text-sm text-fg-muted">
+              Create your first campaign to start sending. Drafts, scheduled
+              sends, and completed sends will appear here.
+            </p>
+            <Link
+              href="/sends/new"
+              className="mt-4 inline-flex h-8 items-center justify-center rounded-lg bg-accent px-3 text-sm font-medium text-on-primary hover:bg-accent/90"
+              data-testid="dashboard-create-campaign"
+            >
+              Create first campaign
+            </Link>
+          </div>
+        ) : null}
+      </div>
     </section>
   )
 }
