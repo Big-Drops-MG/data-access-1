@@ -1,5 +1,22 @@
 import { formatEtDate } from "@workspace/shared/client"
 
+export const DISPLAYED_EMAIL_CLIENTS = [
+  "Apple Mail",
+  "Gmail",
+  "Outlook",
+  "Yahoo Mail",
+] as const
+
+export const OTHER_EMAIL_CLIENT = "Other"
+
+export function clientGroupLabel(raw: string): string {
+  const normalized = raw.trim().toLowerCase()
+  const match = DISPLAYED_EMAIL_CLIENTS.find(
+    (name) => name.toLowerCase() === normalized
+  )
+  return match ?? OTHER_EMAIL_CLIENT
+}
+
 export type SendingRow = {
   day: string
   sending_domain: string
@@ -459,7 +476,7 @@ export function buildEngagementView(input: {
   const devices = new Map<string, { opens: number; clicks: number }>()
   const locations = new Map<string, { clicks: number; unsubscribes: number }>()
   for (const row of input.environment) {
-    const client = row.client.trim() || "Unknown"
+    const client = clientGroupLabel(row.client)
     clients.set(client, (clients.get(client) ?? 0) + row.opens)
     const device =
       [row.device_type.trim(), row.os.trim()].filter(Boolean).join(" · ") ||

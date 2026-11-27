@@ -10,13 +10,13 @@ import { StatusBadge } from "@/components/app/status-badge"
 import { isApiError } from "@/lib/api-client"
 
 import type { InboxPlacementPayload } from "./api"
+import { DeliveredBouncedChart } from "./delivered-bounced-chart"
+import { EmailClientChart, OpenFrequencyChart } from "./engagement-charts"
 import type { EngagementView, ProviderView, SendView } from "./model"
 import {
   EmptyNote,
   formatCount,
   formatPercent,
-  GroupedBars,
-  HorizontalBars,
   KpiGrid,
   ListMark,
   PlacementMark,
@@ -38,12 +38,16 @@ export function SendPanel({
   error,
   onRetry,
   view,
+  from,
+  to,
   rangeLabel,
 }: {
   isLoading: boolean
   error: unknown
   onRetry: () => void
   view: SendView | null
+  from: string
+  to: string
   rangeLabel: string
 }) {
   if (isLoading && !view) {
@@ -65,11 +69,17 @@ export function SendPanel({
               { label: "Sent", value: formatCount(view.kpis.sent) },
               {
                 label: "Delivered",
-                value: formatPercent(view.kpis.deliveredRate, 1),
+                value:
+                  view.kpis.deliveredRate == null
+                    ? "0%"
+                    : formatPercent(view.kpis.deliveredRate, 1),
               },
               {
                 label: "Bounced",
-                value: formatPercent(view.kpis.bouncedRate, 2),
+                value:
+                  view.kpis.bouncedRate == null
+                    ? "0%"
+                    : formatPercent(view.kpis.bouncedRate, 2),
               },
               {
                 label: "Complaints",
@@ -81,25 +91,18 @@ export function SendPanel({
               },
             ]}
           />
-          <ReportSection
-            title="Delivered and bounced per day"
-            action={<p className="text-[12px] text-fg-muted">{rangeLabel}</p>}
+          <DeliveredBouncedChart
+            rows={view.daily.map((row) => ({
+              day: row.day,
+              label: row.label,
+              delivered: row.delivered,
+              bounced: row.bounced,
+            }))}
+            from={from}
+            to={to}
+            rangeLabel={rangeLabel}
             testId="reports-send-chart"
-          >
-            {view.daily.length === 0 ? (
-              <EmptyNote>No sends in this range.</EmptyNote>
-            ) : (
-              <GroupedBars
-                leftLabel="Delivered"
-                rightLabel="Bounced"
-                rows={view.daily.map((row) => ({
-                  label: row.label,
-                  left: row.delivered,
-                  right: row.bounced,
-                }))}
-              />
-            )}
-          </ReportSection>
+          />
           <ReportSection title="By sending domain" testId="reports-by-domain">
             <VolumeTable
               rows={view.domains}
@@ -174,7 +177,7 @@ function VolumeTable({
           formatCount(row.opens),
           formatCount(row.clicks),
           formatCount(row.unsubscribes),
-          formatPercent(row.bounceRate, 2),
+          row.bounceRate == null ? "0%" : formatPercent(row.bounceRate, 2),
         ],
       }))}
     />
@@ -187,7 +190,6 @@ export function EngagementPanel({
   onRetry,
   view,
   includeMachine,
-  onIncludeMachine,
   domainFiltered,
 }: {
   isLoading: boolean
@@ -195,15 +197,11 @@ export function EngagementPanel({
   onRetry: () => void
   view: EngagementView | null
   includeMachine: boolean
-  onIncludeMachine: (value: boolean) => void
   domainFiltered: boolean
 }) {
   if (isLoading && !view) {
     return <PageSkeleton withHeader={false} />
   }
-  const frequencyMax = view
-    ? Math.max(...view.frequency.map((row) => row.recipients), 0)
-    : 0
   return (
     <div className="space-y-4" data-testid="reports-engagement">
       {error ? (
@@ -222,55 +220,15 @@ export function EngagementPanel({
       {view ? (
         <>
           <div className="grid gap-4 xl:grid-cols-2">
-            <ReportSection
-              title="How many times people opened"
+            <OpenFrequencyChart
+              rows={view.frequency}
+              includeMachine={includeMachine}
               testId="reports-open-frequency"
-              action={
-                <button
-                  type="button"
-                  className="rounded-md border border-border px-2.5 py-1 text-[12px] font-medium text-fg"
-                  aria-pressed={includeMachine}
-                  onClick={() => onIncludeMachine(!includeMachine)}
-                >
-                  {includeMachine
-                    ? "Apple Mail included"
-                    : "Apple Mail excluded"}
-                </button>
-              }
-            >
-              <p className="px-4 pt-3 text-[12px] text-fg-muted">
-                Unique recipients
-              </p>
-              {frequencyMax === 0 ? (
-                <EmptyNote>No opens in this range.</EmptyNote>
-              ) : (
-                <HorizontalBars
-                  valueLabel="recipients"
-                  rows={view.frequency.map((row) => ({
-                    label: row.label,
-                    value: row.recipients,
-                    display: formatCount(row.recipients),
-                  }))}
-                />
-              )}
-            </ReportSection>
-            <ReportSection title="Email client" testId="reports-email-client">
-              {view.clients.length === 0 ? (
-                <EmptyNote>No client data in this range.</EmptyNote>
-              ) : (
-                <HorizontalBars
-                  valueLabel="of opens"
-                  rows={view.clients.map((row) => ({
-                    label: row.label,
-                    value: row.opens,
-                    display: formatPercent(row.share, 1),
-                    barClass: row.label.toLowerCase().includes("apple")
-                      ? "bg-chart-3"
-                      : "bg-chart-1",
-                  }))}
-                />
-              )}
-            </ReportSection>
+            />
+            <EmailClientChart
+              rows={view.clients}
+              testId="reports-email-client"
+            />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <ReportSection title="Top links" testId="reports-top-links">

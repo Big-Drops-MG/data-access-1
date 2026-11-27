@@ -4,6 +4,7 @@ import {
   buildEngagementView,
   buildProviderView,
   buildSendView,
+  clientGroupLabel,
   type EngagementRow,
   type ProviderMetricRow,
   type SendingRow,
@@ -222,5 +223,15 @@ describe("buildProviderView", () => {
       summary: "No reports",
       healthy: false,
     })
+  })
+})
+
+describe("clientGroupLabel", () => {
+  it("keeps displayed clients and groups everything else under Other", () => {
+    expect(clientGroupLabel("Apple Mail")).toBe("Apple Mail")
+    expect(clientGroupLabel(" gmail ")).toBe("Gmail")
+    expect(clientGroupLabel("Samsung Email")).toBe("Other")
+    expect(clientGroupLabel("Thunderbird")).toBe("Other")
+    expect(clientGroupLabel("")).toBe("Other")
   })
 })
