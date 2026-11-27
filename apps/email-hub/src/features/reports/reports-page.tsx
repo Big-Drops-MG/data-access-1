@@ -3,8 +3,20 @@
 import { Download } from "lucide-react"
 import { useMemo, useState } from "react"
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { cn } from "@workspace/ui/lib/utils"
 
+import {
+  DateRangePicker,
+  resolveDateRangePreset,
+  type DateRangeSelection,
+} from "@/components/app/date-range-picker"
 import { PageHeader } from "@/components/app/page-header"
 
 import {
@@ -17,9 +29,7 @@ import {
   normalizeLinkRows,
   normalizeProviderRows,
   normalizeSendingRows,
-  reportWindow,
   sendingDomainOptions,
-  shortDayLabel,
   toCsv,
   type VolumeRow,
 } from "./model"
@@ -29,10 +39,7 @@ import {
   ProviderPanel,
   SendPanel,
 } from "./reports-panels"
-import {
-  reportsOutlineButtonClass,
-  reportsSelectClass,
-} from "./reports-widgets"
+import { reportsOutlineButtonClass } from "./reports-widgets"
 import { useReportsQueries } from "./use-reports"
 
 const TABS = [
@@ -43,12 +50,6 @@ const TABS = [
 ] as const
 
 type ReportTab = (typeof TABS)[number]["id"]
-
-const RANGES = [
-  { days: 7, label: "Last 7 days" },
-  { days: 30, label: "Last 30 days" },
-  { days: 90, label: "Last 90 days" },
-] as const
 
 function volumeCsv(rows: VolumeRow[]): string {
   return toCsv(
@@ -87,14 +88,15 @@ function downloadCsv(filename: string, csv: string) {
 
 export function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>("send")
-  const [rangeDays, setRangeDays] = useState<(typeof RANGES)[number]["days"]>(7)
+  const [dateRange, setDateRange] = useState<DateRangeSelection>(() =>
+    resolveDateRangePreset("last_7_days")
+  )
   const [domain, setDomain] = useState("all")
   const [providerDomain, setProviderDomain] = useState<string | null>(null)
-  const [includeMachine, setIncludeMachine] = useState(false)
+  const includeMachine = false
 
-  const range = useMemo(() => reportWindow(rangeDays), [rangeDays])
-  const rangeLabel =
-    RANGES.find((item) => item.days === rangeDays)?.label ?? "Last 7 days"
+  const range = { from: dateRange.from, to: dateRange.to }
+  const rangeLabel = dateRange.label
   const selectedDomain = domain === "all" ? null : domain
   const queries = useReportsQueries({
     from: range.from,
@@ -211,74 +213,102 @@ export function ReportsPage() {
     }
   }
 
+  const domainTriggerClass =
+    "h-9 min-w-[15rem] max-w-[22rem] rounded-md border-border bg-surface px-3 text-sm text-fg shadow-none transition-colors hover:bg-surface-2 focus-visible:border-border focus-visible:ring-0 focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+  const selectContentClass =
+    "min-w-[14rem] rounded-lg border border-border bg-surface p-1 text-fg shadow-md ring-0"
+  const selectItemClass =
+    "rounded-md py-1.5 pr-8 pl-2.5 text-sm text-fg focus:bg-surface-2 focus:text-fg"
+
+  const activeDomainValue =
+    domains.includes(domain) || domain === "all" ? domain : "all"
+  const activeDomainLabel =
+    activeDomainValue === "all" ? "All domains" : activeDomainValue
+  const providerDomains = providerView?.domains ?? []
+  const activeProviderDomain = providerView?.selectedDomain ?? ""
+
   const domainControl =
     tab === "provider" ? (
-      <label className="inline-flex items-center gap-2 text-sm text-fg">
-        <span className="sr-only">Postmaster domain</span>
-        <select
-          className={reportsSelectClass}
-          value={providerView?.selectedDomain ?? ""}
-          onChange={(event) => setProviderDomain(event.target.value)}
+      <Select
+        value={activeProviderDomain || undefined}
+        disabled={providerDomains.length === 0}
+        onValueChange={(next) => {
+          if (next != null) {
+            setProviderDomain(next)
+          }
+        }}
+      >
+        <SelectTrigger
+          aria-label="Postmaster domain"
+          size="default"
           data-testid="reports-provider-domain"
+          className={domainTriggerClass}
         >
-          {(providerView?.domains.length ?? 0) === 0 ? (
-            <option value="">No domains</option>
-          ) : (
-            providerView?.domains.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
-    ) : (
-      <label className="inline-flex items-center gap-2 text-sm text-fg">
-        <span className="sr-only">Sending domain</span>
-        <select
-          className={reportsSelectClass}
-          value={domains.includes(domain) || domain === "all" ? domain : "all"}
-          onChange={(event) => setDomain(event.target.value)}
-          data-testid="reports-domain"
+          <SelectValue placeholder="No domains">
+            {activeProviderDomain || "No domains"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          align="end"
+          side="bottom"
+          sideOffset={6}
+          className={selectContentClass}
         >
-          <option value="all">All domains</option>
-          {domains.map((item) => (
-            <option key={item} value={item}>
+          {providerDomains.map((item) => (
+            <SelectItem key={item} value={item} className={selectItemClass}>
               {item}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-      </label>
+        </SelectContent>
+      </Select>
+    ) : (
+      <Select
+        value={activeDomainValue}
+        onValueChange={(next) => {
+          if (next != null) {
+            setDomain(next)
+          }
+        }}
+      >
+        <SelectTrigger
+          aria-label="Sending domain"
+          size="default"
+          data-testid="reports-domain"
+          className={domainTriggerClass}
+        >
+          <SelectValue placeholder="All domains">
+            {activeDomainLabel}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          align="end"
+          side="bottom"
+          sideOffset={6}
+          className={selectContentClass}
+        >
+          <SelectItem value="all" className={selectItemClass}>
+            All domains
+          </SelectItem>
+          {domains.map((item) => (
+            <SelectItem key={item} value={item} className={selectItemClass}>
+              {item}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     )
 
   return (
     <div className="space-y-6" data-testid="reports-page">
       <PageHeader
         title="Reports"
-        meta={`${shortDayLabel(range.from)} – ${shortDayLabel(range.to)} ET`}
         actions={
           <>
-            <label>
-              <span className="sr-only">Date range</span>
-              <select
-                className={reportsSelectClass}
-                value={String(rangeDays)}
-                onChange={(event) =>
-                  setRangeDays(
-                    Number(
-                      event.target.value
-                    ) as (typeof RANGES)[number]["days"]
-                  )
-                }
-                data-testid="reports-range"
-              >
-                {RANGES.map((item) => (
-                  <option key={item.days} value={item.days}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              testId="reports-range"
+            />
             {domainControl}
             <button
               type="button"
@@ -328,6 +358,8 @@ export function ReportsPage() {
             void queries.engagement.refetch()
           }}
           view={sendView}
+          from={range.from}
+          to={range.to}
           rangeLabel={rangeLabel}
         />
       ) : null}
@@ -352,7 +384,6 @@ export function ReportsPage() {
           }}
           view={engagementView}
           includeMachine={includeMachine}
-          onIncludeMachine={setIncludeMachine}
           domainFiltered={selectedDomain != null}
         />
       ) : null}
